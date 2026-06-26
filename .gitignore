@@ -216,3 +216,19 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project-specific: large data files
+DataSets/
+data/raw/
+data/processed/
+data/cache/
+*.parquet
+*.csv
+
+# Stockfish binary
+stockfish*
+*.exe
+
+# Environment / secrets
+.env
+*.key
