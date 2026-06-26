@@ -77,6 +77,9 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
+# Strip outputs before committing — outputs are too large for GitHub
+# Run: python -c "import json,pathlib; ..."  or use nbstripout
+
 
 # IPython
 profile_default/
