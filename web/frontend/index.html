@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Chess Puzzle Advisor</title>
+
+<!-- Bulma CSS -->
+<link rel="stylesheet" href="css/bulma.min.css"/>
+
+<style>
+/* ── Dark theme override ───────────────────────────────────────────── */
+:root{
+  --bg:#0f1117;--surface:#1a1d27;--surface2:#21253a;--border:#2e3348;
+  --accent:#c9a84c;--accent-dim:#7a6330;
+  --green:#4caf7d;--green-dim:rgba(76,175,125,.2);
+  --red:#e05c5c;--red-dim:rgba(224,92,92,.18);
+  --text:#e8eaf0;--text-muted:#6b7080;--text-dim:#9199ad;
+}
+html,body{background:var(--bg);color:var(--text);min-height:100vh;font-family:'Segoe UI',system-ui,sans-serif}
+
+/* Bulma dark overrides */
+.navbar{background:rgba(15,17,23,.95)!important;border-bottom:1px solid var(--border);backdrop-filter:blur(10px)}
+.navbar-item,.navbar-link{color:var(--text)!important}
+.navbar-brand .navbar-item{font-weight:700;font-size:1.1rem}
+.accent{color:var(--accent)}
+
+.card{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:10px}
+.card+.card{margin-top:12px}
+.card-content{padding:1rem 1.2rem}
+
+.select select,.input{background:var(--surface2);border-color:var(--border);color:var(--text)}
+.select select:focus,.input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(201,168,76,.2)}
+.select::after{border-color:var(--accent)!important}
+
+.button.is-warning{background:var(--accent);color:#1a1200;font-weight:700;border:none}
+.button.is-warning:hover{background:#d9b85a}
+.button.is-dark{background:var(--surface2);color:var(--text-dim);border:1px solid var(--border)}
+.button.is-dark:hover{border-color:var(--accent-dim);color:var(--accent)}
+.button.is-info.is-light{background:var(--surface2);color:#88aaee;border:1px solid var(--border)}
+.button.is-info.is-light:hover{border-color:#5588cc;color:#aac4f0}
+
+.tag.is-dark{background:var(--surface2);color:var(--text-dim);border:1px solid var(--border)}
+.tag.is-warning{background:rgba(201,168,76,.15);color:var(--accent);border:1px solid rgba(201,168,76,.3)}
+
+/* Navbar select */
+.navbar-filter{display:flex;align-items:center;gap:10px;padding:0 12px}
+.navbar-filter label{font-size:.82rem;color:var(--text-muted);white-space:nowrap}
+.navbar-filter .select select{font-size:.82rem;padding:4px 28px 4px 10px;height:auto}
+
+/* ── Chess board ───────────────────────────────────────────────────── */
+.board-wrap{border-radius:10px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.5),0 0 0 3px var(--border);transition:box-shadow .3s;display:inline-block}
+.board-wrap.correct{box-shadow:0 4px 24px rgba(0,0,0,.5),0 0 0 3px var(--green),0 0 32px var(--green-dim)}
+.board-wrap.wrong{box-shadow:0 4px 24px rgba(0,0,0,.5),0 0 0 3px var(--red),0 0 32px var(--red-dim)}
+.chess-board{display:grid;grid-template-columns:repeat(8,60px);grid-template-rows:repeat(8,60px);width:480px;height:480px;user-select:none}
+.sq{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .12s}
+.sq-light{background:#f0d9b5}.sq-dark{background:#b58863}
+.sq.hl-from{background:rgba(201,168,76,.82)!important}
+.sq.hl-to{background:rgba(201,168,76,.65)!important}
+.sq.hl-hint{background:rgba(90,150,255,.70)!important}
+.sq.hl-legal::after{content:'';position:absolute;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.18);pointer-events:none}
+.coord{position:absolute;font-size:10px;font-weight:700;line-height:1;pointer-events:none;z-index:1}
+.coord-rank{top:3px;left:3px}.coord-file{bottom:2px;right:3px}
+.sq-light .coord{color:#b58863}.sq-dark .coord{color:#f0d9b5}
+.piece{font-size:46px;line-height:1;cursor:grab;position:relative;z-index:2;transition:transform .1s;display:flex;align-items:center;justify-content:center}
+.piece:active{cursor:grabbing;transform:scale(1.15)}
+.piece-w{color:#fff;text-shadow:0 0 2px #333,0 1px 3px rgba(0,0,0,.6);filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+.piece-b{color:#1a1a1a;text-shadow:0 0 1px #888,0 1px 2px rgba(0,0,0,.3);filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+
+/* ── Feedback banner ───────────────────────────────────────────────── */
+.feedback-banner{min-height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.88rem;font-weight:600;letter-spacing:.02em;transition:all .25s;opacity:0;margin-top:10px}
+.feedback-banner.show-correct{opacity:1;background:rgba(76,175,125,.15);color:var(--green);border:1px solid rgba(76,175,125,.3)}
+.feedback-banner.show-wrong{opacity:1;background:rgba(224,92,92,.12);color:var(--red);border:1px solid rgba(224,92,92,.3)}
+
+/* ── Info panel widgets ────────────────────────────────────────────── */
+.puzzle-id-code{font-family:'Courier New',monospace;font-size:.88rem;color:var(--accent);background:rgba(201,168,76,.12);padding:2px 8px;border-radius:4px}
+.game-link{color:var(--text-muted);text-decoration:none;font-size:.95rem;transition:color .2s}
+.game-link:hover{color:var(--accent)}
+.rating-big{font-size:1.6rem;font-weight:700;color:var(--text);line-height:1}
+
+.difficulty-badge{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:3px 9px;border-radius:20px;display:inline-block}
+.difficulty-badge.beginner{background:#1a3a2a;color:#6fcf97;border:1px solid #2a5a3a}
+.difficulty-badge.easy{background:#1e3a1e;color:#7ecb7e;border:1px solid #2a5a2a}
+.difficulty-badge.intermediate{background:#2a3020;color:#c8d66a;border:1px solid #3a4a25}
+.difficulty-badge.advanced{background:#332a14;color:#e0a040;border:1px solid #4a3a18}
+.difficulty-badge.hard{background:#331a14;color:#e07050;border:1px solid #4a2a18}
+.difficulty-badge.expert{background:#2e1a2e;color:#cc70cc;border:1px solid #441844}
+.difficulty-badge.master{background:#1a1a2e;color:#7070e0;border:1px solid #282848}
+
+.turn-dot{width:13px;height:13px;border-radius:50%;display:inline-block;flex-shrink:0;margin-right:10px}
+.turn-dot.white{background:#f0d9b5;box-shadow:0 0 7px rgba(240,217,181,.6)}
+.turn-dot.black{background:#3a2e26;border:2px solid #7a6a5a}
+
+/* Progress */
+.progress-track{height:4px;background:var(--surface2);border-radius:4px;overflow:hidden;margin:8px 0}
+.progress-bar-inner{height:100%;background:var(--accent);border-radius:4px;transition:width .4s ease;width:0%}
+.move-dots{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.move-dot{width:10px;height:10px;border-radius:50%;background:var(--surface2);border:1.5px solid var(--border);transition:all .25s}
+.move-dot.auto{background:var(--text-muted);border-color:var(--text-muted)}
+.move-dot.correct{background:var(--green);border-color:var(--green)}
+.move-dot.wrong{background:var(--red);border-color:var(--red)}
+
+/* Move log */
+.move-log-body{max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
+.log-entry{display:flex;align-items:center;gap:8px;font-size:.82rem}
+.log-entry .move-num{color:var(--text-muted);min-width:22px;font-size:.77rem}
+.log-entry .move-san{font-family:'Courier New',monospace;font-size:.86rem}
+.log-entry .move-tag{font-size:.7rem;padding:1px 6px;border-radius:10px;margin-left:auto}
+.log-entry.auto-move .move-tag{background:var(--surface2);color:var(--text-muted)}
+.log-entry.player-correct .move-tag{background:rgba(76,175,125,.15);color:var(--green)}
+.log-entry.player-wrong .move-tag{background:rgba(224,92,92,.12);color:var(--red)}
+
+/* Solved overlay */
+.solved-overlay{display:none;position:absolute;inset:0;background:rgba(15,17,23,.95);backdrop-filter:blur(6px);border-radius:10px;border:1px solid var(--green);flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:20;animation:fadeIn .3s ease}
+.solved-overlay.is-active{display:flex}
+.solved-icon{width:56px;height:56px;border-radius:50%;background:rgba(76,175,125,.2);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:var(--green)}
+@keyframes fadeIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+
+/* Loading overlay */
+.loading-overlay{position:fixed;inset:0;background:rgba(15,17,23,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:999;font-size:.9rem;color:var(--text-muted);transition:opacity .3s}
+.loading-overlay.is-hidden{opacity:0;pointer-events:none}
+.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+.label-muted{font-size:.73rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:6px}
+</style>
+</head>
+<body>
+
+<!-- ── Navbar ─────────────────────────────────────────────────────────── -->
+<nav class="navbar is-fixed-top" role="navigation">
+  <div class="navbar-brand">
+    <a class="navbar-item" href="#">
+      ♟ Chess Puzzle <span class="accent">&nbsp;Advisor</span>
+    </a>
+  </div>
+  <div class="navbar-menu is-active" style="background:transparent;box-shadow:none">
+    <div class="navbar-end">
+      <div class="navbar-filter">
+        <label>Rating</label>
+        <div class="select is-small">
+          <select id="ratingFilter">
+            <option value="all">All levels</option>
+            <option value="600-999">Beginner (600–999)</option>
+            <option value="1000-1199">Easy (1000–1199)</option>
+            <option value="1200-1499" selected>Intermediate (1200–1499)</option>
+            <option value="1500-1799">Advanced (1500–1799)</option>
+            <option value="1800-1999">Hard (1800–1999)</option>
+            <option value="2000-2400">Expert (2000+)</option>
+          </select>
+        </div>
+      </div>
+      <div class="navbar-item">
+        <button class="button is-warning is-small" id="btnNext">Next puzzle →</button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<!-- ── Main layout ────────────────────────────────────────────────────── -->
+<section class="section" style="padding-top:5rem">
+  <div class="container is-widescreen">
+    <div class="columns is-variable is-6 is-vcentered">
+
+      <!-- Board column -->
+      <div class="column is-narrow">
+        <div class="board-wrap" id="boardWrap">
+          <div id="board"></div>
+        </div>
+        <div class="feedback-banner" id="feedbackBanner"></div>
+      </div>
+
+      <!-- Info column -->
+      <div class="column">
+
+        <!-- Puzzle identity -->
+        <div class="card">
+          <div class="card-content">
+            <div class="is-flex is-align-items-center is-justify-content-space-between mb-2">
+              <div class="is-flex is-align-items-center" style="gap:10px">
+                <span class="label-muted">Puzzle</span>
+                <span class="puzzle-id-code" id="puzzleId">—</span>
+              </div>
+              <a class="game-link" id="gameLink" href="#" target="_blank">↗ Game</a>
+            </div>
+            <div class="is-flex is-align-items-center mb-3" style="gap:12px">
+              <span class="difficulty-badge" id="difficultyBadge">—</span>
+              <span class="rating-big" id="ratingValue">—</span>
+              <span style="font-size:.8rem;color:var(--text-muted)">Rating</span>
+              <span style="margin-left:auto;font-size:.78rem;color:var(--text-muted)" id="playsLabel"></span>
+            </div>
+            <div class="tags" id="themesRow"></div>
+          </div>
+        </div>
+
+        <!-- Turn indicator -->
+        <div class="card">
+          <div class="card-content is-flex is-align-items-center py-3">
+            <span class="turn-dot" id="turnDot"></span>
+            <span id="turnText" style="font-weight:600;font-size:.95rem">Loading…</span>
+          </div>
+        </div>
+
+        <!-- Progress -->
+        <div class="card">
+          <div class="card-content">
+            <div class="is-flex is-justify-content-space-between mb-1">
+              <span class="label-muted">Progress</span>
+              <span style="font-size:.78rem;color:var(--text-muted)" id="progressFraction">0 / 0</span>
+            </div>
+            <div class="progress-track">
+              <div class="progress-bar-inner" id="progressBar"></div>
+            </div>
+            <div class="move-dots" id="moveDots"></div>
+          </div>
+        </div>
+
+        <!-- Move history -->
+        <div class="card">
+          <div class="card-content">
+            <p class="label-muted mb-2">Move history</p>
+            <div class="move-log-body" id="moveLog"></div>
+          </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="columns is-mobile mt-2" style="gap:0">
+          <div class="column">
+            <button class="button is-info is-light is-fullwidth" id="btnHint">💡 Hint</button>
+          </div>
+          <div class="column">
+            <button class="button is-dark is-fullwidth" id="btnFlip">⇅ Flip board</button>
+          </div>
+          <div class="column is-full mt-2" style="flex-basis:100%;padding-top:0">
+            <button class="button is-warning is-fullwidth" id="btnNextBottom">Next puzzle →</button>
+          </div>
+        </div>
+
+        <!-- Solved overlay (relative to info column) -->
+        <div class="solved-overlay" id="solvedCard">
+          <div class="solved-icon">✓</div>
+          <p style="font-size:1.25rem;font-weight:700;color:var(--green)">Puzzle solved!</p>
+          <p style="font-size:.85rem;color:var(--text-muted);text-align:center" id="solvedSub"></p>
+          <button class="button is-warning" id="btnSolvedNext">Next puzzle →</button>
+        </div>
+
+      </div><!-- /info column -->
+    </div><!-- /columns -->
+  </div>
+</section>
+
+<!-- Loading overlay -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <p>Loading puzzle…</p>
+</div>
+
+<script src="js/chess.min.js"></script>
+<script>
+'use strict';
+
+const API = 'http://localhost:5000';
+
+const GLYPHS = {
+  wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',
+  bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'
+};
+
+const DEMO = [
+  {id:'000Pw',fen:'6k1/5p1p/4p3/4q3/3nN3/2Q3P1/PP3P1P/6K1 w - - 2 37',
+   moves:['e4d2','d4e2','g1f1','e2c3'],rating:1550,ratingDeviation:75,popularity:92,nbPlays:626,
+   themes:['fork','endgame'],primaryCategory:'Fork',difficultyTier:'Advanced',
+   gameUrl:'https://lichess.org/au2lCK5o#73'},
+  {id:'0000D',fen:'5rk1/1p3ppp/pq3b2/8/8/1P1Q1N2/P4PPP/3R2K1 w - - 1 26',
+   moves:['d3d6','f8d8','d6d8','f6d8'],rating:1579,ratingDeviation:73,popularity:96,nbPlays:36672,
+   themes:['endgame'],primaryCategory:'Endgame',difficultyTier:'Advanced',
+   gameUrl:'https://lichess.org/F8M8OS71#53'},
+  {id:'003xY',fen:'6k1/pp3p1p/2p3p1/2b5/2Bn4/1P4P1/P4P1P/3R2K1 b - - 0 25',
+   moves:['d4f3','g1f1','c5e3','d1d8'],rating:1450,ratingDeviation:78,popularity:85,nbPlays:3400,
+   themes:['fork','endgame'],primaryCategory:'Fork',difficultyTier:'Intermediate',gameUrl:''},
+  {id:'004rZ',fen:'r1b1kb1r/ppqn1ppp/2p1pn2/3p4/2PP4/2NBPN2/PP3PPP/R1BQK2R w KQkq - 2 7',
+   moves:['d4d5','c6d5','c4d5','e6d5','c3d5','f6d5','d1d5'],rating:1720,ratingDeviation:77,
+   popularity:88,nbPlays:4100,themes:['discoveredAttack','middlegame'],
+   primaryCategory:'Discovered Attack',difficultyTier:'Hard',gameUrl:''},
+  {id:'005pN',fen:'r4rk1/1b2ppbp/pq1p1np1/1p6/3BP3/1BN2P2/PPP1Q1PP/R4RK1 b - - 0 15',
+   moves:['b6e3','e2e3','f6e4','c3e4','g7b2'],rating:1830,ratingDeviation:80,popularity:91,
+   nbPlays:6200,themes:['pin','sacrifice'],primaryCategory:'Pin',difficultyTier:'Hard',gameUrl:''},
+  {id:'006mQ',fen:'r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 3',
+   moves:['f1c4','f6e4','c4f7','e8f7'],rating:1380,ratingDeviation:73,popularity:90,nbPlays:8900,
+   themes:['fork','middlegame'],primaryCategory:'Fork',difficultyTier:'Intermediate',gameUrl:''},
+  {id:'007hK',fen:'8/8/8/8/3k4/8/3KR3/8 w - - 0 1',
+   moves:['e2e4','d4d3','e4e3'],rating:950,ratingDeviation:80,popularity:85,nbPlays:2100,
+   themes:['rookEndgame','endgame'],primaryCategory:'Rook Endgame',difficultyTier:'Easy',gameUrl:''},
+  {id:'008aB',fen:'r2qkb1r/pp3ppp/2n1pn2/2pp4/3P1B2/2PBPN2/PP3PPP/RN1QK2R b KQkq - 0 8',
+   moves:['c5d4','c3d4','f6e4','d4e5','d8a5'],rating:1620,ratingDeviation:76,popularity:89,
+   nbPlays:5300,themes:['hangingPiece','middlegame'],primaryCategory:'Hanging Piece',
+   difficultyTier:'Advanced',gameUrl:''},
+  {id:'009kT',fen:'r1b2rk1/pp2ppbp/2np1np1/q7/3NP3/2N1BP2/PPPQ2PP/R3KB1R w KQ - 3 10',
+   moves:['d4c6','b7c6','d2a5','d8a5'],rating:1250,ratingDeviation:74,popularity:88,nbPlays:7200,
+   themes:['hangingPiece','middlegame'],primaryCategory:'Hanging Piece',
+   difficultyTier:'Intermediate',gameUrl:''},
+  {id:'010vR',fen:'r2q1rk1/pp1bppbp/3p1np1/3P4/2P1PP2/2N5/PP1QB1PP/R3K2R b KQ - 0 13',
+   moves:['f6d5','c3d5','g7d4','d2d4'],rating:1680,ratingDeviation:79,popularity:86,nbPlays:3900,
+   themes:['fork','middlegame'],primaryCategory:'Fork',difficultyTier:'Advanced',gameUrl:''},
+];
+
+var chess=null, puzzle=null, moveIndex=0, playerColor='w',
+    orientation='white', hintUsed=false, selected=null,
+    highlights={}, dragFromSq=null;
+
+var $board=document.getElementById('board');
+var $feedback=document.getElementById('feedbackBanner');
+var $puzzleId=document.getElementById('puzzleId');
+var $gameLink=document.getElementById('gameLink');
+var $diffBadge=document.getElementById('difficultyBadge');
+var $rating=document.getElementById('ratingValue');
+var $plays=document.getElementById('playsLabel');
+var $themes=document.getElementById('themesRow');
+var $dot=document.getElementById('turnDot');
+var $turn=document.getElementById('turnText');
+var $bar=document.getElementById('progressBar');
+var $frac=document.getElementById('progressFraction');
+var $dots=document.getElementById('moveDots');
+var $log=document.getElementById('moveLog');
+var $solved=document.getElementById('solvedCard');
+var $solvedSub=document.getElementById('solvedSub');
+var $overlay=document.getElementById('loadingOverlay');
+var $wrap=document.getElementById('boardWrap');
+
+function buildBoard(){
+  $board.innerHTML='';
+  $board.className='chess-board';
+  var files=['a','b','c','d','e','f','g','h'];
+  var ranks=orientation==='white'?[8,7,6,5,4,3,2,1]:[1,2,3,4,5,6,7,8];
+  var ford=orientation==='white'?files:files.slice().reverse();
+  ranks.forEach(function(rank){
+    ford.forEach(function(file){
+      var sq=file+rank;
+      var light=(files.indexOf(file)+rank)%2!==0;
+      var cell=document.createElement('div');
+      cell.className='sq '+(light?'sq-light':'sq-dark');
+      cell.dataset.sq=sq;
+      if((orientation==='white'&&file==='a')||(orientation==='black'&&file==='h')){
+        var r=document.createElement('span');r.className='coord coord-rank';r.textContent=rank;cell.appendChild(r);
+      }
+      if((orientation==='white'&&rank===1)||(orientation==='black'&&rank===8)){
+        var f=document.createElement('span');f.className='coord coord-file';f.textContent=file;cell.appendChild(f);
+      }
+      cell.addEventListener('click',onSqClick);
+      cell.addEventListener('dragover',function(e){e.preventDefault();});
+      cell.addEventListener('drop',onDrop);
+      $board.appendChild(cell);
+    });
+  });
+}
+
+function render(){
+  document.querySelectorAll('.sq').forEach(function(cell){
+    cell.querySelectorAll('.piece').forEach(function(p){p.remove();});
+    var sq=cell.dataset.sq;
+    cell.classList.remove('hl-from','hl-to','hl-hint','hl-legal');
+    if(highlights[sq]) cell.classList.add(highlights[sq]);
+    var p=chess.get(sq);
+    if(!p) return;
+    var key=p.color+p.type.toUpperCase();
+    var el=document.createElement('span');
+    el.className='piece piece-'+p.color;
+    el.textContent=GLYPHS[key]||'?';
+    el.draggable=true;
+    el.dataset.sq=sq;
+    el.addEventListener('dragstart',onDragStart);
+    cell.appendChild(el);
+  });
+}
+
+function clrHL(){ highlights={}; selected=null; }
+function setHL(sq,cls){ highlights[sq]=cls; }
+
+function onDragStart(e){
+  var sq=e.target.dataset.sq;
+  var p=chess.get(sq);
+  if(!p||moveIndex>=puzzle.moves.length||moveIndex%2===0){e.preventDefault();return;}
+  if(p.color!==playerColor){e.preventDefault();return;}
+  dragFromSq=sq;
+  e.dataTransfer.effectAllowed='move';
+  e.dataTransfer.setData('text/plain',sq);
+}
+function onDrop(e){
+  e.preventDefault();
+  var to=e.currentTarget.dataset.sq;
+  if(!dragFromSq||!to) return;
+  tryMove(dragFromSq,to);
+  dragFromSq=null;
+}
+
+function onSqClick(e){
+  var sq=e.currentTarget.dataset.sq;
+  if(!puzzle||moveIndex>=puzzle.moves.length||moveIndex%2===0) return;
+  if(selected){
+    if(sq===selected){clrHL();render();return;}
+    var cp=chess.get(sq);
+    if(cp&&cp.color===playerColor){selectSq(sq);return;}
+    tryMove(selected,sq);
+  } else {
+    var p=chess.get(sq);
+    if(!p||p.color!==playerColor) return;
+    selectSq(sq);
+  }
+}
+function selectSq(sq){
+  clrHL(); selected=sq; setHL(sq,'hl-from');
+  chess.moves({square:sq,verbose:true}).forEach(function(m){setHL(m.to,'hl-legal');});
+  render();
+}
+
+function tryMove(from,to){
+  if(moveIndex%2===0||moveIndex>=puzzle.moves.length) return;
+  var exp=puzzle.moves[moveIndex];
+  var promo=exp.length>4?exp[4]:'q';
+  var result=chess.move({from:from,to:to,promotion:promo});
+  if(!result){clrHL();render();return;}
+  var correct=(from===exp.slice(0,2)&&to===exp.slice(2,4));
+  clrHL(); setHL(from,'hl-from'); setHL(to,'hl-to');
+  if(correct){
+    logMove(result.san,false,true);
+    dotStatus(moveIndex,'correct');
+    moveIndex++;
+    progress();
+    render();
+    if(moveIndex>=puzzle.moves.length){finish(true);}
+    else{feedback('✓ Correct!','correct');flashBoard('correct');turnLabel();autoMove(650);}
+  } else {
+    chess.undo();
+    logMove(result.san,false,false);
+    dotStatus(moveIndex,'wrong');
+    feedback('✗ Not the best move — try again','wrong');
+    flashBoard('wrong');
+    clrHL(); render();
+  }
+}
+
+function autoMove(delay){
+  setTimeout(function(){
+    if(!puzzle||moveIndex>=puzzle.moves.length) return;
+    var uci=puzzle.moves[moveIndex];
+    var from=uci.slice(0,2),to=uci.slice(2,4),promo=uci.length>4?uci[4]:'q';
+    var result=chess.move({from:from,to:to,promotion:promo});
+    if(!result){loadPuzzle();return;}
+    clrHL(); setHL(from,'hl-from'); setHL(to,'hl-to');
+    render();
+    logMove(result.san,true,null);
+    moveIndex++;
+    progress();
+    dotStatus(moveIndex-1,'auto');
+    turnLabel();
+  }, delay||400);
+}
+
+function loading(on){ $overlay.classList.toggle('is-hidden',!on); }
+
+function flashBoard(t){
+  $wrap.classList.remove('correct','wrong');
+  void $wrap.offsetWidth;
+  $wrap.classList.add(t);
+  setTimeout(function(){$wrap.classList.remove(t);},900);
+}
+
+function feedback(txt,t){
+  $feedback.textContent=txt;
+  $feedback.className='feedback-banner show-'+t;
+  setTimeout(function(){$feedback.className='feedback-banner';},2400);
+}
+
+function turnLabel(){
+  if(!puzzle||moveIndex>=puzzle.moves.length) return;
+  var t=chess.turn();
+  $dot.className='turn-dot '+(t==='w'?'white':'black');
+  $turn.textContent=t===playerColor?
+    (t==='w'?'White':'Black')+' to move — find the best move':
+    'Opponent is thinking…';
+}
+
+function buildDots(moves){
+  $dots.innerHTML='';
+  moves.forEach(function(_,i){
+    var d=document.createElement('div');d.className='move-dot';d.dataset.index=i;$dots.appendChild(d);
+  });
+}
+
+function dotStatus(idx,cls){
+  var d=$dots.querySelector('[data-index="'+idx+'"]');
+  if(!d) return;
+  d.classList.remove('auto','pending','correct','wrong');
+  d.classList.add(cls);
+}
+
+function progress(){
+  if(!puzzle) return;
+  var tot=puzzle.moves.length;
+  var pt=Math.ceil((tot-1)/2), pd=Math.floor(moveIndex/2);
+  var pct=tot<=1?100:Math.min(100,(moveIndex/(tot-1))*100);
+  $bar.style.width=pct+'%';
+  $frac.textContent=pd+' / '+pt;
+}
+
+function logMove(san,isAuto,isCorrect){
+  var entry=document.createElement('div');
+  var num=document.createElement('span');num.className='move-num';num.textContent=($log.children.length+1)+'.';
+  var mv=document.createElement('span');mv.className='move-san';mv.textContent=san;
+  var tag=document.createElement('span');tag.className='move-tag';
+  if(isAuto){entry.className='log-entry auto-move';tag.textContent='auto';}
+  else if(isCorrect){entry.className='log-entry player-correct';tag.textContent='✓';}
+  else{entry.className='log-entry player-wrong';tag.textContent='✗';}
+  entry.append(num,mv,tag);
+  $log.appendChild(entry);
+  $log.scrollTop=$log.scrollHeight;
+}
+
+function populateInfo(p){
+  $puzzleId.textContent=p.id;
+  $gameLink.href=p.gameUrl||'#';
+  $gameLink.style.visibility=p.gameUrl?'visible':'hidden';
+  var tier=(p.difficultyTier||'intermediate').toLowerCase().replace(/\s+/g,'-');
+  $diffBadge.textContent=p.difficultyTier||'—';
+  $diffBadge.className='difficulty-badge '+tier;
+  $rating.textContent=p.rating;
+  $plays.textContent=p.nbPlays?p.nbPlays.toLocaleString()+' plays':'';
+  $themes.innerHTML='';
+  (p.themes||[]).slice(0,8).forEach(function(t){
+    var tag=document.createElement('span');
+    tag.className='tag is-dark';
+    tag.style.marginRight='4px';tag.style.marginBottom='4px';
+    tag.textContent=t.replace(/([A-Z])/g,' $1').trim();
+    $themes.appendChild(tag);
+  });
+}
+
+function finish(ok){
+  flashBoard(ok?'correct':'wrong');
+  $dot.className='turn-dot '+(ok?'white':'black');
+  $turn.textContent=ok?'Puzzle solved! 🎉':'Puzzle failed.';
+  if(ok){
+    $solvedSub.textContent='Rating '+puzzle.rating+' · '+puzzle.primaryCategory+(hintUsed?' (hint used)':'');
+    $solved.classList.add('is-active');
+  }
+}
+
+function getFilter(){
+  var val=document.getElementById('ratingFilter').value;
+  if(val==='all') return {lo:600,hi:2400};
+  var parts=val.split('-').map(Number);
+  return {lo:parts[0],hi:parts[1]};
+}
+
+function fallback(lo,hi){
+  var pool=DEMO.filter(function(p){return p.rating>=lo&&p.rating<=hi;});
+  var src=pool.length?pool:DEMO;
+  return src[Math.floor(Math.random()*src.length)];
+}
+
+async function loadPuzzle(){
+  loading(true);
+  $solved.classList.remove('is-active');
+  $log.innerHTML='';
+  clrHL();
+
+  var f=getFilter();
+  try{
+    var ctrl=new AbortController();
+    setTimeout(function(){ctrl.abort();},2500);
+    var res=await fetch(API+'/api/puzzle/random?ratingMin='+f.lo+'&ratingMax='+f.hi,{signal:ctrl.signal});
+    if(!res.ok) throw new Error();
+    puzzle=await res.json();
+    if(typeof puzzle.moves==='string') puzzle.moves=puzzle.moves.split(' ');
+  } catch(_){
+    puzzle=fallback(f.lo,f.hi);
+  }
+
+  chess=new Chess(puzzle.fen);
+  moveIndex=0; hintUsed=false;
+  var startTurn=chess.turn();
+  playerColor=startTurn==='w'?'b':'w';
+  orientation=playerColor==='w'?'white':'black';
+
+  buildBoard(); render(); populateInfo(puzzle);
+  buildDots(puzzle.moves); progress();
+
+  $dot.className='turn-dot '+(startTurn==='w'?'white':'black');
+  $turn.textContent=(startTurn==='w'?'White':'Black')+' plays first…';
+
+  loading(false);
+  autoMove(500);
+}
+
+function showHint(){
+  if(!puzzle||moveIndex>=puzzle.moves.length||moveIndex%2===0) return;
+  var uci=puzzle.moves[moveIndex];
+  clrHL(); setHL(uci.slice(0,2),'hl-hint'); render();
+  hintUsed=true; feedback('💡 Move the highlighted piece','correct');
+}
+
+document.getElementById('btnNext').addEventListener('click',loadPuzzle);
+document.getElementById('btnNextBottom').addEventListener('click',loadPuzzle);
+document.getElementById('btnSolvedNext').addEventListener('click',loadPuzzle);
+document.getElementById('btnHint').addEventListener('click',showHint);
+document.getElementById('btnFlip').addEventListener('click',function(){
+  orientation=orientation==='white'?'black':'white';
+  buildBoard(); render();
+});
+document.getElementById('ratingFilter').addEventListener('change',loadPuzzle);
+
+loadPuzzle();
+</script>
+</body>
+</html>
