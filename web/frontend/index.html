@@ -69,6 +69,17 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
 .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
 .error-msg{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);
   color:var(--red);border-radius:7px;padding:10px 14px;font-size:.82rem;margin-bottom:14px}
+.auth-btn-row{display:flex;gap:8px;margin-bottom:0}
+.auth-btn-row .btn{flex:1}
+.auth-mode-hint{text-align:center;font-size:.8rem;color:var(--text-muted);margin-top:14px}
+.auth-mode-hint a{color:var(--accent);cursor:pointer;text-decoration:none}
+.auth-mode-hint a:hover{text-decoration:underline}
+.auth-user-badge{display:flex;align-items:center;gap:10px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:16px;font-size:.85rem}
+.auth-user-badge .badge-name{flex:1;font-weight:600;color:var(--text)}
+.auth-user-badge .badge-logout{color:var(--text-muted);cursor:pointer;font-size:.78rem;
+  background:none;border:none;padding:0}
+.auth-user-badge .badge-logout:hover{color:var(--red)}
 
 /* ── Profile view ──────────────────────────────────────────────────── */
 .profile-header{display:flex;align-items:center;gap:14px;margin-bottom:20px}
@@ -164,6 +175,32 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
   color:var(--text-dim);margin:14px 0 7px;padding-top:10px;
   border-top:1px solid var(--border)}
 .wk-section-label:first-child{margin-top:0;padding-top:0;border-top:none}
+
+/* ── Stats section ─────────────────────────────────────────────────── */
+.dash-stat-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+@media(max-width:580px){.dash-stat-tiles{grid-template-columns:repeat(2,1fr)}}
+.dash-stat-tile{background:var(--surface2);border:1px solid var(--border);border-radius:10px;
+  padding:12px 14px;text-align:center}
+.dash-stat-tile-val{font-size:1.3rem;font-weight:700;color:var(--text);line-height:1;
+  margin-bottom:4px}
+.dash-stat-tile-val.good{color:var(--green)}
+.dash-stat-tile-val.warn{color:var(--gold)}
+.dash-stat-tile-val.streak{color:var(--accent)}
+.dash-stat-tile-lbl{font-size:.67rem;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--text-muted)}
+.dash-chart-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+@media(max-width:580px){.dash-chart-row{grid-template-columns:1fr}}
+.dash-chart-wrap{background:var(--surface2);border:1px solid var(--border);
+  border-radius:10px;padding:12px 12px 8px}
+.dash-chart-lbl{font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--text-muted);margin-bottom:8px}
+.dash-chart-svg{width:100%;display:block;overflow:visible}
+.dash-cat-bar-row{display:flex;align-items:center;gap:8px;margin-bottom:5px;font-size:.78rem}
+.dash-cat-bar-name{width:120px;flex-shrink:0;color:var(--text-muted);
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-cat-bar-track{flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden}
+.dash-cat-bar-fill{height:100%;border-radius:3px}
+.dash-cat-bar-pct{width:34px;text-align:right;flex-shrink:0;color:var(--text)}
 
 /* ── Game header ───────────────────────────────────────────────────── */
 .game-header{position:fixed;top:0;left:0;right:0;height:54px;
@@ -359,13 +396,38 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
     <h1 class="auth-title">Chess Puzzle Advisor</h1>
     <p class="auth-sub">Adaptive training · MSc AI Dissertation</p>
 
+    <!-- shown when auto-login token is valid -->
+    <div id="autoLoginBadge" style="display:none" class="auth-user-badge">
+      <span>♟</span>
+      <span class="badge-name" id="autoLoginName"></span>
+      <button class="badge-logout" id="btnLogout">Log out</button>
+    </div>
+
     <div id="loginError" class="error-msg" style="display:none"></div>
 
-    <div class="form-group">
-      <label class="form-label" for="usernameInput">Chess.com username</label>
-      <input type="text" id="usernameInput" class="form-input" placeholder="e.g. hikaru" autocomplete="off" autocapitalize="none" spellcheck="false"/>
+    <div id="loginFields">
+      <div class="form-group">
+        <label class="form-label" for="usernameInput">Chess.com username</label>
+        <input type="text" id="usernameInput" class="form-input" placeholder="e.g. hikaru"
+               autocomplete="off" autocapitalize="none" spellcheck="false"/>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="passwordInput">Password</label>
+        <input type="password" id="passwordInput" class="form-input" placeholder="Your account password"/>
+      </div>
+      <div class="form-group" id="confirmPwGroup" style="display:none">
+        <label class="form-label" for="confirmPwInput">Confirm password</label>
+        <input type="password" id="confirmPwInput" class="form-input" placeholder="Repeat password"/>
+      </div>
+
+      <div class="auth-btn-row">
+        <button id="btnLogin"    class="btn btn-primary">Log In →</button>
+        <button id="btnRegister" class="btn btn-secondary" id="btnRegister">Create Account</button>
+      </div>
+      <p class="auth-mode-hint" id="authModeHint">
+        No account yet? <a id="authModeToggle">Register here</a>
+      </p>
     </div>
-    <button id="btnLookup" class="btn btn-primary btn-block">Load Profile →</button>
 
     <div class="divider"><span>or</span></div>
     <button id="btnGuest" class="btn btn-ghost btn-block">Play as Guest</button>
@@ -482,14 +544,39 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
 
     </div><!-- /dash-grid -->
 
+    <!-- Stats section (shown only for returning users with history) -->
+    <div id="dashStatsSection" class="dash-card" style="display:none">
+      <div class="dash-card-title">Training stats</div>
+      <div class="dash-stat-tiles" id="dashStatTiles"></div>
+      <div class="dash-chart-row">
+        <div class="dash-chart-wrap">
+          <div class="dash-chart-lbl">Accuracy trend (rolling 5-puzzle avg)</div>
+          <svg id="chartAccuracy" class="dash-chart-svg" viewBox="0 0 400 80" height="80"></svg>
+        </div>
+        <div class="dash-chart-wrap">
+          <div class="dash-chart-lbl">Puzzle rating over time</div>
+          <svg id="chartRating" class="dash-chart-svg" viewBox="0 0 400 80" height="80"></svg>
+        </div>
+      </div>
+      <div id="dashCatBars" style="display:none">
+        <div class="dash-chart-lbl" style="margin-top:6px">Category accuracy (from puzzle history)</div>
+        <div id="dashCatBarList"></div>
+      </div>
+    </div>
+
     <!-- Footer CTA -->
     <div class="dash-footer">
       <div class="dash-focus-note" id="dashFocusNote">
         The adaptive system will focus on your weakest areas first.
       </div>
-      <button class="btn btn-primary" id="btnStartTraining2">
-        Start Adaptive Training →
-      </button>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-ghost" id="btnDashLogout" style="font-size:.8rem;padding:8px 14px">
+          Log out
+        </button>
+        <button class="btn btn-primary" id="btnStartTraining2">
+          Start Adaptive Training →
+        </button>
+      </div>
     </div>
 
   </div><!-- /dash-wrap -->
@@ -646,7 +733,7 @@ const DEMO = [
   {id:'006mQ',fen:'r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 3',
    moves:['f1c4','f6e4','c4f7','e8f7'],rating:1380,
    themes:['fork','middlegame'],primaryCategory:'Fork',difficultyTier:'Intermediate',gameUrl:''},
-  {id:'007hK',fen:'8/8/8/8/3k4/8/3KR3/8 w - - 0 1',
+  {id:'007hK',fen:'8/8/8/8/3k4/8/4R1K1/8 w - - 0 1',
    moves:['e2e4','d4d3','e4e3'],rating:950,
    themes:['rookEndgame','endgame'],primaryCategory:'Rook Endgame',difficultyTier:'Easy',gameUrl:''},
   {id:'008aB',fen:'r2qkb1r/pp3ppp/2n1pn2/2pp4/3P1B2/2PBPN2/PP3PPP/RN1QK2R b KQkq - 0 8',
@@ -661,7 +748,8 @@ const DEMO = [
 ];
 
 /* ── Session state ──────────────────────────────────────────────────── */
-var currentUser = '';
+var currentUser  = '';
+var sessionToken = '';
 var sessionActive = false;
 var profileCache        = null;   // Chess.com profile (avatar, ratings)
 var analysisProfileCache = null;  // analysis profile (weaknesses, openings, ELO)
@@ -707,40 +795,146 @@ function showView(id) {
 }
 
 /* ════════════════════════════════════════════════════════════════════
+   AUTH HELPERS
+═══════════════════════════════════════════════════════════════════ */
+function _authHeaders() {
+  return sessionToken ? { 'Authorization': 'Bearer ' + sessionToken,
+                          'Content-Type': 'application/json' }
+                      : { 'Content-Type': 'application/json' };
+}
+
+function _saveSession(username, token) {
+  sessionToken = token;
+  currentUser  = username;
+  try {
+    localStorage.setItem('chess_user',  username);
+    localStorage.setItem('chess_token', token);
+  } catch(_) {}
+}
+
+function _clearSession() {
+  sessionToken = '';
+  currentUser  = '';
+  profileCache = null;
+  analysisProfileCache = null;
+  try { localStorage.removeItem('chess_user'); localStorage.removeItem('chess_token'); } catch(_) {}
+}
+
+/* On page load — try to resume a saved session */
+async function _tryAutoLogin() {
+  var u, t;
+  try { u = localStorage.getItem('chess_user'); t = localStorage.getItem('chess_token'); } catch(_) {}
+  if (!u || !t) return;
+  try {
+    var res  = await fetch(API + '/api/auth/check?username=' + encodeURIComponent(u),
+                           { headers: { 'Authorization': 'Bearer ' + t } });
+    var data = await res.json();
+    if (!data.valid) return;
+    _saveSession(u, t);
+    document.getElementById('autoLoginBadge').style.display = '';
+    document.getElementById('autoLoginName').textContent = u;
+    document.getElementById('loginFields').style.display = 'none';
+  } catch(_) {}
+}
+
+/* ════════════════════════════════════════════════════════════════════
    LOGIN FLOW
 ═══════════════════════════════════════════════════════════════════ */
+var _registerMode = false;
+
 function setLoginError(msg) {
   var el = document.getElementById('loginError');
   if (msg) { el.textContent = msg; el.style.display = ''; }
   else      { el.style.display = 'none'; }
 }
 
+function _setAuthMode(register) {
+  _registerMode = register;
+  document.getElementById('confirmPwGroup').style.display = register ? '' : 'none';
+  document.getElementById('btnLogin').style.display    = register ? 'none' : '';
+  document.getElementById('btnRegister').textContent   = register ? 'Create Account →' : 'Create Account';
+  document.getElementById('btnRegister').className     = register ? 'btn btn-primary' : 'btn btn-secondary';
+  document.getElementById('authModeHint').innerHTML    = register
+    ? 'Already have an account? <a id="authModeToggle">Log in</a>'
+    : 'No account yet? <a id="authModeToggle">Register here</a>';
+  document.getElementById('authModeToggle').onclick = function() { _setAuthMode(!_registerMode); };
+  setLoginError(null);
+}
+
+async function _afterAuth(username, token) {
+  _saveSession(username, token);
+  setLoginError(null);
+  /* load chess.com profile then show profile card */
+  try {
+    var res  = await fetch(API + '/api/player/lookup?username=' + encodeURIComponent(username));
+    var data = res.ok ? await res.json() : {};
+    profileCache = data;
+    showProfileCard(data);
+  } catch(_) {
+    /* fallback: skip profile card and go straight to dashboard */
+    showView('v-dashboard');
+  }
+}
+
 async function handleLogin() {
-  var username = document.getElementById('usernameInput').value.trim();
-  if (!username) { setLoginError('Please enter a username.'); return; }
+  var username = document.getElementById('usernameInput').value.trim().toLowerCase();
+  var password = document.getElementById('passwordInput').value;
+  if (!username) { setLoginError('Enter your Chess.com username.'); return; }
+  if (!password) { setLoginError('Enter your password.'); return; }
   setLoginError(null);
 
-  var btn = document.getElementById('btnLookup');
-  btn.textContent = 'Loading…'; btn.disabled = true;
-
+  var btn = document.getElementById('btnLogin');
+  btn.textContent = 'Logging in…'; btn.disabled = true;
   try {
-    var ctrl = new AbortController();
-    var tmo  = setTimeout(function(){ ctrl.abort(); }, 7000);
-    var res  = await fetch(API + '/api/player/lookup?username=' + encodeURIComponent(username),
-                           { signal: ctrl.signal });
-    clearTimeout(tmo);
-    if (!res.ok) throw new Error('Player not found on Chess.com');
+    var res  = await fetch(API + '/api/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
     var data = await res.json();
-    if (data.error) throw new Error(data.error);
-    currentUser   = username.toLowerCase();
-    profileCache  = data;
-    showProfileCard(data);
+    if (!res.ok) throw new Error(data.error || 'Login failed');
+    await _afterAuth(data.username, data.token);
   } catch(e) {
-    setLoginError(e.name === 'AbortError' ? 'Request timed out — check the server is running.'
-                                           : (e.message || 'Could not load profile.'));
+    setLoginError(e.message || 'Login failed.');
   } finally {
-    btn.textContent = 'Load Profile →'; btn.disabled = false;
+    btn.textContent = 'Log In →'; btn.disabled = false;
   }
+}
+
+async function handleRegister() {
+  var username = document.getElementById('usernameInput').value.trim().toLowerCase();
+  var password = document.getElementById('passwordInput').value;
+  var confirm  = document.getElementById('confirmPwInput').value;
+  if (!username) { setLoginError('Enter your Chess.com username.'); return; }
+  if (!password) { setLoginError('Enter a password.'); return; }
+  if (password !== confirm) { setLoginError('Passwords do not match.'); return; }
+  setLoginError(null);
+
+  var btn = document.getElementById('btnRegister');
+  btn.textContent = 'Creating…'; btn.disabled = true;
+  try {
+    var res  = await fetch(API + '/api/auth/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Registration failed');
+    await _afterAuth(data.username, data.token);
+  } catch(e) {
+    setLoginError(e.message || 'Registration failed.');
+  } finally {
+    btn.textContent = _registerMode ? 'Create Account →' : 'Create Account';
+    btn.disabled = false;
+  }
+}
+
+function handleLogout() {
+  _clearSession();
+  _setAuthMode(false);
+  document.getElementById('autoLoginBadge').style.display = 'none';
+  document.getElementById('loginFields').style.display = '';
+  document.getElementById('usernameInput').value = '';
+  document.getElementById('passwordInput').value = '';
+  showView('v-login');
 }
 
 function showProfileCard(data) {
@@ -861,10 +1055,11 @@ function showDashboard(profile) {
   _renderDashboard(profile);
   showView('v-dashboard');
   /* Async: load all-time history to populate the returning-user banner */
-  if (currentUser) {
-    fetch(API + '/api/user/stats/' + encodeURIComponent(currentUser))
-      .then(function(r){ return r.json(); })
-      .then(function(d){ _updateHistoryBanner(d); })
+  if (currentUser && sessionToken) {
+    fetch(API + '/api/user/stats/' + encodeURIComponent(currentUser),
+          { headers: { 'Authorization': 'Bearer ' + sessionToken } })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){ if (d) _updateHistoryBanner(d); })
       .catch(function(){});
   }
 }
@@ -1007,6 +1202,181 @@ function _updateHistoryBanner(data) {
     '<span>Best streak: ' + data.bestStreak + '</span>' +
     (lastStr ? '<span>Last session: ' + lastStr + '</span>' : '');
   banner.style.display = '';
+
+  _renderStatsCharts(data);
+}
+
+/* ─── Stats charts ─────────────────────────────────────────────────────────── */
+
+function _svgEl(tag, attrs) {
+  var el = document.createElementNS('http://www.w3.org/2000/svg', tag);
+  Object.keys(attrs).forEach(function(k) { el.setAttribute(k, attrs[k]); });
+  return el;
+}
+
+function _renderStatsCharts(data) {
+  var section = document.getElementById('dashStatsSection');
+  section.style.display = '';
+
+  /* ── Stat tiles ── */
+  var acc    = data.accuracy || 0;
+  var recAcc = data.recentAccuracy != null ? data.recentAccuracy : acc;
+  var tiles = [
+    { val: data.totalPuzzles,  lbl: 'Puzzles Done',     cls: '' },
+    { val: acc + '%',          lbl: 'All-Time Accuracy', cls: acc >= 70 ? 'good' : acc >= 50 ? 'warn' : '' },
+    { val: recAcc + '%',       lbl: 'Recent (last 20)',  cls: recAcc >= 70 ? 'good' : recAcc >= 50 ? 'warn' : '' },
+    { val: data.bestStreak,    lbl: 'Best Streak',       cls: 'streak' },
+  ];
+  document.getElementById('dashStatTiles').innerHTML = tiles.map(function(t) {
+    return '<div class="dash-stat-tile">' +
+      '<div class="dash-stat-tile-val ' + t.cls + '">' + t.val + '</div>' +
+      '<div class="dash-stat-tile-lbl">' + t.lbl + '</div></div>';
+  }).join('');
+
+  /* ── Sparkline charts ── */
+  var hist = data.recentHistory || [];
+  if (hist.length >= 3) {
+    _drawAccuracyChart(hist);
+    _drawRatingChart(hist);
+  }
+
+  /* ── Category accuracy bars ── */
+  var catAcc = data.categoryAccuracy || {};
+  var cats = Object.keys(catAcc).sort(function(a, b) { return catAcc[a] - catAcc[b]; });
+  if (cats.length > 0) {
+    var catEl = document.getElementById('dashCatBars');
+    catEl.style.display = '';
+    document.getElementById('dashCatBarList').innerHTML = cats.map(function(cat) {
+      var pct = catAcc[cat];
+      var color = pct >= 70 ? 'var(--green)' : pct >= 50 ? 'var(--gold)' : 'var(--red)';
+      return '<div class="dash-cat-bar-row">' +
+        '<div class="dash-cat-bar-name" title="' + cat + '">' + cat + '</div>' +
+        '<div class="dash-cat-bar-track"><div class="dash-cat-bar-fill" style="width:' + pct + '%;background:' + color + '"></div></div>' +
+        '<div class="dash-cat-bar-pct">' + pct + '%</div>' +
+        '</div>';
+    }).join('');
+  }
+}
+
+function _drawAccuracyChart(hist) {
+  var svg = document.getElementById('chartAccuracy');
+  svg.innerHTML = '';
+  var n = hist.length;
+  var W = 400, H = 80, ml = 26, mr = 6, mt = 6, mb = 8;
+  var pw = W - ml - mr, ph = H - mt - mb;
+
+  /* grid lines */
+  [0, 50, 100].forEach(function(pct) {
+    var y = mt + (1 - pct / 100) * ph;
+    svg.appendChild(_svgEl('line', {
+      x1: ml, x2: W - mr, y1: y, y2: y,
+      stroke: '#30363d', 'stroke-width': '1',
+      'stroke-dasharray': pct === 50 ? '4,4' : 'none'
+    }));
+    var lbl = _svgEl('text', { x: ml - 4, y: y + 3.5, 'font-size': '8',
+      fill: '#6e7681', 'text-anchor': 'end' });
+    lbl.textContent = pct + '%';
+    svg.appendChild(lbl);
+  });
+
+  /* rolling 5-puzzle average points */
+  var pts = hist.map(function(h, i) {
+    var win  = hist.slice(Math.max(0, i - 4), i + 1);
+    var racc = win.filter(function(w) { return w.solved; }).length / win.length;
+    return [ml + (n > 1 ? i * pw / (n - 1) : pw / 2), mt + (1 - racc) * ph];
+  });
+
+  /* area under line */
+  var area = 'M' + pts[0][0] + ',' + (mt + ph) +
+    pts.map(function(p) { return ' L' + p[0] + ',' + p[1]; }).join('') +
+    ' L' + pts[pts.length - 1][0] + ',' + (mt + ph) + ' Z';
+  svg.appendChild(_svgEl('path', { d: area, fill: 'rgba(99,102,241,.10)', stroke: 'none' }));
+
+  /* line */
+  svg.appendChild(_svgEl('polyline', {
+    points: pts.map(function(p) { return p[0] + ',' + p[1]; }).join(' '),
+    fill: 'none', stroke: '#6366f1', 'stroke-width': '2',
+    'stroke-linejoin': 'round', 'stroke-linecap': 'round'
+  }));
+
+  /* individual result dots (small, above/below mid) */
+  hist.forEach(function(h, i) {
+    var x = ml + (n > 1 ? i * pw / (n - 1) : pw / 2);
+    var y = h.solved ? (mt + 5) : (mt + ph - 5);
+    svg.appendChild(_svgEl('circle', {
+      cx: x, cy: y, r: '2.5',
+      fill: h.solved ? '#3fb950' : '#f85149', opacity: '0.55'
+    }));
+  });
+}
+
+function _drawRatingChart(hist) {
+  var svg = document.getElementById('chartRating');
+  svg.innerHTML = '';
+  var withRating = hist.filter(function(h) { return h.rating > 0; });
+  if (withRating.length < 2) {
+    var msg = _svgEl('text', { x: 200, y: 40, 'font-size': '11', fill: '#6e7681',
+      'text-anchor': 'middle' });
+    msg.textContent = 'Need more puzzles with ratings';
+    svg.appendChild(msg);
+    return;
+  }
+  var n  = withRating.length;
+  var W  = 400, H = 80, ml = 32, mr = 6, mt = 6, mb = 8;
+  var pw = W - ml - mr, ph = H - mt - mb;
+
+  var ratings  = withRating.map(function(h) { return h.rating; });
+  var minR     = Math.min.apply(null, ratings);
+  var maxR     = Math.max.apply(null, ratings);
+  var rangeR   = Math.max(maxR - minR, 100);
+  var padR     = rangeR * 0.12;
+  var lo = minR - padR, hi = maxR + padR;
+
+  /* grid lines — 2 ticks */
+  var ticks = [Math.round(lo + (hi - lo) * 0.25 / 1) * 1,
+               Math.round((lo + hi) / 2),
+               Math.round(lo + (hi - lo) * 0.75) ];
+  ticks = [Math.round(lo + rangeR * 0.1), Math.round(lo + rangeR * 0.9)];
+  [minR, maxR].forEach(function(r) {
+    var y = mt + (1 - (r - lo) / (hi - lo)) * ph;
+    svg.appendChild(_svgEl('line', {
+      x1: ml, x2: W - mr, y1: y, y2: y,
+      stroke: '#30363d', 'stroke-width': '1', 'stroke-dasharray': '4,4'
+    }));
+    var lbl = _svgEl('text', { x: ml - 4, y: y + 3.5, 'font-size': '8',
+      fill: '#6e7681', 'text-anchor': 'end' });
+    lbl.textContent = r;
+    svg.appendChild(lbl);
+  });
+
+  /* compute points */
+  var pts = withRating.map(function(h, i) {
+    var x = ml + (n > 1 ? i * pw / (n - 1) : pw / 2);
+    var y = mt + (1 - (h.rating - lo) / (hi - lo)) * ph;
+    return [x, y, h.solved];
+  });
+
+  /* area */
+  var area = 'M' + pts[0][0] + ',' + (mt + ph) +
+    pts.map(function(p) { return ' L' + p[0] + ',' + p[1]; }).join('') +
+    ' L' + pts[pts.length - 1][0] + ',' + (mt + ph) + ' Z';
+  svg.appendChild(_svgEl('path', { d: area, fill: 'rgba(99,102,241,.08)', stroke: 'none' }));
+
+  /* line */
+  svg.appendChild(_svgEl('polyline', {
+    points: pts.map(function(p) { return p[0] + ',' + p[1]; }).join(' '),
+    fill: 'none', stroke: '#6366f1', 'stroke-width': '2',
+    'stroke-linejoin': 'round', 'stroke-linecap': 'round'
+  }));
+
+  /* dots */
+  pts.forEach(function(p) {
+    svg.appendChild(_svgEl('circle', {
+      cx: p[0], cy: p[1], r: '3',
+      fill: p[2] ? '#3fb950' : '#f85149',
+      stroke: 'var(--surface2)', 'stroke-width': '1.5'
+    }));
+  });
 }
 
 var _WK_GROUPS = [
@@ -1480,14 +1850,30 @@ function showHint() {
 /* ════════════════════════════════════════════════════════════════════
    EVENT WIRING
 ═══════════════════════════════════════════════════════════════════ */
-/* Login */
-document.getElementById('btnLookup').addEventListener('click', handleLogin);
+/* Login / Auth */
+document.getElementById('btnLogin').addEventListener('click', handleLogin);
+document.getElementById('btnRegister').addEventListener('click', function(){
+  if (_registerMode) handleRegister(); else _setAuthMode(true);
+});
+document.getElementById('authModeToggle').addEventListener('click', function(){
+  _setAuthMode(!_registerMode);
+});
+document.getElementById('btnLogout').addEventListener('click', handleLogout);
+document.getElementById('btnDashLogout').addEventListener('click', handleLogout);
 document.getElementById('usernameInput').addEventListener('keydown', function(e){
-  if (e.key === 'Enter') handleLogin();
+  if (e.key === 'Enter') document.getElementById('passwordInput').focus();
+});
+document.getElementById('passwordInput').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') { if (_registerMode) document.getElementById('confirmPwInput').focus(); else handleLogin(); }
+});
+document.getElementById('confirmPwInput').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') handleRegister();
 });
 document.getElementById('btnGuest').addEventListener('click', function(){
-  currentUser = ''; startSession(null);
+  currentUser = ''; sessionToken = ''; startSession(null);
 });
+/* Auto-login on page load */
+_tryAutoLogin();
 
 /* Profile */
 document.getElementById('btnBackLogin').addEventListener('click', function(){ showView('v-login'); });

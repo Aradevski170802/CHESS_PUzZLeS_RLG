@@ -14,16 +14,22 @@ POST /api/session/start             → create Thompson-Sampling bandit for user
 GET  /api/session/puzzle            → adaptive puzzle (bandit-selected category)
 POST /api/session/result            → record solve/fail, update bandit, persist to disk
 GET  /api/session/stats             → session accuracy, streak, weakness map
-GET  /api/user/stats/<user>         → all-time stats from persisted history
+GET  /api/user/stats/<user>         → all-time stats from persisted history (auth required)
+POST /api/auth/register             → create account (username + password)
+POST /api/auth/login                → verify password, return 30-day session token
+GET  /api/auth/check                → validate a stored token (for auto-login)
 """
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import random
+import secrets
 import sys
 import threading
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -91,7 +97,7 @@ DEMO_PUZZLES = [
      "Popularity": 90, "NbPlays": 5600, "Themes": "crushing sacrifice middlegame long",
      "GameUrl": "https://lichess.org/example4#20", "OpeningTags": None,
      "DifficultyTier": "Hard", "PrimaryCategory": "Sacrifice", "Categories": ["Sacrifice"]},
-    {"PuzzleId": "007hK", "FEN": "8/8/8/8/3k4/8/3KR3/8 w - - 0 1",
+    {"PuzzleId": "007hK", "FEN": "8/8/8/8/3k4/8/4R1K1/8 w - - 0 1",
      "Moves": "e2e4 d4d3 e4e3", "Rating": 950, "RatingDeviation": 80,
      "Popularity": 85, "NbPlays": 2100, "Themes": "rookEndgame endgame",
      "GameUrl": "", "OpeningTags": None,
@@ -321,6 +327,106 @@ def _save_user_state(username: str, state: dict) -> None:
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
     path = SESSIONS_DIR / f"{username}.json"
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+# ── Auth helpers ─────────────────────────────────────────────────────────────
+
+_TOKEN_DAYS = 30
+
+def _hash_password(password: str) -> tuple[str, str]:
+    salt = secrets.token_hex(16)
+    h = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 200_000)
+    return salt, h.hex()
+
+
+def _verify_password(password: str, salt: str, stored_hash: str) -> bool:
+    h = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 200_000)
+    return secrets.compare_digest(h.hex(), stored_hash)
+
+
+def _new_token() -> tuple[str, str]:
+    token  = secrets.token_urlsafe(32)
+    expiry = (datetime.now(timezone.utc) + timedelta(days=_TOKEN_DAYS)).strftime("%Y-%m-%dT%H:%M:%SZ")
+    return token, expiry
+
+
+def _check_token(username: str) -> bool:
+    token = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+    if not token:
+        return False
+    saved = _load_user_state(username)
+    if not saved or saved.get("token") != token:
+        return False
+    expiry = saved.get("tokenExpiry", "")
+    if expiry:
+        try:
+            exp_dt = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+            if exp_dt < datetime.now(timezone.utc):
+                return False
+        except ValueError:
+            return False
+    return True
+
+
+# ── Auth endpoints ────────────────────────────────────────────────────────────
+
+@app.route("/api/auth/register", methods=["POST"])
+def auth_register():
+    data     = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").lower().strip()
+    password = data.get("password") or ""
+
+    if not username or not password:
+        return jsonify({"error": "Missing username or password"}), 400
+    if username == "guest":
+        return jsonify({"error": "Reserved username"}), 400
+    if len(password) < 6:
+        return jsonify({"error": "Password must be at least 6 characters"}), 400
+
+    existing = _load_user_state(username)
+    if existing and existing.get("passwordHash"):
+        return jsonify({"error": "Account already exists — log in instead"}), 409
+
+    salt, pw_hash    = _hash_password(password)
+    token, expiry    = _new_token()
+    state            = existing or {"username": username, "history": [], "bestStreak": 0}
+    state.update({"passwordSalt": salt, "passwordHash": pw_hash,
+                  "token": token, "tokenExpiry": expiry})
+    _save_user_state(username, state)
+
+    return jsonify({"ok": True, "token": token, "username": username})
+
+
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    data     = request.get_json(silent=True) or {}
+    username = (data.get("username") or "").lower().strip()
+    password = data.get("password") or ""
+
+    if not username or not password:
+        return jsonify({"error": "Missing username or password"}), 400
+
+    saved = _load_user_state(username)
+    if not saved or not saved.get("passwordHash"):
+        return jsonify({"error": "No account found — create one first"}), 404
+
+    if not _verify_password(password, saved["passwordSalt"], saved["passwordHash"]):
+        return jsonify({"error": "Wrong password"}), 401
+
+    token, expiry    = _new_token()
+    saved["token"]       = token
+    saved["tokenExpiry"] = expiry
+    _save_user_state(username, saved)
+
+    return jsonify({"ok": True, "token": token, "username": username})
+
+
+@app.route("/api/auth/check")
+def auth_check():
+    username = request.args.get("username", "").lower().strip()
+    if not username or not _check_token(username):
+        return jsonify({"valid": False}), 401
+    return jsonify({"valid": True, "username": username})
 
 
 # ── Static serving ────────────────────────────────────────────────────────────
@@ -614,6 +720,9 @@ def user_history(username: str):
     if username == "guest":
         return jsonify({"hasHistory": False})
 
+    if not _check_token(username):
+        return jsonify({"error": "Unauthorized"}), 401
+
     saved = _load_user_state(username)
     if not saved:
         return jsonify({"hasHistory": False})
@@ -642,6 +751,16 @@ def user_history(username: str):
     recent          = history[-20:]
     recent_accuracy = round(sum(1 for h in recent if h.get("solved")) / max(1, len(recent)) * 100, 1)
 
+    recent_history = [
+        {
+            "ts":       h.get("ts", ""),
+            "rating":   h.get("rating", 0),
+            "solved":   bool(h.get("solved", False)),
+            "category": h.get("category", ""),
+        }
+        for h in history[-60:]
+    ]
+
     return jsonify({
         "hasHistory":       True,
         "totalPuzzles":     total,
@@ -651,6 +770,7 @@ def user_history(username: str):
         "bestStreak":       saved.get("bestStreak", 0),
         "lastUpdated":      saved.get("lastUpdated", ""),
         "categoryAccuracy": cat_accuracy,
+        "recentHistory":    recent_history,
     })
 
 
