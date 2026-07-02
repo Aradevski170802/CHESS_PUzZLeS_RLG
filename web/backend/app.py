@@ -12,15 +12,18 @@ POST /api/analysis/start            → launch background game-analysis thread
 GET  /api/analysis/status/<user>    → poll analysis progress
 POST /api/session/start             → create Thompson-Sampling bandit for user
 GET  /api/session/puzzle            → adaptive puzzle (bandit-selected category)
-POST /api/session/result            → record solve/fail, update bandit
+POST /api/session/result            → record solve/fail, update bandit, persist to disk
 GET  /api/session/stats             → session accuracy, streak, weakness map
+GET  /api/user/stats/<user>         → all-time stats from persisted history
 """
 from __future__ import annotations
 
+import json
 import random
 import sys
 import threading
 from collections import defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -36,6 +39,7 @@ from src.recommender.bandit import ThompsonBandit
 FRONTEND_DIR      = ROOT / "web" / "frontend"
 PROCESSED_PARQUET = ROOT / "data" / "processed" / "puzzles_full.parquet"
 RAW_CSV           = ROOT / "DataSets" / "lichess_db_puzzle.csv"
+SESSIONS_DIR      = ROOT / "data" / "sessions"
 
 app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
 CORS(app)
@@ -295,6 +299,30 @@ def _serialise_profile(profile) -> dict:
     }
 
 
+# ── User-state persistence ────────────────────────────────────────────────────
+# Each non-guest user gets data/sessions/<username>.json containing:
+#   {username, estimatedElo, profile, bandit, history: [...], bestStreak, lastUpdated}
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+def _load_user_state(username: str) -> dict | None:
+    path = SESSIONS_DIR / f"{username}.json"
+    if not path.exists():
+        return None
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return None
+
+
+def _save_user_state(username: str, state: dict) -> None:
+    SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
+    path = SESSIONS_DIR / f"{username}.json"
+    path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
 # ── Static serving ────────────────────────────────────────────────────────────
 
 @app.route("/")
@@ -406,13 +434,23 @@ def analysis_start():
 
             ANALYSIS_STORE[username]["progress"] = 95
             priors = profile_to_bandit_priors(profile)
+            serialised = _serialise_profile(profile)
             ANALYSIS_STORE[username].update({
                 "status":   "done",
                 "progress": 100,
                 "message":  "Analysis complete!",
                 "priors":   {k: list(v) for k, v in priors.items()},
-                "profile":  _serialise_profile(profile),
+                "profile":  serialised,
             })
+            # Persist profile + ELO so the dashboard reloads on next visit
+            if username != "guest":
+                _ustate = _load_user_state(username) or {
+                    "username": username, "history": [], "bestStreak": 0,
+                }
+                _ustate["profile"]      = serialised
+                _ustate["estimatedElo"] = profile.estimated_elo
+                _ustate["lastUpdated"]  = _now_iso()
+                _save_user_state(username, _ustate)
 
         except Exception as exc:
             ANALYSIS_STORE[username].update({
@@ -438,21 +476,38 @@ def analysis_status(username: str):
 
 @app.route("/api/session/start", methods=["POST"])
 def session_start():
-    data     = request.get_json(force=True) or {}
-    username = (data.get("username") or "guest").strip().lower()
-    priors_raw = data.get("priors")  # {category: [alpha, beta]} or None
+    data          = request.get_json(force=True) or {}
+    username      = (data.get("username") or "guest").strip().lower()
+    priors_raw    = data.get("priors")        # {category: [alpha, beta]} or None
+    estimated_elo = data.get("estimatedElo")  # int or None
 
-    priors = None
-    if priors_raw:
-        priors = {cat: (int(v[0]), int(v[1])) for cat, v in priors_raw.items()
-                  if isinstance(v, (list, tuple)) and len(v) == 2}
+    saved     = _load_user_state(username) if username != "guest" else None
+    returning = saved is not None and bool(saved.get("bandit"))
 
-    bandit = ThompsonBandit(priors=priors)
+    if returning:
+        bandit = ThompsonBandit.from_dict(saved["bandit"])
+    else:
+        priors = None
+        if priors_raw:
+            priors = {cat: (int(v[0]), int(v[1])) for cat, v in priors_raw.items()
+                      if isinstance(v, (list, tuple)) and len(v) == 2}
+        bandit = ThompsonBandit(priors=priors)
+
     SESSION_STORE[username] = bandit
 
+    # Persist ELO and initialise state file for first-time users
+    if username != "guest" and estimated_elo:
+        _s = saved or {"username": username, "history": [], "bestStreak": 0}
+        _s["estimatedElo"] = int(estimated_elo)
+        _s["lastUpdated"]  = _now_iso()
+        if not returning:
+            _s["bandit"] = bandit.to_dict()
+        _save_user_state(username, _s)
+
     return jsonify({
-        "status":       "ok",
-        "weaknessMap":  bandit.weakness_map(),
+        "status":        "ok",
+        "returning":     returning,
+        "weaknessMap":   bandit.weakness_map(),
         "topWeaknesses": bandit.top_weaknesses(5),
     })
 
@@ -492,10 +547,12 @@ def session_puzzle():
 
 @app.route("/api/session/result", methods=["POST"])
 def session_result():
-    data     = request.get_json(force=True) or {}
-    username = (data.get("username") or "guest").strip().lower()
-    category = data.get("category", "")
-    solved   = bool(data.get("solved", False))
+    data      = request.get_json(force=True) or {}
+    username  = (data.get("username") or "guest").strip().lower()
+    category  = data.get("category", "")
+    solved    = bool(data.get("solved", False))
+    puzzle_id = data.get("puzzleId", "")
+    rating    = int(data.get("rating", 0)) if data.get("rating") else 0
 
     bandit = SESSION_STORE.get(username)
     if bandit is None:
@@ -505,12 +562,29 @@ def session_result():
     if category:
         bandit.update(category, solved)
 
+    # Persist after every result (skip guests)
+    if username != "guest":
+        _s = _load_user_state(username) or {
+            "username": username, "history": [], "bestStreak": 0,
+        }
+        _s["lastUpdated"] = _now_iso()
+        _s["bandit"]      = bandit.to_dict()
+        _s["bestStreak"]  = max(_s.get("bestStreak", 0), bandit.best_streak)
+        _s.setdefault("history", []).append({
+            "ts":       _now_iso(),
+            "puzzleId": puzzle_id,
+            "category": category,
+            "rating":   rating,
+            "solved":   solved,
+        })
+        _save_user_state(username, _s)
+
     return jsonify({
-        "streak":       bandit.streak,
-        "bestStreak":   bandit.best_streak,
-        "accuracy":     round(bandit.session_accuracy() * 100, 1),
+        "streak":        bandit.streak,
+        "bestStreak":    bandit.best_streak,
+        "accuracy":      round(bandit.session_accuracy() * 100, 1),
         "puzzlesPlayed": bandit.puzzles_played(),
-        "weaknessMap":  bandit.weakness_map(),
+        "weaknessMap":   bandit.weakness_map(),
         "topWeaknesses": bandit.top_weaknesses(5),
     })
 
@@ -529,6 +603,54 @@ def session_stats():
         "puzzlesPlayed": bandit.puzzles_played(),
         "weaknessMap":   bandit.weakness_map(),
         "topWeaknesses": bandit.top_weaknesses(5),
+    })
+
+
+# ── All-time user statistics ──────────────────────────────────────────────────
+
+@app.route("/api/user/stats/<username>")
+def user_history(username: str):
+    username = username.lower()
+    if username == "guest":
+        return jsonify({"hasHistory": False})
+
+    saved = _load_user_state(username)
+    if not saved:
+        return jsonify({"hasHistory": False})
+
+    history = saved.get("history", [])
+    total   = len(history)
+    if not total:
+        return jsonify({"hasHistory": False})
+
+    solved   = sum(1 for h in history if h.get("solved"))
+    accuracy = round(solved / total * 100, 1)
+
+    cat_stats: dict = defaultdict(lambda: {"total": 0, "solved": 0})
+    for h in history:
+        cat = h.get("category", "")
+        if cat:
+            cat_stats[cat]["total"]  += 1
+            if h.get("solved"):
+                cat_stats[cat]["solved"] += 1
+
+    cat_accuracy = {
+        cat: round(v["solved"] / v["total"] * 100, 1)
+        for cat, v in cat_stats.items() if v["total"] >= 3
+    }
+
+    recent          = history[-20:]
+    recent_accuracy = round(sum(1 for h in recent if h.get("solved")) / max(1, len(recent)) * 100, 1)
+
+    return jsonify({
+        "hasHistory":       True,
+        "totalPuzzles":     total,
+        "totalSolved":      solved,
+        "accuracy":         accuracy,
+        "recentAccuracy":   recent_accuracy,
+        "bestStreak":       saved.get("bestStreak", 0),
+        "lastUpdated":      saved.get("lastUpdated", ""),
+        "categoryAccuracy": cat_accuracy,
     })
 
 
