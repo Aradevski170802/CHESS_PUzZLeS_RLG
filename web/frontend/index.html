@@ -150,6 +150,20 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
   justify-content:space-between;gap:14px;flex-wrap:wrap}
 .dash-focus-note{font-size:.84rem;color:var(--text-muted);flex:1;min-width:200px}
 .dash-focus-cats{color:var(--text);font-weight:600}
+.dash-chip.chip-elo{background:var(--accent-dim);color:var(--accent);
+  border-color:rgba(99,102,241,.3);font-weight:600}
+.dash-history-banner{background:linear-gradient(135deg,var(--accent-dim),var(--surface));
+  border:1px solid rgba(99,102,241,.22);border-radius:var(--radius);padding:13px 18px}
+.dash-history-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--accent);margin-bottom:7px;font-weight:600}
+.dash-history-stats{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem}
+.dash-history-stats span{color:var(--text)}
+.dash-interpretation{font-size:.81rem;color:var(--text-muted);line-height:1.7;
+  margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.wk-section-label{font-size:.67rem;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--text-dim);margin:14px 0 7px;padding-top:10px;
+  border-top:1px solid var(--border)}
+.wk-section-label:first-child{margin-top:0;padding-top:0;border-top:none}
 
 /* ── Game header ───────────────────────────────────────────────────── */
 .game-header{position:fixed;top:0;left:0;right:0;height:54px;
@@ -441,12 +455,19 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
       </button>
     </div>
 
+    <!-- Returning-user history banner (shown only when history exists) -->
+    <div id="dashHistoryBanner" style="display:none" class="dash-history-banner">
+      <div class="dash-history-label">Training progress saved</div>
+      <div class="dash-history-stats" id="dashHistoryStats"></div>
+    </div>
+
     <!-- Two-column body -->
     <div class="dash-grid">
 
       <!-- Left: Weakness breakdown -->
       <div class="dash-card">
         <div class="dash-card-title">Areas to improve</div>
+        <div id="dashInterpretation" class="dash-interpretation" style="display:none"></div>
         <div id="dashWeaknessList"></div>
       </div>
 
@@ -642,7 +663,8 @@ const DEMO = [
 /* ── Session state ──────────────────────────────────────────────────── */
 var currentUser = '';
 var sessionActive = false;
-var profileCache = null;
+var profileCache        = null;   // Chess.com profile (avatar, ratings)
+var analysisProfileCache = null;  // analysis profile (weaknesses, openings, ELO)
 var priorsCache  = null;
 var targetCategory = '';
 var targetSolveRate = 0.5;
@@ -835,13 +857,24 @@ async function startAnalysis() {
    DASHBOARD
 ═══════════════════════════════════════════════════════════════════ */
 function showDashboard(profile) {
+  analysisProfileCache = profile;
   _renderDashboard(profile);
   showView('v-dashboard');
+  /* Async: load all-time history to populate the returning-user banner */
+  if (currentUser) {
+    fetch(API + '/api/user/stats/' + encodeURIComponent(currentUser))
+      .then(function(r){ return r.json(); })
+      .then(function(d){ _updateHistoryBanner(d); })
+      .catch(function(){});
+  }
 }
 
 function _renderDashboard(profile) {
+  /* Reset history banner until async fetch completes */
+  document.getElementById('dashHistoryBanner').style.display = 'none';
+
   /* Avatar */
-  var avEl = document.getElementById('dashAvatarEl');
+  var avEl  = document.getElementById('dashAvatarEl');
   var avSrc = profileCache && profileCache.avatar;
   avEl.innerHTML = avSrc
     ? '<img class="dash-av" src="'+avSrc+'" alt="" onerror="this.parentElement.innerHTML=\'<div class=dash-av-ph>♟</div>\'">'
@@ -856,10 +889,18 @@ function _renderDashboard(profile) {
       'Estimated ELO: ~' + (profile.estimatedElo || '?');
 
     var w = profile.gamesWon || 0, l = profile.gamesLost || 0, d = profile.gamesDrawn || 0;
+    var tierLabel = _eloToTierLabel(profile.estimatedElo);
     document.getElementById('dashChipRow').innerHTML =
-      '<span class="dash-chip">' + (profile.gamesAnalysed || 0) + ' games</span>' +
-      '<span class="dash-chip">' + Math.round(profile.winRate || 0) + '% win rate</span>' +
-      '<span class="dash-chip">' + w + 'W / ' + l + 'L / ' + d + 'D</span>';
+      '<span class="dash-chip">' + (profile.gamesAnalysed||0) + ' games analysed</span>' +
+      '<span class="dash-chip">' + Math.round(profile.winRate||0) + '% win rate</span>' +
+      '<span class="dash-chip">' + w + 'W / ' + l + 'L / ' + d + 'D</span>' +
+      (tierLabel ? '<span class="dash-chip chip-elo">♟ ' + tierLabel + '</span>' : '');
+
+    /* Interpretation paragraph */
+    var interp = document.getElementById('dashInterpretation');
+    var interpText = _generateInterpretation(profile);
+    interp.textContent = interpText;
+    interp.style.display = interpText ? '' : 'none';
 
     _renderWeaknesses(profile.weaknessScores || {});
     _renderOpenings('dashOpeningsWhite', profile.topOpeningsWhite || []);
@@ -869,44 +910,147 @@ function _renderDashboard(profile) {
       .sort(function(a, b){ return b[1] - a[1]; })
       .slice(0, 3).map(function(x){ return x[0]; });
     document.getElementById('dashFocusNote').innerHTML = top3.length
-      ? 'Adaptive training will focus on: <span class="dash-focus-cats">' + top3.join(', ') + '</span>'
+      ? 'The bandit will target: <span class="dash-focus-cats">' + top3.join(', ') + '</span>'
       : 'The adaptive system will focus on your weakest areas first.';
   } else {
-    document.getElementById('dashHeroName').textContent = currentUser || 'Guest';
-    document.getElementById('dashHeroElo').textContent  = 'No game analysis available';
-    document.getElementById('dashChipRow').innerHTML    = '';
+    document.getElementById('dashHeroName').textContent  = currentUser || 'Guest';
+    document.getElementById('dashHeroElo').textContent   = 'No game analysis — adaptive mode';
+    document.getElementById('dashChipRow').innerHTML     = '';
+    document.getElementById('dashInterpretation').style.display = 'none';
     document.getElementById('dashWeaknessList').innerHTML =
       '<p style="color:var(--text-muted);font-size:.82rem;line-height:1.7">' +
-      'No history was analysed. The bandit will start with equal puzzle distribution ' +
-      'and adapt as you play.</p>';
+      'No games were analysed. The bandit starts with equal puzzle distribution ' +
+      'and adapts as you play — typically meaningful after 10–15 puzzles.</p>';
     document.getElementById('dashOpeningsWhite').innerHTML =
       '<p style="color:var(--text-dim);font-size:.82rem">—</p>';
     document.getElementById('dashOpeningsBlack').innerHTML =
       '<p style="color:var(--text-dim);font-size:.82rem">—</p>';
     document.getElementById('dashFocusNote').textContent =
-      'Starting with equal puzzle distribution — the system will adapt from your in-session performance.';
+      'Starting with equal puzzle distribution — the system will adapt from your results.';
   }
+}
+
+/* ELO → puzzle tier label */
+function _eloToTierLabel(elo) {
+  if (!elo) return null;
+  if      (elo < 900)  return 'Beginner puzzles';
+  else if (elo < 1100) return 'Easy puzzles';
+  else if (elo < 1400) return 'Intermediate puzzles';
+  else if (elo < 1700) return 'Advanced puzzles';
+  else if (elo < 1900) return 'Hard puzzles';
+  else                 return 'Expert puzzles';
+}
+
+/* ELO → dropdown value string */
+function _eloToRatingFilter(elo) {
+  if (!elo) return null;
+  if      (elo < 900)  return '600-999';
+  else if (elo < 1100) return '1000-1199';
+  else if (elo < 1400) return '1200-1499';
+  else if (elo < 1700) return '1500-1799';
+  else if (elo < 1900) return '1800-1999';
+  else                 return '2000-2400';
+}
+
+/* Generate 1-2 sentence interpretation of the analysis */
+function _generateInterpretation(profile) {
+  var scores  = profile.weaknessScores || {};
+  var games   = profile.gamesAnalysed  || 0;
+  var elo     = profile.estimatedElo   || null;
+  var winRate = Math.round(profile.winRate || 0);
+  if (!games) return '';
+
+  var TACTICAL = ['Fork','Pin','Skewer','Discovered Attack','Hanging Piece',
+                  'Deflection','King Safety','Mating Pattern','Sacrifice'];
+  var ENDGAME  = ['Endgame','Rook Endgame','Queen Endgame',
+                  'Pawn Endgame','Knight Endgame','Bishop Endgame'];
+
+  var sorted = Object.entries(scores).sort(function(a,b){ return b[1]-a[1]; });
+  var top5   = sorted.slice(0,5).map(function(x){ return x[0]; });
+  var tactN  = top5.filter(function(c){ return TACTICAL.indexOf(c)>=0; }).length;
+  var endgN  = top5.filter(function(c){ return ENDGAME.indexOf(c)>=0; }).length;
+
+  var prefix = 'From ' + games + ' games' + (elo ? ' (ELO ~' + elo + ')' : '') + ': ';
+  var main;
+  if (tactN >= 3)
+    main = 'tactical patterns are your biggest growth area — especially ' + top5.slice(0,2).join(' and ') + '.';
+  else if (endgN >= 2)
+    main = 'endgame technique needs the most attention.';
+  else if (tactN >= 1 && endgN >= 1)
+    main = 'both tactical and endgame skills have room to grow.';
+  else
+    main = 'your game is relatively balanced — the system will fine-tune weaker spots.';
+
+  var suffix = winRate >= 62
+    ? ' Strong win rate (' + winRate + '%) — push further with more ambitious patterns.'
+    : winRate < 45
+    ? ' A ' + winRate + '% win rate suggests tactical recognition is the fastest lever to pull.'
+    : '';
+
+  return prefix + main + suffix;
+}
+
+/* Show/update the returning-user history banner */
+function _updateHistoryBanner(data) {
+  var banner = document.getElementById('dashHistoryBanner');
+  if (!data || !data.hasHistory) { banner.style.display = 'none'; return; }
+
+  var lastStr = '';
+  if (data.lastUpdated) {
+    var days = Math.floor((Date.now() - new Date(data.lastUpdated).getTime()) / 86400000);
+    lastStr = days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago';
+  }
+
+  document.getElementById('dashHistoryStats').innerHTML =
+    '<span>' + data.totalPuzzles + ' puzzles total</span>' +
+    '<span>' + data.accuracy + '% all-time accuracy</span>' +
+    '<span>Best streak: ' + data.bestStreak + '</span>' +
+    (lastStr ? '<span>Last session: ' + lastStr + '</span>' : '');
+  banner.style.display = '';
+}
+
+var _WK_GROUPS = [
+  { label: 'Tactical Motifs',
+    cats: ['Fork','Pin','Skewer','Discovered Attack','Hanging Piece','Deflection',
+           'King Safety','Mating Pattern','Sacrifice','X-Ray','Attraction',
+           'Clearance','Trapping','Zwischenzug'] },
+  { label: 'Endgame Technique',
+    cats: ['Endgame','Rook Endgame','Queen Endgame',
+           'Pawn Endgame','Knight Endgame','Bishop Endgame'] },
+  { label: 'Other Patterns',
+    cats: ['Promotion','Zugzwang','Equality'] },
+];
+
+function _wkBar(cat, s) {
+  var pct = Math.round(s * 100);
+  var color, bg, label;
+  if      (s >= 0.60) { color='var(--red)';  bg='rgba(248,81,73,.12)';  label='Focus';  }
+  else if (s >= 0.40) { color='var(--gold)'; bg='rgba(227,179,65,.12)'; label='Review'; }
+  else                { color='var(--green)';bg='rgba(63,185,80,.10)';  label='Strong'; }
+  var div = document.createElement('div'); div.className = 'wk-item';
+  div.innerHTML =
+    '<div class="wk-label-row"><span>' + cat + '</span>' +
+    '<span class="wk-badge" style="background:'+bg+';color:'+color+'">' + label + '</span></div>' +
+    '<div class="wk-track"><div class="wk-fill" style="width:'+pct+'%;background:'+color+'"></div></div>';
+  return div;
 }
 
 function _renderWeaknesses(scores) {
   var container = document.getElementById('dashWeaknessList');
   container.innerHTML = '';
-  Object.entries(scores)
-    .sort(function(a, b){ return b[1] - a[1]; })
-    .forEach(function(pair) {
-      var cat = pair[0], s = pair[1];
-      var pct = Math.round(s * 100);
-      var color, bg, label;
-      if      (s >= 0.60) { color='var(--red)';  bg='rgba(248,81,73,.12)';  label='Focus';  }
-      else if (s >= 0.40) { color='var(--gold)'; bg='rgba(227,179,65,.12)'; label='Review'; }
-      else                { color='var(--green)';bg='rgba(63,185,80,.10)';  label='Strong'; }
-      var div = document.createElement('div'); div.className = 'wk-item';
-      div.innerHTML =
-        '<div class="wk-label-row"><span>' + cat + '</span>' +
-        '<span class="wk-badge" style="background:'+bg+';color:'+color+'">' + label + '</span></div>' +
-        '<div class="wk-track"><div class="wk-fill" style="width:'+pct+'%;background:'+color+'"></div></div>';
-      container.appendChild(div);
-    });
+  _WK_GROUPS.forEach(function(group) {
+    /* Sort this group's cats by weakness (worst first) */
+    var items = group.cats
+      .filter(function(c){ return c in scores; })
+      .map(function(c){ return [c, scores[c]]; })
+      .sort(function(a,b){ return b[1]-a[1]; });
+    if (!items.length) return;
+    var lbl = document.createElement('div');
+    lbl.className = 'wk-section-label';
+    lbl.textContent = group.label;
+    container.appendChild(lbl);
+    items.forEach(function(p){ container.appendChild(_wkBar(p[0], p[1])); });
+  });
 }
 
 function _renderOpenings(id, list) {
@@ -930,12 +1074,22 @@ function _renderOpenings(id, list) {
 /* ════════════════════════════════════════════════════════════════════
    SESSION MANAGEMENT
 ═══════════════════════════════════════════════════════════════════ */
-async function startSession(priors) {
+async function startSession(priors, estimatedElo) {
+  /* Auto-set puzzle difficulty to match player ELO */
+  if (estimatedElo) {
+    var tierVal = _eloToRatingFilter(estimatedElo);
+    if (tierVal) document.getElementById('ratingFilter').value = tierVal;
+  }
+
   try {
     await fetch(API + '/api/session/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: currentUser || 'guest', priors: priors || null })
+      body: JSON.stringify({
+        username:     currentUser || 'guest',
+        priors:       priors || null,
+        estimatedElo: estimatedElo || null,
+      })
     });
     sessionActive = true;
   } catch(_) {
@@ -956,7 +1110,13 @@ async function reportResult(category, solved) {
     var res = await fetch(API + '/api/session/result', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: currentUser || 'guest', category: category, solved: solved })
+      body: JSON.stringify({
+        username:  currentUser || 'guest',
+        category:  category,
+        solved:    solved,
+        puzzleId:  puzzle ? (puzzle.id || '') : '',
+        rating:    puzzle ? (puzzle.rating || 0) : 0,
+      })
     });
     var stats = await res.json();
     sessionStreak = stats.streak || 0;
@@ -1356,12 +1516,12 @@ document.getElementById('btnFlip').addEventListener('click', function(){
 document.getElementById('ratingFilter').addEventListener('change', loadPuzzle);
 
 /* Dashboard */
-document.getElementById('btnStartTraining1').addEventListener('click', function(){
-  startSession(priorsCache);
-});
-document.getElementById('btnStartTraining2').addEventListener('click', function(){
-  startSession(priorsCache);
-});
+function _startFromDashboard() {
+  var elo = analysisProfileCache ? analysisProfileCache.estimatedElo : null;
+  startSession(priorsCache, elo);
+}
+document.getElementById('btnStartTraining1').addEventListener('click', _startFromDashboard);
+document.getElementById('btnStartTraining2').addEventListener('click', _startFromDashboard);
 </script>
 </body>
 </html>
