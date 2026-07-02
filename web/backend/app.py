@@ -353,16 +353,21 @@ def analysis_start():
             ANALYSIS_STORE[username]["progress"] = 35
 
             profile = None
-            sf_path = shutil.which("stockfish") or "stockfish"
-            try:
-                from src.classifier.stockfish_analyzer import analyze_games_parallel
-                ANALYSIS_STORE[username]["message"] = f"Running Stockfish on {len(pgns)} games…"
-                analyses = analyze_games_parallel(
-                    pgns, username, sf_path, workers=2
-                )
-                ANALYSIS_STORE[username]["progress"] = 85
-                profile = build_profile(analyses, username, estimated_elo=elo)
-            except Exception:
+            sf_path = shutil.which("stockfish")  # None if not in PATH
+
+            if sf_path:
+                try:
+                    from src.classifier.stockfish_analyzer import analyze_games_parallel
+                    ANALYSIS_STORE[username]["message"] = f"Running Stockfish on {len(pgns)} games…"
+                    analyses = analyze_games_parallel(pgns, username, sf_path, workers=2)
+                    ANALYSIS_STORE[username]["progress"] = 85
+                    successful = [a for a in analyses if not getattr(a, "failed", True)]
+                    if successful:
+                        profile = build_profile(analyses, username, estimated_elo=elo)
+                except Exception:
+                    pass  # fall through to heuristic
+
+            if profile is None:
                 ANALYSIS_STORE[username]["message"] = "Building weakness profile (heuristic)…"
                 parsed = [g for g in parse_games_bulk(pgns, username) if g]
                 ANALYSIS_STORE[username]["progress"] = 60
