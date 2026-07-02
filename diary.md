@@ -203,22 +203,100 @@ Fork, Pin, Skewer, Discovered Attack, Hanging Piece, Sacrifice, Deflection, Attr
 
 ---
 
+### 2026-07-02 — Adaptive Engine + Complete UI Redesign
+
+Branch: `feature/adaptive-engine` (off `develop`). Two commits:
+- `84646c7 feat: add adaptive recommendation engine`
+- `9b6acce feat: complete UI redesign with login and adaptive session flow`
+
+#### What was built
+
+##### `src/recommender/bandit.py` — Thompson Sampling bandit
+
+- `ArmState` dataclass: `alpha`, `beta` integers with `.mean` and `.sample()` properties
+- `ThompsonBandit`: 23 arms (one per `WEAKNESS_CATEGORY`), Beta(α, β) per arm
+- **Selection rule:** sample θ_i ~ Beta(α_i, β_i) for each arm; pick the arm with the *lowest* θ_i (= most likely weakness = highest training value)
+- `update(category, solved)`: α += 1 on solve; β += 1 on failure; maintains streak + best_streak
+- `weakness_map()`, `top_weaknesses(n)`, `session_accuracy()`, `to_dict()` / `from_dict()` for persistence
+- Priors seeded from `profile_to_bandit_priors()`: weakness_score 0.8 → Beta(2,8); 0.5 → Beta(5,5); 0.2 → Beta(8,2)
+
+##### `src/api/chess_com_fetcher.py` — Chess.com public API client (committed)
+
+(Written in previous session, now committed after `.gitignore` fix)
+- `get_player_profile(username)` → profile dict with ratings per time control
+- `get_recent_games(username, n=50)` → list of PGN strings, newest first
+- Disk-caching at `data/cache/chess_com/`, 0.5s delay between archive requests
+
+##### `src/data/pgn_parser.py` — PGN parser (committed)
+
+- `parse_game(pgn_str, username)` → dict with opening (ECO/family/URL), player colour, result, rating, num_moves
+- `get_game_phase(board)` → "opening" / "middlegame" / "endgame" by piece count
+- Opening family extracted from Chess.com ECOUrl slug
+
+##### `src/classifier/stockfish_analyzer.py` — Stockfish analysis (committed)
+
+- Was invisible due to `.gitignore: stockfish*` accidentally matching the `.py` file
+- Fixed `.gitignore` to use explicit binary names (`stockfish`, `stockfish.exe`, `stockfish-*`)
+- `analyze_games_parallel(pgn_strings, username, stockfish_path, workers=4)` → list[GameAnalysis]
+- 50ms per position; skips first 8 half-moves; inaccuracy/mistake/blunder thresholds
+
+##### `src/classifier/player_profiler.py` — Player profiler (committed)
+
+- `build_profile(analyses, username, estimated_elo)` → PlayerProfile
+- `profile_to_bandit_priors(profile)` → dict[str, (alpha, beta)], α+β=10
+- Heuristic weakness scoring from error phase distribution + blunder rate
+
+##### `web/backend/app.py` — 6 new Flask routes
+
+| Route | Description |
+|-------|-------------|
+| `GET /api/player/lookup` | Fast Chess.com profile fetch (no analysis) |
+| `POST /api/analysis/start` | Launch background analysis thread |
+| `GET /api/analysis/status/<username>` | Poll analysis progress (0–100%) |
+| `POST /api/session/start` | Create ThompsonBandit with optional priors |
+| `GET /api/session/puzzle` | Bandit-selected category → random puzzle in that category |
+| `POST /api/session/result` | Record solve/fail, update bandit, return streak/accuracy |
+| `GET /api/session/stats` | Current session statistics |
+
+Also added `PUZZLE_BY_CAT` index built at startup for O(1) category lookups. Background analysis falls back to heuristic profile if Stockfish is not installed.
+
+##### `web/frontend/index.html` — Complete redesign (4-view SPA)
+
+No external CSS framework. Custom CSS only, ~350 lines. Dark theme: `#0d1117` background, `#6366f1` indigo accent, `#3fb950` green, `#f85149` red. Classic Lichess brown board (64px squares = 512px).
+
+**View 1 — Login:** Chess.com username input with Enter-key support, "Load Profile" button, "Play as Guest" button. Gradient radial background.
+
+**View 2 — Profile:** Avatar + FIDE title badge + display name. Rating grid (Rapid/Blitz/Bullet/Daily). "Analyse my games" (triggers View 3) or "Skip" (flat priors).
+
+**View 3 — Analysis:** Animated progress bar polling `/api/analysis/status` every 2s. Four step indicators (fetch → download → parse → build) that transition pending → active → done. "Skip analysis" abort button.
+
+**View 4 — Game:** Fixed header with session stats (🔥 streak, ✓ accuracy %, # count), rating filter, "Next →" button, "Guest / @username" label. Two-column layout: board left, panel right.
+
+**Training Focus card** (new): Displays the bandit's currently targeted weakness category, a colour-coded solve-rate bar (red <40%, amber <70%, green ≥70%), and the estimated solve rate as text. Shows "Random Mode" when no adaptive session is active.
+
+**All existing game mechanics preserved:** drag-and-drop, click-to-move, auto-move, legal move dots, move history log, progress dots, hint (indigo highlight), flip, solved overlay.
+
+**Adaptive result reporting:** After every puzzle (solved or abandoned via Next), `reportResult(category, solved)` calls `/api/session/result` and updates the header stats.
+
+#### Bug fixed: `.gitignore` over-matching
+
+The rule `stockfish*` was causing `stockfish_analyzer.py` to be silently excluded from `git status`. Replaced with explicit patterns: `stockfish`, `stockfish.exe`, `stockfish-*`.
+
+---
+
 ## Pending Tasks
 
 ### Immediate
-- [ ] Rebuild the UI with Bulma CSS framework
 - [ ] Start Flask backend before each web app session (`python web/backend/app.py`)
+- [ ] Merge `feature/adaptive-engine` into `develop`
 
-### Week 1 (July 1–7)
-- [ ] `src/api/chess_com_fetcher.py` — fetch player game history from Chess.com API
-- [ ] `src/data/pgn_parser.py` — parse PGN game records to extract positions
-- [ ] `src/classifier/feature_extractor.py` — extract weakness signals from game history
+### Short Term
+- [ ] Evaluation framework: compare random vs adaptive recommendation (puzzle accuracy improvement over N sessions)
+- [ ] Persist bandit state to disk (JSON) between server restarts
+- [ ] Rating auto-suggest: after player lookup, set the filter to the player's ELO tier automatically
+- [ ] Weakness radar chart on profile/analysis view (show all 23 category scores visually)
 
-### Week 2 (July 8–14)
-- [ ] `src/recommender/bandit.py` — Thompson Sampling multi-armed bandit
-- [ ] `src/recommender/session.py` — per-player session state and history
-
-### Later
-- [ ] Stockfish integration for position evaluation
-- [ ] Player ELO → difficulty tier mapping in the API
-- [ ] Evaluation framework (A/B test: random vs adaptive recommendations)
+### Dissertation
+- [ ] Write Methods chapter: Thompson Sampling algorithm, Beta distribution priors, weakness scoring
+- [ ] Evaluation: record sessions, compare solve rates over time (adaptive vs baseline)
+- [ ] Write Results chapter
