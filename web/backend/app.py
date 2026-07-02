@@ -232,12 +232,43 @@ def _heuristic_profile(parsed_games: list[dict], username: str):
         else:
             scores[cat] = 0.5
 
+    # extract opening stats from parsed games
+    from collections import defaultdict
+    from src.classifier.player_profiler import OpeningStat
+
+    _white: dict = defaultdict(lambda: {"eco": "", "games": 0, "wins": 0, "losses": 0, "draws": 0})
+    _black: dict = defaultdict(lambda: {"eco": "", "games": 0, "wins": 0, "losses": 0, "draws": 0})
+    for g in parsed_games:
+        if not g:
+            continue
+        op     = g.get("opening") or {}
+        family = op.get("family") or "Unknown"
+        eco    = op.get("eco") or ""
+        color  = g.get("player_color", "white")
+        won_g  = g.get("player_won")
+        target = _white if color == "white" else _black
+        target[family]["eco"]    = eco
+        target[family]["games"] += 1
+        if won_g is True:    target[family]["wins"]   += 1
+        elif won_g is False: target[family]["losses"] += 1
+        else:                target[family]["draws"]  += 1
+
+    def _openings_h(sd) -> list:
+        return sorted(
+            [OpeningStat(eco=v["eco"], family=k, games_played=v["games"],
+                         wins=v["wins"], losses=v["losses"], draws=v["draws"])
+             for k, v in sd.items()],
+            key=lambda s: s.games_played, reverse=True,
+        )[:5]
+
     profile = PlayerProfile(username=username, estimated_elo=elo)
-    profile.games_analysed = n
-    profile.games_won      = won
-    profile.games_lost     = lost
-    profile.games_drawn    = n - won - lost
-    profile.weakness_scores = scores
+    profile.games_analysed     = n
+    profile.games_won          = won
+    profile.games_lost         = lost
+    profile.games_drawn        = n - won - lost
+    profile.weakness_scores    = scores
+    profile.top_openings_white = _openings_h(_white)
+    profile.top_openings_black = _openings_h(_black)
     return profile
 
 

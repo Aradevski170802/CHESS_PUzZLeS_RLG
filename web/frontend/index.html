@@ -106,6 +106,51 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
 .step-icon.active{background:var(--accent-dim);color:var(--accent)}
 .step-icon.pending{background:var(--surface2);color:var(--text-dim)}
 
+/* ── Dashboard (Insights) view ─────────────────────────────────────── */
+#v-dashboard{align-items:flex-start;justify-content:center;padding:28px 16px}
+.dash-wrap{width:100%;max-width:840px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.dash-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.dash-av{width:60px;height:60px;border-radius:50%;border:2px solid var(--border);
+  object-fit:cover;background:var(--surface2);flex-shrink:0}
+.dash-av-ph{width:60px;height:60px;border-radius:50%;background:var(--surface2);
+  border:2px solid var(--border);display:flex;align-items:center;justify-content:center;
+  font-size:1.8rem;flex-shrink:0}
+.dash-hero-info{flex:1;min-width:0}
+.dash-hero-name{font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:6px;
+  flex-wrap:wrap}
+.dash-hero-elo{font-size:.8rem;color:var(--text-muted);margin-top:2px}
+.dash-chip-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.dash-chip{background:var(--surface2);border:1px solid var(--border);border-radius:20px;
+  padding:3px 10px;font-size:.73rem;color:var(--text-muted)}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:680px){.dash-grid{grid-template-columns:1fr}}
+.dash-card{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px 20px}
+.dash-card-title{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--text-muted);margin-bottom:14px}
+.wk-item{margin-bottom:9px}
+.wk-label-row{display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:4px;font-size:.8rem}
+.wk-badge{font-size:.64rem;font-weight:700;text-transform:uppercase;
+  padding:1px 6px;border-radius:8px;flex-shrink:0}
+.wk-track{height:5px;background:var(--surface2);border-radius:999px;overflow:hidden}
+.wk-fill{height:100%;border-radius:999px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+.op-color-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--text-muted);margin:12px 0 7px}
+.op-card{display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:8px 12px;margin-bottom:6px}
+.op-family{font-size:.82rem;font-weight:600;flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-meta{text-align:right;flex-shrink:0;margin-left:8px}
+.op-wr{font-size:.82rem;font-weight:700}
+.dash-footer{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px 24px;display:flex;align-items:center;
+  justify-content:space-between;gap:14px;flex-wrap:wrap}
+.dash-focus-note{font-size:.84rem;color:var(--text-muted);flex:1;min-width:200px}
+.dash-focus-cats{color:var(--text);font-weight:600}
+
 /* ── Game header ───────────────────────────────────────────────────── */
 .game-header{position:fixed;top:0;left:0;right:0;height:54px;
   background:rgba(13,17,23,.96);border-bottom:1px solid var(--border);
@@ -378,6 +423,58 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
 </div>
 
 <!-- ══════════════════════════════════════════════════════════════════════
+  VIEW 3.5 — Insights Dashboard
+════════════════════════════════════════════════════════════════════════ -->
+<div id="v-dashboard" class="view">
+  <div class="dash-wrap">
+
+    <!-- Hero: avatar + stats + quick-start -->
+    <div class="dash-hero">
+      <div id="dashAvatarEl"></div>
+      <div class="dash-hero-info">
+        <div class="dash-hero-name" id="dashHeroName"></div>
+        <div class="dash-hero-elo"  id="dashHeroElo"></div>
+        <div class="dash-chip-row"  id="dashChipRow"></div>
+      </div>
+      <button class="btn btn-primary" id="btnStartTraining1" style="flex-shrink:0">
+        Start Training →
+      </button>
+    </div>
+
+    <!-- Two-column body -->
+    <div class="dash-grid">
+
+      <!-- Left: Weakness breakdown -->
+      <div class="dash-card">
+        <div class="dash-card-title">Areas to improve</div>
+        <div id="dashWeaknessList"></div>
+      </div>
+
+      <!-- Right: Opening repertoire -->
+      <div class="dash-card">
+        <div class="dash-card-title">Opening repertoire</div>
+        <div class="op-color-label" style="margin-top:0">⬜ As White</div>
+        <div id="dashOpeningsWhite"></div>
+        <div class="op-color-label">⬛ As Black</div>
+        <div id="dashOpeningsBlack"></div>
+      </div>
+
+    </div><!-- /dash-grid -->
+
+    <!-- Footer CTA -->
+    <div class="dash-footer">
+      <div class="dash-focus-note" id="dashFocusNote">
+        The adaptive system will focus on your weakest areas first.
+      </div>
+      <button class="btn btn-primary" id="btnStartTraining2">
+        Start Adaptive Training →
+      </button>
+    </div>
+
+  </div><!-- /dash-wrap -->
+</div><!-- /v-dashboard -->
+
+<!-- ══════════════════════════════════════════════════════════════════════
   VIEW 4 — Game
 ════════════════════════════════════════════════════════════════════════ -->
 <div id="v-game" class="view">
@@ -546,6 +643,7 @@ const DEMO = [
 var currentUser = '';
 var sessionActive = false;
 var profileCache = null;
+var priorsCache  = null;
 var targetCategory = '';
 var targetSolveRate = 0.5;
 var sessionStreak = 0, sessionAcc = 0, sessionCount = 0;
@@ -718,16 +816,115 @@ async function startAnalysis() {
       if (data.status === 'done') {
         clearInterval(pollTimer); pollTimer = null;
         for (var i = 0; i < 4; i++) setStepState(i, 'done');
-        setTimeout(function(){ startSession(data.priors); }, 1200);
+        priorsCache = data.priors || null;
+        setTimeout(function(){ showDashboard(data.profile || null); }, 800);
       } else if (data.status === 'error' || data.status === 'not_started') {
         clearInterval(pollTimer); pollTimer = null;
-        startSession(null);   /* fall back to flat priors */
+        priorsCache = null;
+        showDashboard(null);
       }
     } catch(_) {
       clearInterval(pollTimer); pollTimer = null;
-      startSession(null);
+      priorsCache = null;
+      showDashboard(null);
     }
   }, 2000);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════════════════════════════ */
+function showDashboard(profile) {
+  _renderDashboard(profile);
+  showView('v-dashboard');
+}
+
+function _renderDashboard(profile) {
+  /* Avatar */
+  var avEl = document.getElementById('dashAvatarEl');
+  var avSrc = profileCache && profileCache.avatar;
+  avEl.innerHTML = avSrc
+    ? '<img class="dash-av" src="'+avSrc+'" alt="" onerror="this.parentElement.innerHTML=\'<div class=dash-av-ph>♟</div>\'">'
+    : '<div class="dash-av-ph">♟</div>';
+
+  if (profile) {
+    var badge = (profileCache && profileCache.title)
+      ? '<span class="title-badge">'+profileCache.title+'</span>' : '';
+    document.getElementById('dashHeroName').innerHTML =
+      (profile.username || currentUser) + badge;
+    document.getElementById('dashHeroElo').textContent =
+      'Estimated ELO: ~' + (profile.estimatedElo || '?');
+
+    var w = profile.gamesWon || 0, l = profile.gamesLost || 0, d = profile.gamesDrawn || 0;
+    document.getElementById('dashChipRow').innerHTML =
+      '<span class="dash-chip">' + (profile.gamesAnalysed || 0) + ' games</span>' +
+      '<span class="dash-chip">' + Math.round(profile.winRate || 0) + '% win rate</span>' +
+      '<span class="dash-chip">' + w + 'W / ' + l + 'L / ' + d + 'D</span>';
+
+    _renderWeaknesses(profile.weaknessScores || {});
+    _renderOpenings('dashOpeningsWhite', profile.topOpeningsWhite || []);
+    _renderOpenings('dashOpeningsBlack', profile.topOpeningsBlack || []);
+
+    var top3 = Object.entries(profile.weaknessScores || {})
+      .sort(function(a, b){ return b[1] - a[1]; })
+      .slice(0, 3).map(function(x){ return x[0]; });
+    document.getElementById('dashFocusNote').innerHTML = top3.length
+      ? 'Adaptive training will focus on: <span class="dash-focus-cats">' + top3.join(', ') + '</span>'
+      : 'The adaptive system will focus on your weakest areas first.';
+  } else {
+    document.getElementById('dashHeroName').textContent = currentUser || 'Guest';
+    document.getElementById('dashHeroElo').textContent  = 'No game analysis available';
+    document.getElementById('dashChipRow').innerHTML    = '';
+    document.getElementById('dashWeaknessList').innerHTML =
+      '<p style="color:var(--text-muted);font-size:.82rem;line-height:1.7">' +
+      'No history was analysed. The bandit will start with equal puzzle distribution ' +
+      'and adapt as you play.</p>';
+    document.getElementById('dashOpeningsWhite').innerHTML =
+      '<p style="color:var(--text-dim);font-size:.82rem">—</p>';
+    document.getElementById('dashOpeningsBlack').innerHTML =
+      '<p style="color:var(--text-dim);font-size:.82rem">—</p>';
+    document.getElementById('dashFocusNote').textContent =
+      'Starting with equal puzzle distribution — the system will adapt from your in-session performance.';
+  }
+}
+
+function _renderWeaknesses(scores) {
+  var container = document.getElementById('dashWeaknessList');
+  container.innerHTML = '';
+  Object.entries(scores)
+    .sort(function(a, b){ return b[1] - a[1]; })
+    .forEach(function(pair) {
+      var cat = pair[0], s = pair[1];
+      var pct = Math.round(s * 100);
+      var color, bg, label;
+      if      (s >= 0.60) { color='var(--red)';  bg='rgba(248,81,73,.12)';  label='Focus';  }
+      else if (s >= 0.40) { color='var(--gold)'; bg='rgba(227,179,65,.12)'; label='Review'; }
+      else                { color='var(--green)';bg='rgba(63,185,80,.10)';  label='Strong'; }
+      var div = document.createElement('div'); div.className = 'wk-item';
+      div.innerHTML =
+        '<div class="wk-label-row"><span>' + cat + '</span>' +
+        '<span class="wk-badge" style="background:'+bg+';color:'+color+'">' + label + '</span></div>' +
+        '<div class="wk-track"><div class="wk-fill" style="width:'+pct+'%;background:'+color+'"></div></div>';
+      container.appendChild(div);
+    });
+}
+
+function _renderOpenings(id, list) {
+  var el = document.getElementById(id);
+  if (!list || !list.length) {
+    el.innerHTML = '<p style="color:var(--text-dim);font-size:.82rem">No data</p>';
+    return;
+  }
+  el.innerHTML = list.slice(0, 5).map(function(o) {
+    var wr = Math.round(o.winRate || 0);
+    var c  = wr >= 60 ? 'var(--green)' : wr >= 45 ? 'var(--gold)' : 'var(--red)';
+    return '<div class="op-card">' +
+      '<div class="op-family">' + o.family + '</div>' +
+      '<div class="op-meta">' +
+        '<div style="color:var(--text-muted);font-size:.72rem">' + o.games + ' games</div>' +
+        '<div class="op-wr" style="color:' + c + '">' + wr + '% wins</div>' +
+      '</div></div>';
+  }).join('');
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -1136,13 +1333,15 @@ document.getElementById('btnGuest').addEventListener('click', function(){
 document.getElementById('btnBackLogin').addEventListener('click', function(){ showView('v-login'); });
 document.getElementById('btnAnalyse').addEventListener('click', startAnalysis);
 document.getElementById('btnSkip').addEventListener('click', function(){
-  startSession(null);
+  priorsCache = null;
+  showDashboard(null);
 });
 
 /* Analysis */
 document.getElementById('btnSkipAnalysis').addEventListener('click', function(){
   if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
-  startSession(null);
+  priorsCache = null;
+  showDashboard(null);
 });
 
 /* Game */
@@ -1155,6 +1354,14 @@ document.getElementById('btnFlip').addEventListener('click', function(){
   buildBoard(); render();
 });
 document.getElementById('ratingFilter').addEventListener('change', loadPuzzle);
+
+/* Dashboard */
+document.getElementById('btnStartTraining1').addEventListener('click', function(){
+  startSession(priorsCache);
+});
+document.getElementById('btnStartTraining2').addEventListener('click', function(){
+  startSession(priorsCache);
+});
 </script>
 </body>
 </html>
