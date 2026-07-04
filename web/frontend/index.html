@@ -1935,7 +1935,7 @@ function buildBoard() {
   ranks.forEach(function(rank) {
     ford.forEach(function(file) {
       var sq    = file + rank;
-      var light = (files.indexOf(file) + rank) % 2 !== 0;
+      var light = (files.indexOf(file) + rank) % 2 === 0;
       var cell  = document.createElement('div');
       cell.className = 'sq ' + (light ? 'sq-light' : 'sq-dark');
       cell.dataset.sq = sq;
