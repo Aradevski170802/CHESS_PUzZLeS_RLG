@@ -115,7 +115,7 @@ def find_stockfish() -> Optional[str]:
         resolved = shutil.which(candidate)
         if resolved:
             return resolved
-        if Path(candidate).exists():
+        if Path(candidate).is_file():
             return candidate
     return None
 
