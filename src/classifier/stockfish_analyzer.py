@@ -35,6 +35,7 @@ import logging
 import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable, Optional
 
 import chess
@@ -101,6 +102,9 @@ def find_stockfish() -> Optional[str]:
     candidates = [
         "stockfish",
         "stockfish.exe",
+        # Project-local binary (checked first)
+        str(Path(__file__).resolve().parents[2] / "stockfish" / "stockfish-windows-x86-64-avx2.exe"),
+        str(Path(__file__).resolve().parents[2] / "stockfish" / "stockfish.exe"),
         r"C:\stockfish\stockfish.exe",
         r"C:\Users\frogo\stockfish\stockfish.exe",
         "/usr/bin/stockfish",
@@ -111,7 +115,6 @@ def find_stockfish() -> Optional[str]:
         resolved = shutil.which(candidate)
         if resolved:
             return resolved
-        from pathlib import Path
         if Path(candidate).exists():
             return candidate
     return None

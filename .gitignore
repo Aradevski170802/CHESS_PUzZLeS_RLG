@@ -225,8 +225,13 @@ DataSets/
 data/raw/
 data/processed/
 data/cache/
+data/sessions/
+data/user_puzzles/
 *.parquet
 *.csv
+
+# Claude agent config (session-local)
+.claude/
 
 # Stockfish binary (not .py files)
 stockfish

@@ -36,6 +36,13 @@ import pandas as pd
 from flask import Flask, jsonify, request, send_from_directory
 from flask_cors import CORS
 
+try:
+    import chess as _pychess
+    _PYCHESS_OK = True
+except ImportError:
+    _pychess = None
+    _PYCHESS_OK = False
+
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -57,6 +64,8 @@ PUZZLE_BY_CAT: dict[str, list[dict]] = {}   # PrimaryCategory → [puzzle dicts]
 # ── In-memory state ───────────────────────────────────────────────────────────
 # username (lowercase) → {status, progress, message, priors, profile}
 ANALYSIS_STORE: dict[str, dict] = {}
+# username (lowercase) → {status, progress, message, count}
+GENERATE_STORE: dict[str, dict] = {}
 # username (lowercase) → ThompsonBandit
 SESSION_STORE: dict[str, ThompsonBandit] = {}
 
@@ -127,16 +136,44 @@ DEMO_PUZZLES = [
 
 # ── Puzzle loading ─────────────────────────────────────────────────────────────
 
+_PARQUET_COLS = [
+    "PuzzleId", "FEN", "Moves", "Rating", "RatingDeviation",
+    "Popularity", "NbPlays", "Themes", "GameUrl", "OpeningTags",
+    "PrimaryCategory", "DifficultyTier", "Categories",
+]
+_POOL_CAP = 200_000   # puzzles kept in RAM
+
+
 def _load_puzzles() -> None:
     global PUZZLE_POOL
     if PROCESSED_PARQUET.exists():
         print(f"Loading from parquet: {PROCESSED_PARQUET}")
-        df = pd.read_parquet(PROCESSED_PARQUET)
-        df = df[
-            (df["Rating"].between(600, 2400))
-            & (df["Popularity"] >= 60)
-            & (df["NbPlays"] >= 100)
-        ].copy()
+        # Read one row-group at a time so we never hold more than ~1 M rows in
+        # RAM simultaneously.  Filter and proportionally sample each chunk, then
+        # concatenate — peak memory ≈ one row-group + the growing sample list.
+        import pyarrow.parquet as _pq
+        pf   = _pq.ParquetFile(str(PROCESSED_PARQUET))
+        n_rg = pf.metadata.num_row_groups
+        # Guess target_fraction conservatively (upper-bound after filter ≈ 80 %)
+        target_per_rg = max(1, _POOL_CAP // n_rg)
+        avail_cols = pf.schema_arrow.names
+        cols = [c for c in _PARQUET_COLS if c in avail_cols]
+
+        chunks: list[pd.DataFrame] = []
+        for i in range(n_rg):
+            rg = pf.read_row_group(i, columns=cols).to_pandas()
+            rg = rg[
+                rg["Rating"].between(600, 2400)
+                & (rg["Popularity"] >= 60)
+                & (rg["NbPlays"] >= 100)
+            ]
+            if len(rg) > target_per_rg:
+                rg = rg.sample(target_per_rg, random_state=42 + i)
+            chunks.append(rg)
+
+        df = pd.concat(chunks, ignore_index=True)
+        if len(df) > _POOL_CAP:
+            df = df.sample(_POOL_CAP, random_state=42)
         PUZZLE_POOL = df.to_dict("records")
     elif RAW_CSV.exists():
         print(f"Loading sample from CSV: {RAW_CSV}")
@@ -162,6 +199,35 @@ def _build_category_index() -> None:
         cat = p.get("PrimaryCategory") or "General"
         idx[cat].append(p)
     PUZZLE_BY_CAT = dict(idx)
+
+
+def _validate_moves(fen: str, moves) -> bool:
+    """Return True iff every UCI move in the sequence is legal on the given FEN."""
+    if not _PYCHESS_OK:
+        return True
+    if isinstance(moves, str):
+        moves = moves.split()
+    try:
+        board = _pychess.Board(fen)
+        for uci in moves:
+            m = _pychess.Move.from_uci(uci)
+            if m not in board.legal_moves:
+                return False
+            board.push(m)
+        return True
+    except Exception:
+        return False
+
+
+def _pick_valid(pool: list, tries: int = 20):
+    """Sample up to *tries* puzzles and return the first one with valid moves."""
+    if not pool:
+        return None
+    candidates = random.sample(pool, min(tries, len(pool)))
+    for p in candidates:
+        if _validate_moves(p.get("FEN", ""), p.get("Moves", "")):
+            return p
+    return None
 
 
 def _serialise(puzzle: dict) -> dict:
@@ -451,7 +517,8 @@ def puzzle_random():
     ]
     if not pool:
         return jsonify({"error": "No puzzles found"}), 404
-    return jsonify(_serialise(random.choice(pool)))
+    chosen = _pick_valid(pool) or random.choice(pool)
+    return jsonify(_serialise(chosen))
 
 
 @app.route("/api/puzzle/<puzzle_id>")
@@ -485,6 +552,90 @@ def player_lookup():
         return jsonify(profile)
     except Exception as exc:
         return jsonify({"error": str(exc)}), 404
+
+
+# ── Player style profile ──────────────────────────────────────────────────────
+
+@app.route("/api/player/style/<username>")
+def player_style(username: str):
+    """
+    Derive a tactical/stylistic profile from the player's cached game history.
+    Returned without auth — style data is not sensitive.
+    """
+    username = username.strip().lower()
+    if not username or username == "guest":
+        return jsonify({"error": "username required"}), 400
+    try:
+        from src.api.chess_com_fetcher import get_recent_games, _cache_path
+        from src.analysis.style_profile import compute_style_profile
+
+        # Load all cached months — up to last 6 months, fast (no network)
+        import json as _json
+        from pathlib import Path as _Path
+
+        cache_dir = ROOT / "data" / "cache" / "chess_com"
+        pgns: list[str] = []
+        acc_data: list[float | None] = []
+
+        # Collect all game objects from cache files for this user
+        for cache_file in sorted(cache_dir.glob(f"games_{username}_*.json"), reverse=True)[:6]:
+            try:
+                obj = _json.loads(cache_file.read_text(encoding="utf-8"))
+                for g in obj.get("games", []):
+                    if g.get("pgn"):
+                        pgns.append(g["pgn"])
+                        accs = g.get("accuracies", {})
+                        # Pick the player's accuracy
+                        white_name = (g.get("white", {}).get("username") or "").lower()
+                        if username in white_name:
+                            acc_data.append(accs.get("white"))
+                        else:
+                            acc_data.append(accs.get("black"))
+            except Exception:
+                continue
+
+        if not pgns:
+            # Try fetching from API (might be slow; fallback to empty)
+            try:
+                pgns = get_recent_games(username, n=30)
+                acc_data = [None] * len(pgns)
+            except Exception:
+                return jsonify({"error": "No games found. Run game analysis first."}), 404
+
+        profile = compute_style_profile(username, pgns, accuracy_data=acc_data)
+
+        # Enrich with missed tactic types from generated puzzles
+        from src.puzzles.generator import load_user_puzzles
+        user_puzzles = load_user_puzzles(username)
+        if user_puzzles:
+            from collections import Counter
+            tactic_counts = Counter(p.get("PrimaryCategory", "General") for p in user_puzzles)
+            total_puz = len(user_puzzles)
+            profile["missed_tactics"] = {
+                cat: round(cnt / total_puz * 100)
+                for cat, cnt in tactic_counts.most_common(5)
+            }
+        else:
+            profile["missed_tactics"] = {}
+
+        # Enrich with bandit weakness data if session exists
+        bandit = SESSION_STORE.get(username)
+        if bandit:
+            weaknesses = {}
+            for cat in bandit.arms:
+                sr = bandit.solve_rate(cat)
+                weaknesses[cat] = round(sr * 100)
+            # Top 3 weakest categories
+            profile["bandit_weaknesses"] = dict(
+                sorted(weaknesses.items(), key=lambda x: x[1])[:5]
+            )
+        else:
+            profile["bandit_weaknesses"] = {}
+
+        return jsonify(profile)
+
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 # ── Background game analysis ───────────────────────────────────────────────────
@@ -574,8 +725,88 @@ def analysis_status(username: str):
     state = ANALYSIS_STORE.get(username, {
         "status": "not_started", "progress": 0, "message": "",
     })
-    # Don't serialise full puzzle history in the response
     return jsonify({k: v for k, v in state.items() if k != "history"})
+
+
+# ── Puzzle generation from player games ───────────────────────────────────────
+
+@app.route("/api/generate/puzzles", methods=["POST"])
+def generate_puzzles():
+    data     = request.get_json(force=True) or {}
+    username = (data.get("username") or "").strip().lower()
+    if not username:
+        return jsonify({"error": "username required"}), 400
+
+    if GENERATE_STORE.get(username, {}).get("status") == "running":
+        return jsonify({"status": "already_running"}), 409
+
+    from src.classifier.stockfish_analyzer import find_stockfish
+    sf_path = find_stockfish()   # None → heuristic mode (no Stockfish needed)
+
+    GENERATE_STORE[username] = {"status": "running", "progress": 0, "message": "Starting…", "count": 0}
+
+    def _run():
+        try:
+            from src.api.chess_com_fetcher import get_recent_games
+            from src.puzzles.generator import generate_from_games, save_user_puzzles
+
+            mode_label = "Stockfish" if sf_path else "heuristic analysis"
+            GENERATE_STORE[username]["message"] = "Fetching recent games from Chess.com…"
+            pgns = get_recent_games(username, n=30)
+            if not pgns:
+                GENERATE_STORE[username].update({
+                    "status": "error",
+                    "message": "No games found on Chess.com for this account. "
+                               "Make sure your game history is public.",
+                })
+                return
+            GENERATE_STORE[username]["progress"] = 20
+            GENERATE_STORE[username]["message"] = (
+                f"Scanning {len(pgns)} games with {mode_label}…"
+            )
+
+            def _cb(done, total, found=0):
+                pct = 20 + int(done / total * 70)
+                GENERATE_STORE[username]["progress"] = pct
+                found_str = f" ({found} found)" if found else ""
+                GENERATE_STORE[username]["message"] = (
+                    f"Scanned {done}/{total} games{found_str}…"
+                )
+
+            puzzles = generate_from_games(pgns, username, sf_path,
+                                          max_total=30, progress_callback=_cb)
+
+            if puzzles:
+                save_user_puzzles(username, puzzles)
+
+            GENERATE_STORE[username].update({
+                "status":   "done",
+                "progress": 100,
+                "message":  f"Generated {len(puzzles)} puzzles from your games!",
+                "count":    len(puzzles),
+            })
+        except Exception as exc:
+            GENERATE_STORE[username].update({"status": "error", "message": str(exc)})
+
+    threading.Thread(target=_run, daemon=True).start()
+    return jsonify({"status": "started", "stockfishPath": sf_path})
+
+
+@app.route("/api/generate/status/<username>")
+def generate_status(username: str):
+    return jsonify(GENERATE_STORE.get(username.lower(), {
+        "status": "not_started", "progress": 0, "message": "", "count": 0,
+    }))
+
+
+@app.route("/api/generate/list/<username>")
+def generate_list(username: str):
+    username = username.lower()
+    if not _check_token(username):
+        return jsonify({"error": "Unauthorized"}), 401
+    from src.puzzles.generator import load_user_puzzles
+    puzzles = load_user_puzzles(username)
+    return jsonify({"count": len(puzzles), "puzzles": [_serialise(p) for p in puzzles]})
 
 
 # ── Adaptive session ──────────────────────────────────────────────────────────
@@ -632,18 +863,41 @@ def session_puzzle():
     target = bandit.select_one()
     solve_rate = bandit.solve_rate(target)
 
-    # Try target category first, then fall back to any puzzle in range
-    cat_pool = [p for p in PUZZLE_BY_CAT.get(target, [])
-                if rating_min <= p["Rating"] <= rating_max]
+    # Blend user-generated puzzles (priority) with Lichess pool
+    from src.puzzles.generator import load_user_puzzles
+    user_puzzles = load_user_puzzles(username) if username != "guest" else []
 
-    if not cat_pool:
-        fallback_pool = [p for p in PUZZLE_POOL if rating_min <= p["Rating"] <= rating_max]
-        if not fallback_pool:
-            return jsonify({"error": "No puzzles found in this rating range"}), 404
-        chosen = random.choice(fallback_pool)
-        target = chosen.get("PrimaryCategory", "General")
-    else:
-        chosen = random.choice(cat_pool)
+    chosen = None
+
+    # Try user's own puzzles first (~40% of the time when available, or always
+    # when the target category matches)
+    if user_puzzles:
+        user_cat = [p for p in user_puzzles
+                    if p.get("PrimaryCategory") == target
+                    and rating_min <= p.get("Rating", 1200) <= rating_max]
+        if user_cat:
+            chosen = _pick_valid(user_cat) or random.choice(user_cat)
+            chosen = dict(chosen, source="generated")
+        elif random.random() < 0.4:
+            user_range = [p for p in user_puzzles
+                          if rating_min <= p.get("Rating", 1200) <= rating_max]
+            if user_range:
+                chosen = _pick_valid(user_range) or random.choice(user_range)
+                chosen = dict(chosen, source="generated")
+                target = chosen.get("PrimaryCategory", target)
+
+    # Fall back to Lichess pool
+    if chosen is None:
+        cat_pool = [p for p in PUZZLE_BY_CAT.get(target, [])
+                    if rating_min <= p["Rating"] <= rating_max]
+        if not cat_pool:
+            fallback_pool = [p for p in PUZZLE_POOL if rating_min <= p["Rating"] <= rating_max]
+            if not fallback_pool:
+                return jsonify({"error": "No puzzles found in this rating range"}), 404
+            chosen = _pick_valid(fallback_pool) or random.choice(fallback_pool)
+            target = chosen.get("PrimaryCategory", "General")
+        else:
+            chosen = _pick_valid(cat_pool) or random.choice(cat_pool)
 
     result = _serialise(chosen)
     result["targetCategory"] = target
