@@ -259,6 +259,25 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
   background:linear-gradient(90deg,var(--accent),var(--accent-h));
   border-radius:99px;transition:width .5s cubic-bezier(.4,0,.2,1);width:0%}
 
+/* Generated puzzle breakdown */
+.gen-meta-row{display:flex;gap:16px;margin-bottom:10px;flex-wrap:wrap}
+.gen-meta-stat{font-size:.8rem;color:var(--text-muted)}
+.gen-meta-stat strong{color:var(--text);font-size:.95rem}
+.gen-cat-pills{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.gen-cat-pill{display:inline-flex;align-items:center;gap:5px;
+  background:var(--surface2);border:1px solid var(--border);
+  border-radius:20px;padding:4px 11px;font-size:.73rem;font-weight:600;color:var(--text-muted)}
+.gen-cat-pill-n{color:var(--accent-h);font-weight:800;font-size:.85rem}
+.gen-btn-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:4px}
+
+/* Mode badge in game panel */
+.mode-badge{display:inline-block;font-size:.62rem;font-weight:700;text-transform:uppercase;
+  letter-spacing:.09em;background:var(--accent-dim);color:var(--accent-h);
+  border-radius:20px;padding:2px 9px;border:1px solid rgba(99,102,241,.3);margin-bottom:4px}
+.targeting-card.my-puzzles-mode{
+  background:linear-gradient(135deg,rgba(16,185,129,.10) 0%,var(--surface) 100%);
+  border-color:rgba(16,185,129,.3);box-shadow:0 0 24px rgba(16,185,129,.07)}
+
 .dash-history-banner{
   background:linear-gradient(135deg,rgba(99,102,241,.08),rgba(99,102,241,.03));
   border:1px solid rgba(99,102,241,.2);border-radius:var(--radius);padding:16px 20px}
@@ -845,10 +864,26 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
         <div class="gen-progress-track"><div class="gen-progress-bar" id="genBar"></div></div>
         <div id="genMsg" style="font-size:.82rem;color:var(--text-muted);margin-top:5px"></div>
       </div>
+
+      <!-- Puzzle breakdown — shown when puzzles exist -->
+      <div id="genBreakdown" style="display:none;margin-bottom:4px">
+        <div class="gen-meta-row">
+          <div class="gen-meta-stat"><strong id="genBdCount">0</strong> puzzles generated</div>
+          <div class="gen-meta-stat">avg rating <strong id="genBdAvgRating">—</strong></div>
+          <div class="gen-meta-stat">range <strong id="genBdRange">—</strong></div>
+        </div>
+        <div class="gen-cat-pills" id="genBdCats"></div>
+      </div>
+
       <div id="genResult" style="display:none;font-size:.85rem;color:var(--green);margin-bottom:10px"></div>
-      <button class="btn btn-secondary" id="btnGenerate" style="font-size:.85rem">
-        ⚙ Generate my puzzles
-      </button>
+      <div class="gen-btn-row">
+        <button class="btn btn-secondary" id="btnGenerate" style="font-size:.85rem">
+          ⚙ Generate my puzzles
+        </button>
+        <button class="btn btn-primary" id="btnPracticeOwn" style="display:none;font-size:.85rem">
+          ▶ Practice my puzzles
+        </button>
+      </div>
     </div>
 
     <!-- Footer CTA -->
@@ -927,6 +962,7 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
 
       <!-- Targeting card -->
       <div class="panel-card targeting-card" id="targetingCard">
+        <div id="modeBadge" class="mode-badge" style="display:none">Your Games</div>
         <div class="card-label">Training Focus</div>
         <div class="targeting-name" id="targetingName">Loading…</div>
         <div class="solve-bar-track">
@@ -1057,6 +1093,12 @@ var sessionStreak = 0, sessionAcc = 0, sessionCount = 0;
 var puzzleCompleted = false;
 var pollTimer = null;
 
+/* ── Generated puzzle practice mode ─────────────────────────────────── */
+var _myPuzzles = [];        // fetched from /api/generate/list
+var _myPuzzleMode = false;  // true = serve only from _myPuzzles
+var _myPuzzleIdx  = 0;      // current position in queue
+var $modeBadge    = null;   // set after DOM ready
+
 /* ── Game state ─────────────────────────────────────────────────────── */
 var chess = null, puzzle = null, moveIndex = 0;
 var playerColor = 'w', orientation = 'white';
@@ -1079,6 +1121,7 @@ var $themes    = document.getElementById('themesRow');
 var $turnDot   = document.getElementById('turnDot');
 var $turnText  = document.getElementById('turnText');
 var $turnCard  = document.querySelector('.turn-card');
+$modeBadge     = document.getElementById('modeBadge');
 var $topStrip  = document.getElementById('topPlayerStrip');
 var $botStrip  = document.getElementById('bottomPlayerStrip');
 var $topIcon   = document.getElementById('topPieceIcon');
@@ -1363,9 +1406,10 @@ function showDashboard(profile) {
       .then(function(d){ if (d) _updateHistoryBanner(d); })
       .catch(function(){});
   }
-  /* Async: load player style profile */
+  /* Async: load player style profile + generated puzzle breakdown */
   if (currentUser && currentUser !== 'guest') {
     _loadStyleProfile(currentUser);
+    _loadGenBreakdown(currentUser);
   }
 }
 
@@ -2069,6 +2113,29 @@ async function loadPuzzle() {
   var f  = getFilter();
   var un = currentUser || 'guest';
 
+  // ── My Puzzles mode: serve from local queue ───────────────────────
+  if (_myPuzzleMode && _myPuzzles.length) {
+    var raw = _myPuzzles[_myPuzzleIdx % _myPuzzles.length];
+    _myPuzzleIdx++;
+    puzzle = {
+      id:              raw.PuzzleId || raw.id || ('gen-' + _myPuzzleIdx),
+      fen:             raw.FEN      || raw.fen,
+      moves:           typeof raw.Moves === 'string' ? raw.Moves.split(' ') : (raw.Moves || raw.moves || []),
+      rating:          raw.Rating   || raw.rating || 1200,
+      primaryCategory: raw.PrimaryCategory || raw.primaryCategory || 'General',
+      difficultyTier:  raw.DifficultyTier  || raw.difficultyTier  || 'Intermediate',
+      themes:          raw.Themes   ? raw.Themes.split(' ') : (raw.themes || []),
+      gameUrl:         raw.GameUrl  || raw.gameUrl || '',
+      source:          'generated',
+    };
+    targetCategory  = puzzle.primaryCategory;
+    targetSolveRate = 0.5;
+    // Show wrapping message when we cycle back to start
+    if (_myPuzzleIdx > 0 && _myPuzzleIdx % _myPuzzles.length === 0) {
+      showFeedback('All ' + _myPuzzles.length + ' puzzles done — looping!', 'ok');
+    }
+  } else {
+  // ── Normal mode: fetch from API ───────────────────────────────────
   try {
     var ctrl = new AbortController();
     setTimeout(function(){ ctrl.abort(); }, 3000);
@@ -2086,6 +2153,7 @@ async function loadPuzzle() {
     targetCategory  = puzzle.primaryCategory || '';
     targetSolveRate = 0.5;
   }
+  } // end normal mode
 
   chess       = new Chess(puzzle.fen);
   moveIndex   = 0; hintUsed = false;
@@ -2216,6 +2284,23 @@ function updateTargetingCard() {
   var name  = document.getElementById('targetingName');
   var bar   = document.getElementById('solveBarFill');
   var rate  = document.getElementById('targetingRate');
+  var card  = document.getElementById('targetingCard');
+  var badge = document.getElementById('modeBadge');
+
+  // My Puzzles mode
+  if (_myPuzzleMode) {
+    badge.style.display = '';
+    badge.textContent   = 'Your Games — ' + (_myPuzzleIdx) + ' / ' + _myPuzzles.length;
+    card.classList.add('my-puzzles-mode');
+    name.textContent    = targetCategory || 'Your Puzzle';
+    bar.style.width     = '100%';
+    bar.style.background = 'var(--green)';
+    rate.textContent    = 'Puzzles extracted from your Chess.com games';
+    return;
+  }
+
+  badge.style.display = 'none';
+  card.classList.remove('my-puzzles-mode');
 
   if (!sessionActive || !targetCategory) {
     name.textContent = 'Random Mode';
@@ -2536,7 +2621,8 @@ document.getElementById('btnStartTraining2').addEventListener('click', _startFro
           clearInterval(_genPoll); _genPoll = null;
           document.getElementById('genStatus').style.display = 'none';
           if (res) { res.textContent = d.message; res.style.display = 'block'; }
-          if (btn) { btn.disabled = false; btn.textContent = '⚙ Generate my puzzles'; }
+          if (btn) { btn.disabled = false; btn.textContent = '⚙ Regenerate'; }
+          if (currentUser) { _myPuzzles = []; _loadGenBreakdown(currentUser); }
         } else if (d.status === 'error') {
           clearInterval(_genPoll); _genPoll = null;
           document.getElementById('genStatus').style.display = 'none';
@@ -2592,10 +2678,71 @@ document.getElementById('btnStartTraining2').addEventListener('click', _startFro
   });
 })();
 
+/* ── Generated puzzle breakdown & practice mode ────────────────────── */
+function _loadGenBreakdown(username) {
+  if (!username || username === 'guest' || !sessionToken) return;
+  fetch(API + '/api/generate/list/' + encodeURIComponent(username), {
+    headers: { 'Authorization': 'Bearer ' + (sessionToken || '') }
+  })
+  .then(function(r){ return r.ok ? r.json() : null; })
+  .then(function(d){
+    if (!d || !d.count) return;
+    _myPuzzles = d.puzzles || [];
+    _renderGenBreakdown(_myPuzzles);
+  })
+  .catch(function(){});
+}
+
+function _renderGenBreakdown(puzzles) {
+  if (!puzzles || !puzzles.length) return;
+  var bdEl  = document.getElementById('genBreakdown');
+  var catsEl = document.getElementById('genBdCats');
+  var practiceBtn = document.getElementById('btnPracticeOwn');
+
+  // Aggregate stats
+  var cats = {}, totalRating = 0, minR = Infinity, maxR = 0;
+  puzzles.forEach(function(p) {
+    var cat = p.PrimaryCategory || p.primaryCategory || 'General';
+    cats[cat] = (cats[cat] || 0) + 1;
+    var r = p.Rating || p.rating || 1200;
+    totalRating += r;
+    if (r < minR) minR = r;
+    if (r > maxR) maxR = r;
+  });
+  document.getElementById('genBdCount').textContent = puzzles.length;
+  document.getElementById('genBdAvgRating').textContent = Math.round(totalRating / puzzles.length);
+  document.getElementById('genBdRange').textContent = minR + '–' + maxR;
+
+  // Category pills sorted by count
+  catsEl.innerHTML = '';
+  Object.keys(cats).sort(function(a, b){ return cats[b] - cats[a]; }).forEach(function(cat) {
+    var pill = document.createElement('span');
+    pill.className = 'gen-cat-pill';
+    pill.innerHTML = '<span class="gen-cat-pill-n">' + cats[cat] + '</span> ' + cat;
+    catsEl.appendChild(pill);
+  });
+
+  bdEl.style.display = '';
+  if (practiceBtn) practiceBtn.style.display = '';
+}
+
+document.getElementById('btnPracticeOwn').addEventListener('click', function() {
+  if (!_myPuzzles.length) return;
+  _myPuzzleMode = true;
+  _myPuzzleIdx  = 0;
+  // Shuffle for variety each session
+  for (var i = _myPuzzles.length - 1; i > 0; i--) {
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = _myPuzzles[i]; _myPuzzles[i] = _myPuzzles[j]; _myPuzzles[j] = t;
+  }
+  startSession(priorsCache, null);
+});
+
 /* ── Stats panel ── */
 document.getElementById('btnOpenStats').addEventListener('click', function(){ openStatsPanel('session'); });
 document.getElementById('btnDashOpenStats').addEventListener('click', function(){ openStatsPanel('alltime'); });
 document.getElementById('btnToDashboard').addEventListener('click', function(){
+  _myPuzzleMode = false;  // exit "my puzzles" mode on dashboard return
   showView('v-dashboard');
   if (currentUser && sessionToken) {
     fetch(API + '/api/user/stats/' + encodeURIComponent(currentUser),

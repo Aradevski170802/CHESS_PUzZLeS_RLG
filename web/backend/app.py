@@ -566,7 +566,7 @@ def player_style(username: str):
     if not username or username == "guest":
         return jsonify({"error": "username required"}), 400
     try:
-        from src.api.chess_com_fetcher import get_recent_games, _cache_path
+        from src.api.chess_com_fetcher import get_recent_games
         from src.analysis.style_profile import compute_style_profile
 
         # Load all cached months — up to last 6 months, fast (no network)
