@@ -225,6 +225,8 @@ DataSets/
 data/raw/
 data/processed/
 data/cache/
+data/sessions/
+data/user_puzzles/
 *.parquet
 *.csv
 

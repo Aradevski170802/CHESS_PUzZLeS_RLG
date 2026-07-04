@@ -85,9 +85,12 @@ class ThompsonBandit:
         """Solve rate per category. Lower means the player is weaker there."""
         return {cat: arm.mean for cat, arm in self.arms.items()}
 
-    def top_weaknesses(self, n: int = 5) -> list[tuple[str, float]]:
+    def top_weaknesses(self, n: int = 5) -> list[dict]:
         """Categories sorted by weakness (lowest solve rate first)."""
-        return sorted(self.weakness_map().items(), key=lambda x: x[1])[:n]
+        return [
+            {"category": cat, "weakness": round(rate, 4)}
+            for cat, rate in sorted(self.weakness_map().items(), key=lambda x: x[1])[:n]
+        ]
 
     def session_accuracy(self) -> float:
         if not self.history:
