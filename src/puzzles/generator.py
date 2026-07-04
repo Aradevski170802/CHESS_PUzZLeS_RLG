@@ -43,16 +43,18 @@ import chess.pgn
 logger = logging.getLogger(__name__)
 
 # ── Constants ─────────────────────────────────────────────────────────────────
-PUZZLE_THRESHOLD   = 120    # centipawn drop (slightly lower catches more patterns)
+PUZZLE_THRESHOLD   = 120    # centipawn drop — raise to 150-200 for harder puzzles
 MAX_PER_GAME       = 3      # hard cap on puzzles extracted per game
 SKIP_PLIES         = 8      # ignore opening
-DETECT_TIME        = 0.05   # Stockfish seconds per position — must be ≥0.05 to reach depth 10+
+DETECT_TIME        = 0.05   # Stockfish seconds for detection — try 0.10 on good hardware
 SOLUTION_DEPTH     = 16     # Stockfish depth for continuation line
 CONTINUATION_MOVES = 4
 MATE_CP            = 9_000
 
-# Minimum value of a piece that counts as "worth forking"
-FORK_MIN_VALUE = 300        # knight / bishop or higher
+# Quality filters (tune these to improve generator output; run eval/run_evaluation.py)
+FORK_MIN_VALUE       = 300  # minimum piece value to count as "worth forking" (knight/bishop+)
+MIN_CLARITY_CP       = 80   # Stockfish mode: min gap between PV1 and PV2 to avoid dual solutions
+MIN_SOLUTION_DEPTH   = 3    # discard puzzles with fewer than this many moves (incl. opp move)
 
 USER_PUZZLES_DIR = Path("data/user_puzzles")
 
@@ -214,6 +216,19 @@ def _extract_heuristic(pgn_str: str, username: str, _sf_path) -> list[dict]:
         if not _validate_sequence(setup_fen, solution):
             continue
 
+        # ── Quality filter 1: minimum solution depth ─────────────────────
+        # Short solutions (opp_move + tactic only) are usually too obvious.
+        # Checkmate and Fork are exempt — pattern recognition IS the challenge.
+        if len(solution) < MIN_SOLUTION_DEPTH and tactic_type == "Hanging Piece":
+            continue
+
+        # ── Quality filter 2: skip trivial free captures ──────────────────
+        # A hanging piece with no defenders and no continuation is pure recall,
+        # not calculation.  Keep hanging pieces only when the position has a
+        # real recapture threat (i.e. solution depth ≥ 3).
+        if tactic_type == "Hanging Piece" and len(solution) < MIN_SOLUTION_DEPTH:
+            continue
+
         rating    = _heuristic_rating(tactic_type, material_gain)
         puzzle_id = "gen_" + hashlib.md5(
             (setup_fen + "".join(solution)).encode()
@@ -360,14 +375,29 @@ def _extract_stockfish(pgn_str: str, username: str, stockfish_path: str) -> list
             if b.turn != player_side or b.is_game_over():
                 continue
 
-            info_best  = engine.analyse(b, chess.engine.Limit(time=DETECT_TIME))
-            best_move  = (info_best.get("pv") or [None])[0]
+            # Multi-PV analysis: detect best move AND check for dual solutions
+            infos_best = engine.analyse(
+                b, chess.engine.Limit(time=DETECT_TIME), multipv=2
+            )
+            if not infos_best:
+                continue
+
+            best_move = (infos_best[0].get("pv") or [None])[0]
             if best_move is None or best_move == move:
                 continue
 
-            score_best = _pov_cp(info_best["score"], b.turn)
+            score_best = _pov_cp(infos_best[0]["score"], b.turn)
             if score_best is None or abs(score_best) > 800:
                 continue
+
+            # Clarity filter: require a clear gap between PV1 and PV2
+            # (prevents generating puzzles with multiple equally-good solutions)
+            if len(infos_best) >= 2:
+                score_pv2 = _pov_cp(infos_best[1]["score"], b.turn)
+                if score_pv2 is not None:
+                    clarity_gap = score_best - score_pv2
+                    if clarity_gap < MIN_CLARITY_CP:
+                        continue  # ambiguous position — two moves are nearly equal
 
             b_actual     = b.copy(); b_actual.push(move)
             info_actual  = engine.analyse(b_actual, chess.engine.Limit(time=DETECT_TIME))
