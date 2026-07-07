@@ -4,253 +4,613 @@
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 <title>Chess Puzzle Advisor</title>
-
-<!-- Bulma CSS -->
-<link rel="stylesheet" href="css/bulma.min.css"/>
-
 <style>
-/* ── Dark theme override ───────────────────────────────────────────── */
+/* ── Reset + Variables ─────────────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
-  --bg:#0f1117;--surface:#1a1d27;--surface2:#21253a;--border:#2e3348;
-  --accent:#c9a84c;--accent-dim:#7a6330;
-  --green:#4caf7d;--green-dim:rgba(76,175,125,.2);
-  --red:#e05c5c;--red-dim:rgba(224,92,92,.18);
-  --text:#e8eaf0;--text-muted:#6b7080;--text-dim:#9199ad;
+  --bg:#0d1117;--surface:#161b22;--surface2:#21262d;--border:#30363d;
+  --accent:#6366f1;--accent-h:#7577f3;--accent-dim:rgba(99,102,241,.14);
+  --green:#3fb950;--green-dim:rgba(63,185,80,.12);
+  --red:#f85149;--red-dim:rgba(248,81,73,.12);
+  --gold:#e3b341;
+  --text:#e6edf3;--text-muted:#8b949e;--text-dim:#6e7681;
+  --board-light:#f0d9b5;--board-dark:#b58863;
+  --radius:10px;
 }
-html,body{background:var(--bg);color:var(--text);min-height:100vh;font-family:'Segoe UI',system-ui,sans-serif}
 
-/* Bulma dark overrides */
-.navbar{background:rgba(15,17,23,.95)!important;border-bottom:1px solid var(--border);backdrop-filter:blur(10px)}
-.navbar-item,.navbar-link{color:var(--text)!important}
-.navbar-brand .navbar-item{font-weight:700;font-size:1.1rem}
-.accent{color:var(--accent)}
+/* ── Base ──────────────────────────────────────────────────────────── */
+html,body{background:var(--bg);color:var(--text);min-height:100vh;
+  font-family:-apple-system,'Segoe UI',system-ui,sans-serif;font-size:14px;line-height:1.5}
 
-.card{background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:10px}
-.card+.card{margin-top:12px}
-.card-content{padding:1rem 1.2rem}
+/* ── Views ─────────────────────────────────────────────────────────── */
+.view{display:none;min-height:100vh}
+.view.active{display:flex}
+#v-login,#v-profile,#v-analysis{align-items:center;justify-content:center;padding:24px}
+#v-game{flex-direction:column}
 
-.select select,.input{background:var(--surface2);border-color:var(--border);color:var(--text)}
-.select select:focus,.input:focus{border-color:var(--accent);box-shadow:0 0 0 2px rgba(201,168,76,.2)}
-.select::after{border-color:var(--accent)!important}
+/* ── Buttons ───────────────────────────────────────────────────────── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;
+  padding:9px 18px;border-radius:8px;font-size:.875rem;font-weight:600;
+  cursor:pointer;border:none;transition:background .14s,border-color .14s,transform .08s;
+  text-decoration:none;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:var(--accent);color:#fff}
+.btn-primary:hover{background:var(--accent-h)}
+.btn-secondary{background:var(--surface2);color:var(--text);border:1px solid var(--border)}
+.btn-secondary:hover{border-color:var(--accent);color:var(--accent)}
+.btn-ghost{background:transparent;color:var(--text-muted);border:1px solid var(--border)}
+.btn-ghost:hover{background:var(--surface2);color:var(--text)}
+.btn-block{width:100%}
+.btn-sm{padding:6px 12px;font-size:.8rem}
+.btn-back{background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:.85rem;
+  padding:0;margin-bottom:20px;display:flex;align-items:center;gap:4px}
+.btn-back:hover{color:var(--text)}
+.btn[disabled]{opacity:.5;pointer-events:none}
+.flex-1{flex:1}
 
-.button.is-warning{background:var(--accent);color:#1a1200;font-weight:700;border:none}
-.button.is-warning:hover{background:#d9b85a}
-.button.is-dark{background:var(--surface2);color:var(--text-dim);border:1px solid var(--border)}
-.button.is-dark:hover{border-color:var(--accent-dim);color:var(--accent)}
-.button.is-info.is-light{background:var(--surface2);color:#88aaee;border:1px solid var(--border)}
-.button.is-info.is-light:hover{border-color:#5588cc;color:#aac4f0}
+/* ── Forms ─────────────────────────────────────────────────────────── */
+.form-group{margin-bottom:14px}
+.form-label{display:block;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--text-muted);margin-bottom:6px}
+.form-input{width:100%;background:var(--surface2);border:1.5px solid var(--border);
+  border-radius:8px;padding:10px 14px;color:var(--text);font-size:.95rem;
+  outline:none;transition:border-color .15s}
+.form-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-dim)}
+.form-input::placeholder{color:var(--text-dim)}
 
-.tag.is-dark{background:var(--surface2);color:var(--text-dim);border:1px solid var(--border)}
-.tag.is-warning{background:rgba(201,168,76,.15);color:var(--accent);border:1px solid rgba(201,168,76,.3)}
+/* ── Auth / centered card ──────────────────────────────────────────── */
+.auth-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:36px 32px;width:100%;max-width:400px;box-shadow:0 8px 48px rgba(0,0,0,.5)}
+.auth-card.wide{max-width:460px}
+.auth-logo{font-size:3rem;text-align:center;margin-bottom:12px;line-height:1}
+.auth-title{font-size:1.5rem;font-weight:700;text-align:center;margin-bottom:6px}
+.auth-sub{text-align:center;color:var(--text-muted);font-size:.82rem;margin-bottom:24px}
+.divider{display:flex;align-items:center;gap:12px;margin:18px 0;color:var(--text-dim);font-size:.8rem}
+.divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.error-msg{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);
+  color:var(--red);border-radius:7px;padding:10px 14px;font-size:.82rem;margin-bottom:14px}
 
-/* Navbar select */
-.navbar-filter{display:flex;align-items:center;gap:10px;padding:0 12px}
-.navbar-filter label{font-size:.82rem;color:var(--text-muted);white-space:nowrap}
-.navbar-filter .select select{font-size:.82rem;padding:4px 28px 4px 10px;height:auto}
+/* ── Profile view ──────────────────────────────────────────────────── */
+.profile-header{display:flex;align-items:center;gap:14px;margin-bottom:20px}
+.avatar{width:56px;height:56px;border-radius:50%;border:2px solid var(--border);
+  object-fit:cover;background:var(--surface2)}
+.avatar-placeholder{width:56px;height:56px;border-radius:50%;background:var(--surface2);
+  border:2px solid var(--border);display:flex;align-items:center;justify-content:center;
+  font-size:1.5rem}
+.profile-username{font-size:1.15rem;font-weight:700}
+.profile-display-name{font-size:.82rem;color:var(--text-muted)}
+.title-badge{background:rgba(227,179,65,.12);color:var(--gold);border:1px solid rgba(227,179,65,.3);
+  border-radius:4px;padding:1px 7px;font-size:.75rem;font-weight:700;margin-left:6px}
+.ratings-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:20px}
+.rating-item{background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:10px 14px}
+.rating-tc{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;color:var(--text-muted)}
+.rating-val{font-size:1.3rem;font-weight:700;color:var(--text)}
+.rating-val.unrated{font-size:.85rem;color:var(--text-dim)}
+.profile-actions{display:flex;flex-direction:column;gap:8px}
+.btn-sub{display:block;font-size:.7rem;font-weight:400;color:rgba(255,255,255,.6);margin-top:2px}
+
+/* ── Analysis view ─────────────────────────────────────────────────── */
+.analysis-prog-track{height:8px;background:var(--surface2);border-radius:999px;overflow:hidden;
+  margin-bottom:8px}
+.analysis-prog-bar{height:100%;background:var(--accent);border-radius:999px;
+  transition:width .6s ease}
+.analysis-pct{text-align:right;font-size:.78rem;color:var(--text-muted);margin-bottom:16px}
+.analysis-steps{list-style:none;display:flex;flex-direction:column;gap:8px}
+.analysis-step{display:flex;align-items:center;gap:10px;font-size:.84rem;color:var(--text-muted)}
+.analysis-step.done{color:var(--green)}
+.analysis-step.active{color:var(--text)}
+.step-icon{width:18px;height:18px;border-radius:50%;display:flex;align-items:center;
+  justify-content:center;font-size:.7rem;flex-shrink:0}
+.step-icon.done{background:rgba(63,185,80,.15);color:var(--green)}
+.step-icon.active{background:var(--accent-dim);color:var(--accent)}
+.step-icon.pending{background:var(--surface2);color:var(--text-dim)}
+
+/* ── Dashboard (Insights) view ─────────────────────────────────────── */
+#v-dashboard{align-items:flex-start;justify-content:center;padding:28px 16px}
+.dash-wrap{width:100%;max-width:840px;margin:0 auto;display:flex;flex-direction:column;gap:16px}
+.dash-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:20px 24px;display:flex;align-items:center;gap:16px;flex-wrap:wrap}
+.dash-av{width:60px;height:60px;border-radius:50%;border:2px solid var(--border);
+  object-fit:cover;background:var(--surface2);flex-shrink:0}
+.dash-av-ph{width:60px;height:60px;border-radius:50%;background:var(--surface2);
+  border:2px solid var(--border);display:flex;align-items:center;justify-content:center;
+  font-size:1.8rem;flex-shrink:0}
+.dash-hero-info{flex:1;min-width:0}
+.dash-hero-name{font-size:1.15rem;font-weight:700;display:flex;align-items:center;gap:6px;
+  flex-wrap:wrap}
+.dash-hero-elo{font-size:.8rem;color:var(--text-muted);margin-top:2px}
+.dash-chip-row{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap}
+.dash-chip{background:var(--surface2);border:1px solid var(--border);border-radius:20px;
+  padding:3px 10px;font-size:.73rem;color:var(--text-muted)}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:680px){.dash-grid{grid-template-columns:1fr}}
+.dash-card{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px 20px}
+.dash-card-title{font-size:.7rem;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--text-muted);margin-bottom:14px}
+.wk-item{margin-bottom:9px}
+.wk-label-row{display:flex;justify-content:space-between;align-items:center;
+  margin-bottom:4px;font-size:.8rem}
+.wk-badge{font-size:.64rem;font-weight:700;text-transform:uppercase;
+  padding:1px 6px;border-radius:8px;flex-shrink:0}
+.wk-track{height:5px;background:var(--surface2);border-radius:999px;overflow:hidden}
+.wk-fill{height:100%;border-radius:999px;transition:width .8s cubic-bezier(.4,0,.2,1)}
+.op-color-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--text-muted);margin:12px 0 7px}
+.op-card{display:flex;align-items:center;justify-content:space-between;
+  background:var(--surface2);border:1px solid var(--border);border-radius:8px;
+  padding:8px 12px;margin-bottom:6px}
+.op-family{font-size:.82rem;font-weight:600;flex:1;min-width:0;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.op-meta{text-align:right;flex-shrink:0;margin-left:8px}
+.op-wr{font-size:.82rem;font-weight:700}
+.dash-footer{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:18px 24px;display:flex;align-items:center;
+  justify-content:space-between;gap:14px;flex-wrap:wrap}
+.dash-focus-note{font-size:.84rem;color:var(--text-muted);flex:1;min-width:200px}
+.dash-focus-cats{color:var(--text);font-weight:600}
+.dash-chip.chip-elo{background:var(--accent-dim);color:var(--accent);
+  border-color:rgba(99,102,241,.3);font-weight:600}
+.dash-history-banner{background:linear-gradient(135deg,var(--accent-dim),var(--surface));
+  border:1px solid rgba(99,102,241,.22);border-radius:var(--radius);padding:13px 18px}
+.dash-history-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--accent);margin-bottom:7px;font-weight:600}
+.dash-history-stats{display:flex;gap:14px;flex-wrap:wrap;font-size:.82rem}
+.dash-history-stats span{color:var(--text)}
+.dash-interpretation{font-size:.81rem;color:var(--text-muted);line-height:1.7;
+  margin-bottom:14px;padding-bottom:12px;border-bottom:1px solid var(--border)}
+.wk-section-label{font-size:.67rem;text-transform:uppercase;letter-spacing:.08em;
+  color:var(--text-dim);margin:14px 0 7px;padding-top:10px;
+  border-top:1px solid var(--border)}
+.wk-section-label:first-child{margin-top:0;padding-top:0;border-top:none}
+
+/* ── Game header ───────────────────────────────────────────────────── */
+.game-header{position:fixed;top:0;left:0;right:0;height:54px;
+  background:rgba(13,17,23,.96);border-bottom:1px solid var(--border);
+  display:flex;align-items:center;padding:0 20px;gap:16px;z-index:100;
+  backdrop-filter:blur(12px)}
+.header-logo{font-size:.95rem;font-weight:700;color:var(--text);white-space:nowrap}
+.header-logo .accent{color:var(--accent)}
+.header-stats{display:flex;gap:8px;margin-left:8px}
+.stat-chip{display:flex;align-items:center;gap:5px;background:var(--surface2);
+  border:1px solid var(--border);border-radius:20px;padding:4px 10px;font-size:.8rem}
+.stat-chip .icon{font-size:.78rem}
+.stat-chip .val{font-weight:600}
+.header-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.header-user{font-size:.8rem;color:var(--text-muted);white-space:nowrap}
+.header-select{background:var(--surface2);border:1px solid var(--border);
+  border-radius:7px;color:var(--text);padding:5px 24px 5px 10px;font-size:.8rem;
+  cursor:pointer;outline:none;appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238b949e'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 8px center}
+.header-select:focus{border-color:var(--accent)}
+
+/* ── Game main layout ──────────────────────────────────────────────── */
+.game-main{margin-top:54px;display:flex;gap:20px;padding:20px;
+  align-items:flex-start;justify-content:center;min-height:calc(100vh - 54px)}
+.board-side{flex-shrink:0}
 
 /* ── Chess board ───────────────────────────────────────────────────── */
-.board-wrap{border-radius:10px;overflow:hidden;box-shadow:0 4px 24px rgba(0,0,0,.5),0 0 0 3px var(--border);transition:box-shadow .3s;display:inline-block}
-.board-wrap.correct{box-shadow:0 4px 24px rgba(0,0,0,.5),0 0 0 3px var(--green),0 0 32px var(--green-dim)}
-.board-wrap.wrong{box-shadow:0 4px 24px rgba(0,0,0,.5),0 0 0 3px var(--red),0 0 32px var(--red-dim)}
-.chess-board{display:grid;grid-template-columns:repeat(8,60px);grid-template-rows:repeat(8,60px);width:480px;height:480px;user-select:none}
-.sq{position:relative;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:background .12s}
-.sq-light{background:#f0d9b5}.sq-dark{background:#b58863}
-.sq.hl-from{background:rgba(201,168,76,.82)!important}
-.sq.hl-to{background:rgba(201,168,76,.65)!important}
-.sq.hl-hint{background:rgba(90,150,255,.70)!important}
-.sq.hl-legal::after{content:'';position:absolute;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.18);pointer-events:none}
+.board-wrap{border-radius:8px;overflow:hidden;
+  box-shadow:0 2px 20px rgba(0,0,0,.5),0 0 0 2px var(--border);
+  transition:box-shadow .3s;display:inline-block}
+.board-wrap.correct{box-shadow:0 2px 20px rgba(0,0,0,.5),0 0 0 3px var(--green),0 0 32px var(--green-dim)}
+.board-wrap.wrong{box-shadow:0 2px 20px rgba(0,0,0,.5),0 0 0 3px var(--red),0 0 32px var(--red-dim)}
+.chess-board{display:grid;grid-template-columns:repeat(8,64px);
+  grid-template-rows:repeat(8,64px);width:512px;height:512px;user-select:none}
+.sq{position:relative;display:flex;align-items:center;justify-content:center;
+  cursor:pointer;transition:background .1s}
+.sq-light{background:var(--board-light)}
+.sq-dark{background:var(--board-dark)}
+.sq.hl-from{background:rgba(246,246,105,.82)!important}
+.sq.hl-to{background:rgba(246,246,105,.65)!important}
+.sq.hl-hint{background:rgba(99,102,241,.65)!important}
+.sq.hl-legal::after{content:'';position:absolute;width:32px;height:32px;border-radius:50%;
+  background:rgba(0,0,0,.18);pointer-events:none}
 .coord{position:absolute;font-size:10px;font-weight:700;line-height:1;pointer-events:none;z-index:1}
-.coord-rank{top:3px;left:3px}.coord-file{bottom:2px;right:3px}
-.sq-light .coord{color:#b58863}.sq-dark .coord{color:#f0d9b5}
-.piece{font-size:46px;line-height:1;cursor:grab;position:relative;z-index:2;transition:transform .1s;display:flex;align-items:center;justify-content:center}
-.piece:active{cursor:grabbing;transform:scale(1.15)}
-.piece-w{color:#fff;text-shadow:0 0 2px #333,0 1px 3px rgba(0,0,0,.6);filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
-.piece-b{color:#1a1a1a;text-shadow:0 0 1px #888,0 1px 2px rgba(0,0,0,.3);filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
+.coord-rank{top:3px;left:3px}
+.coord-file{bottom:2px;right:3px}
+.sq-light .coord{color:var(--board-dark)}
+.sq-dark  .coord{color:var(--board-light)}
+.piece{font-size:48px;line-height:1;cursor:grab;position:relative;z-index:2;
+  display:flex;align-items:center;justify-content:center}
+.piece:active{cursor:grabbing}
+.piece-w{color:#fff;text-shadow:0 0 2px #333,0 1px 3px rgba(0,0,0,.6);
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+.piece-b{color:#1a1a1a;text-shadow:0 0 1px #888,0 1px 2px rgba(0,0,0,.3);
+  filter:drop-shadow(0 1px 2px rgba(0,0,0,.4))}
 
 /* ── Feedback banner ───────────────────────────────────────────────── */
-.feedback-banner{min-height:36px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:.88rem;font-weight:600;letter-spacing:.02em;transition:all .25s;opacity:0;margin-top:10px}
-.feedback-banner.show-correct{opacity:1;background:rgba(76,175,125,.15);color:var(--green);border:1px solid rgba(76,175,125,.3)}
-.feedback-banner.show-wrong{opacity:1;background:rgba(224,92,92,.12);color:var(--red);border:1px solid rgba(224,92,92,.3)}
+.feedback-banner{min-height:34px;border-radius:7px;display:flex;align-items:center;
+  justify-content:center;font-size:.84rem;font-weight:600;transition:all .25s;
+  opacity:0;margin-top:10px}
+.feedback-banner.ok{opacity:1;background:var(--green-dim);color:var(--green);
+  border:1px solid rgba(63,185,80,.3)}
+.feedback-banner.bad{opacity:1;background:var(--red-dim);color:var(--red);
+  border:1px solid rgba(248,81,73,.3)}
 
-/* ── Info panel widgets ────────────────────────────────────────────── */
-.puzzle-id-code{font-family:'Courier New',monospace;font-size:.88rem;color:var(--accent);background:rgba(201,168,76,.12);padding:2px 8px;border-radius:4px}
-.game-link{color:var(--text-muted);text-decoration:none;font-size:.95rem;transition:color .2s}
+/* ── Game panel ────────────────────────────────────────────────────── */
+.game-panel{width:300px;flex-shrink:0;display:flex;flex-direction:column;
+  gap:10px;position:relative}
+.panel-card{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);padding:12px 14px}
+.card-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;
+  color:var(--text-muted);margin-bottom:5px}
+
+/* Targeting card */
+.targeting-card{background:linear-gradient(135deg,var(--accent-dim),var(--surface));
+  border-color:rgba(99,102,241,.28)}
+.targeting-name{font-size:1.1rem;font-weight:700;margin:4px 0 8px;color:var(--text)}
+.solve-bar-track{height:5px;background:var(--surface2);border-radius:999px;overflow:hidden;
+  margin-bottom:5px}
+.solve-bar-fill{height:100%;border-radius:999px;transition:width .6s ease}
+.targeting-rate{font-size:.76rem;color:var(--text-muted)}
+
+/* Puzzle info */
+.puzzle-top-row{display:flex;align-items:center;gap:8px;margin-bottom:7px;flex-wrap:wrap}
+.diff-badge{font-size:.66rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;
+  padding:2px 8px;border-radius:20px;display:inline-block;flex-shrink:0}
+.diff-badge.beginner   {background:#1a3a2a;color:#6fcf97;border:1px solid #2a5a3a}
+.diff-badge.easy       {background:#1e3a1e;color:#7ecb7e;border:1px solid #2a5a2a}
+.diff-badge.intermediate{background:#2a3020;color:#c8d66a;border:1px solid #3a4a25}
+.diff-badge.advanced   {background:#332a14;color:#e0a040;border:1px solid #4a3a18}
+.diff-badge.hard       {background:#331a14;color:#e07050;border:1px solid #4a2a18}
+.diff-badge.expert     {background:#2e1a2e;color:#cc70cc;border:1px solid #441844}
+.diff-badge.master     {background:#1a1a2e;color:#7070e0;border:1px solid #282848}
+.rating-num{font-size:1.3rem;font-weight:700}
+.plays-label{font-size:.72rem;color:var(--text-muted);margin-left:auto}
+.game-link{color:var(--text-muted);text-decoration:none;font-size:.85rem;transition:color .15s}
 .game-link:hover{color:var(--accent)}
-.rating-big{font-size:1.6rem;font-weight:700;color:var(--text);line-height:1}
+.themes-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.theme-tag{background:var(--surface2);border:1px solid var(--border);border-radius:20px;
+  padding:2px 8px;font-size:.7rem;color:var(--text-muted)}
+.puzzle-id-row{display:flex;align-items:center;gap:8px}
+.puzzle-id-code{font-family:monospace;font-size:.8rem;color:var(--accent);
+  background:var(--accent-dim);padding:2px 7px;border-radius:4px}
 
-.difficulty-badge{font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.07em;padding:3px 9px;border-radius:20px;display:inline-block}
-.difficulty-badge.beginner{background:#1a3a2a;color:#6fcf97;border:1px solid #2a5a3a}
-.difficulty-badge.easy{background:#1e3a1e;color:#7ecb7e;border:1px solid #2a5a2a}
-.difficulty-badge.intermediate{background:#2a3020;color:#c8d66a;border:1px solid #3a4a25}
-.difficulty-badge.advanced{background:#332a14;color:#e0a040;border:1px solid #4a3a18}
-.difficulty-badge.hard{background:#331a14;color:#e07050;border:1px solid #4a2a18}
-.difficulty-badge.expert{background:#2e1a2e;color:#cc70cc;border:1px solid #441844}
-.difficulty-badge.master{background:#1a1a2e;color:#7070e0;border:1px solid #282848}
-
-.turn-dot{width:13px;height:13px;border-radius:50%;display:inline-block;flex-shrink:0;margin-right:10px}
-.turn-dot.white{background:#f0d9b5;box-shadow:0 0 7px rgba(240,217,181,.6)}
+/* Turn indicator */
+.turn-card{display:flex;align-items:center;gap:10px;padding:10px 14px}
+.turn-dot{width:12px;height:12px;border-radius:50%;flex-shrink:0}
+.turn-dot.white{background:var(--board-light);box-shadow:0 0 6px rgba(240,217,181,.6)}
 .turn-dot.black{background:#3a2e26;border:2px solid #7a6a5a}
+#turnText{font-weight:600;font-size:.9rem}
 
 /* Progress */
-.progress-track{height:4px;background:var(--surface2);border-radius:4px;overflow:hidden;margin:8px 0}
-.progress-bar-inner{height:100%;background:var(--accent);border-radius:4px;transition:width .4s ease;width:0%}
-.move-dots{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
-.move-dot{width:10px;height:10px;border-radius:50%;background:var(--surface2);border:1.5px solid var(--border);transition:all .25s}
-.move-dot.auto{background:var(--text-muted);border-color:var(--text-muted)}
+.progress-header{display:flex;justify-content:space-between;margin-bottom:6px}
+.progress-frac{font-size:.75rem;color:var(--text-muted)}
+.prog-track{height:4px;background:var(--surface2);border-radius:999px;overflow:hidden;margin-bottom:7px}
+.prog-fill{height:100%;background:var(--accent);border-radius:999px;transition:width .4s ease}
+.move-dots{display:flex;gap:5px;flex-wrap:wrap}
+.move-dot{width:9px;height:9px;border-radius:50%;background:var(--surface2);
+  border:1.5px solid var(--border);transition:all .22s}
+.move-dot.auto   {background:var(--text-dim);border-color:var(--text-dim)}
 .move-dot.correct{background:var(--green);border-color:var(--green)}
-.move-dot.wrong{background:var(--red);border-color:var(--red)}
+.move-dot.wrong  {background:var(--red);border-color:var(--red)}
 
-/* Move log */
-.move-log-body{max-height:140px;overflow-y:auto;display:flex;flex-direction:column;gap:4px}
-.log-entry{display:flex;align-items:center;gap:8px;font-size:.82rem}
-.log-entry .move-num{color:var(--text-muted);min-width:22px;font-size:.77rem}
-.log-entry .move-san{font-family:'Courier New',monospace;font-size:.86rem}
-.log-entry .move-tag{font-size:.7rem;padding:1px 6px;border-radius:10px;margin-left:auto}
-.log-entry.auto-move .move-tag{background:var(--surface2);color:var(--text-muted)}
-.log-entry.player-correct .move-tag{background:rgba(76,175,125,.15);color:var(--green)}
-.log-entry.player-wrong .move-tag{background:rgba(224,92,92,.12);color:var(--red)}
+/* Move history */
+.move-log{max-height:120px;overflow-y:auto;display:flex;flex-direction:column;gap:3px}
+.log-entry{display:flex;align-items:center;gap:8px;font-size:.8rem}
+.log-num{color:var(--text-dim);min-width:20px;font-size:.75rem}
+.log-san{font-family:monospace;font-size:.82rem}
+.log-tag{font-size:.66rem;padding:1px 5px;border-radius:8px;margin-left:auto}
+.log-entry.auto-move  .log-tag{background:var(--surface2);color:var(--text-dim)}
+.log-entry.player-ok  .log-tag{background:var(--green-dim);color:var(--green)}
+.log-entry.player-bad .log-tag{background:var(--red-dim);color:var(--red)}
+
+/* Controls */
+.controls-row{display:flex;gap:8px;align-items:center}
 
 /* Solved overlay */
-.solved-overlay{display:none;position:absolute;inset:0;background:rgba(15,17,23,.95);backdrop-filter:blur(6px);border-radius:10px;border:1px solid var(--green);flex-direction:column;align-items:center;justify-content:center;gap:12px;z-index:20;animation:fadeIn .3s ease}
-.solved-overlay.is-active{display:flex}
-.solved-icon{width:56px;height:56px;border-radius:50%;background:rgba(76,175,125,.2);border:2px solid var(--green);display:flex;align-items:center;justify-content:center;font-size:1.6rem;color:var(--green)}
-@keyframes fadeIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+.solved-overlay{display:none;position:absolute;inset:0;
+  background:rgba(13,17,23,.95);backdrop-filter:blur(6px);
+  border-radius:var(--radius);border:1px solid var(--green);
+  flex-direction:column;align-items:center;justify-content:center;
+  gap:12px;z-index:20;animation:fadeIn .3s ease}
+.solved-overlay.active{display:flex}
+.solved-icon-wrap{width:52px;height:52px;border-radius:50%;
+  background:var(--green-dim);border:2px solid var(--green);
+  display:flex;align-items:center;justify-content:center;
+  font-size:1.4rem;color:var(--green)}
+.solved-title{font-size:1.2rem;font-weight:700;color:var(--green)}
+.solved-sub{font-size:.8rem;color:var(--text-muted);text-align:center;padding:0 16px}
 
 /* Loading overlay */
-.loading-overlay{position:fixed;inset:0;background:rgba(15,17,23,.85);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;z-index:999;font-size:.9rem;color:var(--text-muted);transition:opacity .3s}
-.loading-overlay.is-hidden{opacity:0;pointer-events:none}
-.spinner{width:36px;height:36px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
+.loading-overlay{position:fixed;inset:0;background:rgba(13,17,23,.88);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:14px;z-index:999;font-size:.88rem;color:var(--text-muted);transition:opacity .3s}
+.loading-overlay.hidden{opacity:0;pointer-events:none}
+.spinner{width:34px;height:34px;border:3px solid var(--border);
+  border-top-color:var(--accent);border-radius:50%;animation:spin .75s linear infinite}
 
-.label-muted{font-size:.73rem;text-transform:uppercase;letter-spacing:.07em;color:var(--text-muted);margin-bottom:6px}
+/* ── Animations ────────────────────────────────────────────────────── */
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes fadeIn{from{opacity:0;transform:scale(.96)}to{opacity:1;transform:scale(1)}}
+
+/* ── Scrollbar ─────────────────────────────────────────────────────── */
+::-webkit-scrollbar{width:5px}
+::-webkit-scrollbar-track{background:var(--surface2)}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
+::-webkit-scrollbar-thumb:hover{background:var(--text-dim)}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+@media (max-width:860px){
+  .chess-board{grid-template-columns:repeat(8,46px);grid-template-rows:repeat(8,46px);width:368px;height:368px}
+  .piece{font-size:34px}
+  .sq.hl-legal::after{width:22px;height:22px}
+  .game-panel{width:260px}
+  .header-stats{display:none}
+}
+@media (max-width:680px){
+  .game-main{flex-direction:column;align-items:center;padding:12px}
+  .game-panel{width:100%;max-width:512px}
+  .chess-board{grid-template-columns:repeat(8,44px);grid-template-rows:repeat(8,44px);width:352px;height:352px}
+}
 </style>
 </head>
 <body>
 
-<!-- ── Navbar ─────────────────────────────────────────────────────────── -->
-<nav class="navbar is-fixed-top" role="navigation">
-  <div class="navbar-brand">
-    <a class="navbar-item" href="#">
-      ♟ Chess Puzzle <span class="accent">&nbsp;Advisor</span>
-    </a>
+<!-- ══════════════════════════════════════════════════════════════════════
+  VIEW 1 — Login
+════════════════════════════════════════════════════════════════════════ -->
+<div id="v-login" class="view active" style="background:radial-gradient(ellipse at 50% 35%,#1c1f35 0%,var(--bg) 70%)">
+  <div class="auth-card">
+    <div class="auth-logo">♟</div>
+    <h1 class="auth-title">Chess Puzzle Advisor</h1>
+    <p class="auth-sub">Adaptive training · MSc AI Dissertation</p>
+
+    <div id="loginError" class="error-msg" style="display:none"></div>
+
+    <div class="form-group">
+      <label class="form-label" for="usernameInput">Chess.com username</label>
+      <input type="text" id="usernameInput" class="form-input" placeholder="e.g. hikaru" autocomplete="off" autocapitalize="none" spellcheck="false"/>
+    </div>
+    <button id="btnLookup" class="btn btn-primary btn-block">Load Profile →</button>
+
+    <div class="divider"><span>or</span></div>
+    <button id="btnGuest" class="btn btn-ghost btn-block">Play as Guest</button>
   </div>
-  <div class="navbar-menu is-active" style="background:transparent;box-shadow:none">
-    <div class="navbar-end">
-      <div class="navbar-filter">
-        <label>Rating</label>
-        <div class="select is-small">
-          <select id="ratingFilter">
-            <option value="all">All levels</option>
-            <option value="600-999">Beginner (600–999)</option>
-            <option value="1000-1199">Easy (1000–1199)</option>
-            <option value="1200-1499" selected>Intermediate (1200–1499)</option>
-            <option value="1500-1799">Advanced (1500–1799)</option>
-            <option value="1800-1999">Hard (1800–1999)</option>
-            <option value="2000-2400">Expert (2000+)</option>
-          </select>
-        </div>
-      </div>
-      <div class="navbar-item">
-        <button class="button is-warning is-small" id="btnNext">Next puzzle →</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+  VIEW 2 — Profile card
+════════════════════════════════════════════════════════════════════════ -->
+<div id="v-profile" class="view">
+  <div class="auth-card wide">
+    <button id="btnBackLogin" class="btn-back">← Back</button>
+
+    <div class="profile-header">
+      <div id="avatarWrap"></div>
+      <div>
+        <div class="profile-username" id="profileUsername"></div>
+        <div class="profile-display-name" id="profileName"></div>
       </div>
     </div>
+
+    <div class="ratings-grid" id="ratingsGrid"></div>
+
+    <div class="profile-actions">
+      <button id="btnAnalyse" class="btn btn-primary btn-block">
+        Analyse my games
+        <span class="btn-sub">Uses last 50 games to identify weaknesses</span>
+      </button>
+      <button id="btnSkip" class="btn btn-ghost btn-block" style="margin-top:8px">
+        Skip — start with equal puzzle distribution
+      </button>
+    </div>
   </div>
-</nav>
+</div>
 
-<!-- ── Main layout ────────────────────────────────────────────────────── -->
-<section class="section" style="padding-top:5rem">
-  <div class="container is-widescreen">
-    <div class="columns is-variable is-6 is-vcentered">
+<!-- ══════════════════════════════════════════════════════════════════════
+  VIEW 3 — Analysis progress
+════════════════════════════════════════════════════════════════════════ -->
+<div id="v-analysis" class="view">
+  <div class="auth-card">
+    <div class="auth-logo" style="font-size:2rem">⚙</div>
+    <h2 class="auth-title" style="font-size:1.25rem">Analysing your games</h2>
+    <p id="analysisStatusText" class="auth-sub">Starting…</p>
 
-      <!-- Board column -->
-      <div class="column is-narrow">
-        <div class="board-wrap" id="boardWrap">
-          <div id="board"></div>
-        </div>
-        <div class="feedback-banner" id="feedbackBanner"></div>
+    <div class="analysis-prog-track">
+      <div class="analysis-prog-bar" id="analysisBar"></div>
+    </div>
+    <div class="analysis-pct" id="analysisPct">0%</div>
+
+    <ul class="analysis-steps" id="analysisSteps">
+      <li class="analysis-step" id="as0">
+        <span class="step-icon pending">○</span>Fetch Chess.com profile
+      </li>
+      <li class="analysis-step" id="as1">
+        <span class="step-icon pending">○</span>Download recent games
+      </li>
+      <li class="analysis-step" id="as2">
+        <span class="step-icon pending">○</span>Parse game records
+      </li>
+      <li class="analysis-step" id="as3">
+        <span class="step-icon pending">○</span>Build weakness profile
+      </li>
+    </ul>
+
+    <button id="btnSkipAnalysis" class="btn btn-ghost btn-sm btn-block" style="margin-top:18px">
+      Skip analysis and play now
+    </button>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════════════════════════════
+  VIEW 3.5 — Insights Dashboard
+════════════════════════════════════════════════════════════════════════ -->
+<div id="v-dashboard" class="view">
+  <div class="dash-wrap">
+
+    <!-- Hero: avatar + stats + quick-start -->
+    <div class="dash-hero">
+      <div id="dashAvatarEl"></div>
+      <div class="dash-hero-info">
+        <div class="dash-hero-name" id="dashHeroName"></div>
+        <div class="dash-hero-elo"  id="dashHeroElo"></div>
+        <div class="dash-chip-row"  id="dashChipRow"></div>
+      </div>
+      <button class="btn btn-primary" id="btnStartTraining1" style="flex-shrink:0">
+        Start Training →
+      </button>
+    </div>
+
+    <!-- Returning-user history banner (shown only when history exists) -->
+    <div id="dashHistoryBanner" style="display:none" class="dash-history-banner">
+      <div class="dash-history-label">Training progress saved</div>
+      <div class="dash-history-stats" id="dashHistoryStats"></div>
+    </div>
+
+    <!-- Two-column body -->
+    <div class="dash-grid">
+
+      <!-- Left: Weakness breakdown -->
+      <div class="dash-card">
+        <div class="dash-card-title">Areas to improve</div>
+        <div id="dashInterpretation" class="dash-interpretation" style="display:none"></div>
+        <div id="dashWeaknessList"></div>
       </div>
 
-      <!-- Info column -->
-      <div class="column">
+      <!-- Right: Opening repertoire -->
+      <div class="dash-card">
+        <div class="dash-card-title">Opening repertoire</div>
+        <div class="op-color-label" style="margin-top:0">⬜ As White</div>
+        <div id="dashOpeningsWhite"></div>
+        <div class="op-color-label">⬛ As Black</div>
+        <div id="dashOpeningsBlack"></div>
+      </div>
 
-        <!-- Puzzle identity -->
-        <div class="card">
-          <div class="card-content">
-            <div class="is-flex is-align-items-center is-justify-content-space-between mb-2">
-              <div class="is-flex is-align-items-center" style="gap:10px">
-                <span class="label-muted">Puzzle</span>
-                <span class="puzzle-id-code" id="puzzleId">—</span>
-              </div>
-              <a class="game-link" id="gameLink" href="#" target="_blank">↗ Game</a>
-            </div>
-            <div class="is-flex is-align-items-center mb-3" style="gap:12px">
-              <span class="difficulty-badge" id="difficultyBadge">—</span>
-              <span class="rating-big" id="ratingValue">—</span>
-              <span style="font-size:.8rem;color:var(--text-muted)">Rating</span>
-              <span style="margin-left:auto;font-size:.78rem;color:var(--text-muted)" id="playsLabel"></span>
-            </div>
-            <div class="tags" id="themesRow"></div>
-          </div>
+    </div><!-- /dash-grid -->
+
+    <!-- Footer CTA -->
+    <div class="dash-footer">
+      <div class="dash-focus-note" id="dashFocusNote">
+        The adaptive system will focus on your weakest areas first.
+      </div>
+      <button class="btn btn-primary" id="btnStartTraining2">
+        Start Adaptive Training →
+      </button>
+    </div>
+
+  </div><!-- /dash-wrap -->
+</div><!-- /v-dashboard -->
+
+<!-- ══════════════════════════════════════════════════════════════════════
+  VIEW 4 — Game
+════════════════════════════════════════════════════════════════════════ -->
+<div id="v-game" class="view">
+
+  <header class="game-header">
+    <div class="header-logo">♟ Puzzle <span class="accent">Advisor</span></div>
+
+    <div class="header-stats">
+      <div class="stat-chip">
+        <span class="icon">🔥</span><span class="val" id="statStreak">0</span>
+      </div>
+      <div class="stat-chip">
+        <span class="icon">✓</span><span class="val" id="statAcc">—</span>
+      </div>
+      <div class="stat-chip">
+        <span class="icon">#</span><span class="val" id="statCount">0</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <span class="header-user" id="headerUser"></span>
+      <select id="ratingFilter" class="header-select">
+        <option value="all">All levels</option>
+        <option value="600-999">Beginner (600–999)</option>
+        <option value="1000-1199">Easy (1000–1199)</option>
+        <option value="1200-1499" selected>Intermediate (1200–1499)</option>
+        <option value="1500-1799">Advanced (1500–1799)</option>
+        <option value="1800-1999">Hard (1800–1999)</option>
+        <option value="2000-2400">Expert (2000+)</option>
+      </select>
+      <button class="btn btn-primary btn-sm" id="btnNext">Next →</button>
+    </div>
+  </header>
+
+  <main class="game-main">
+
+    <!-- Board side -->
+    <div class="board-side">
+      <div class="board-wrap" id="boardWrap"><div id="board"></div></div>
+      <div class="feedback-banner" id="feedbackBanner"></div>
+    </div>
+
+    <!-- Info panel -->
+    <div class="game-panel" id="gamePanel">
+
+      <!-- Targeting card -->
+      <div class="panel-card targeting-card" id="targetingCard">
+        <div class="card-label">Training Focus</div>
+        <div class="targeting-name" id="targetingName">Loading…</div>
+        <div class="solve-bar-track">
+          <div class="solve-bar-fill" id="solveBarFill" style="width:50%"></div>
         </div>
+        <div class="targeting-rate" id="targetingRate"></div>
+      </div>
 
-        <!-- Turn indicator -->
-        <div class="card">
-          <div class="card-content is-flex is-align-items-center py-3">
-            <span class="turn-dot" id="turnDot"></span>
-            <span id="turnText" style="font-weight:600;font-size:.95rem">Loading…</span>
-          </div>
+      <!-- Puzzle info -->
+      <div class="panel-card">
+        <div class="puzzle-top-row">
+          <span id="diffBadge" class="diff-badge">—</span>
+          <span id="ratingValue" class="rating-num">—</span>
+          <span id="playsLabel" class="plays-label"></span>
+          <a id="gameLink" class="game-link" href="#" target="_blank" style="visibility:hidden">↗</a>
         </div>
-
-        <!-- Progress -->
-        <div class="card">
-          <div class="card-content">
-            <div class="is-flex is-justify-content-space-between mb-1">
-              <span class="label-muted">Progress</span>
-              <span style="font-size:.78rem;color:var(--text-muted)" id="progressFraction">0 / 0</span>
-            </div>
-            <div class="progress-track">
-              <div class="progress-bar-inner" id="progressBar"></div>
-            </div>
-            <div class="move-dots" id="moveDots"></div>
-          </div>
+        <div id="themesRow" class="themes-row"></div>
+        <div class="puzzle-id-row">
+          <span class="card-label">Puzzle</span>
+          <span id="puzzleId" class="puzzle-id-code">—</span>
         </div>
+      </div>
 
-        <!-- Move history -->
-        <div class="card">
-          <div class="card-content">
-            <p class="label-muted mb-2">Move history</p>
-            <div class="move-log-body" id="moveLog"></div>
-          </div>
+      <!-- Turn -->
+      <div class="panel-card turn-card">
+        <span class="turn-dot" id="turnDot"></span>
+        <span id="turnText">Loading…</span>
+      </div>
+
+      <!-- Progress -->
+      <div class="panel-card">
+        <div class="progress-header">
+          <span class="card-label">Progress</span>
+          <span id="progressFraction" class="progress-frac">0 / 0</span>
         </div>
-
-        <!-- Controls -->
-        <div class="columns is-mobile mt-2" style="gap:0">
-          <div class="column">
-            <button class="button is-info is-light is-fullwidth" id="btnHint">💡 Hint</button>
-          </div>
-          <div class="column">
-            <button class="button is-dark is-fullwidth" id="btnFlip">⇅ Flip board</button>
-          </div>
-          <div class="column is-full mt-2" style="flex-basis:100%;padding-top:0">
-            <button class="button is-warning is-fullwidth" id="btnNextBottom">Next puzzle →</button>
-          </div>
+        <div class="prog-track">
+          <div class="prog-fill" id="progressBar"></div>
         </div>
+        <div class="move-dots" id="moveDots"></div>
+      </div>
 
-        <!-- Solved overlay (relative to info column) -->
-        <div class="solved-overlay" id="solvedCard">
-          <div class="solved-icon">✓</div>
-          <p style="font-size:1.25rem;font-weight:700;color:var(--green)">Puzzle solved!</p>
-          <p style="font-size:.85rem;color:var(--text-muted);text-align:center" id="solvedSub"></p>
-          <button class="button is-warning" id="btnSolvedNext">Next puzzle →</button>
-        </div>
+      <!-- Move history -->
+      <div class="panel-card">
+        <div class="card-label">Move History</div>
+        <div class="move-log" id="moveLog"></div>
+      </div>
 
-      </div><!-- /info column -->
-    </div><!-- /columns -->
-  </div>
-</section>
+      <!-- Controls -->
+      <div class="controls-row">
+        <button class="btn btn-secondary" id="btnHint">💡 Hint</button>
+        <button class="btn btn-ghost"     id="btnFlip">⇅</button>
+        <button class="btn btn-primary flex-1" id="btnNextBottom">Next puzzle →</button>
+      </div>
+
+      <!-- Solved overlay -->
+      <div class="solved-overlay" id="solvedCard">
+        <div class="solved-icon-wrap">✓</div>
+        <div class="solved-title">Puzzle solved!</div>
+        <div id="solvedSub" class="solved-sub"></div>
+        <button class="btn btn-primary" id="btnSolvedNext">Next →</button>
+      </div>
+
+    </div><!-- /game-panel -->
+  </main>
+</div><!-- /v-game -->
 
 <!-- Loading overlay -->
-<div class="loading-overlay" id="loadingOverlay">
+<div class="loading-overlay hidden" id="loadingOverlay">
   <div class="spinner"></div>
   <p>Loading puzzle…</p>
 </div>
@@ -259,6 +619,7 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;font-family:'S
 <script>
 'use strict';
 
+/* ── Constants ──────────────────────────────────────────────────────── */
 const API = 'http://localhost:5000';
 
 const GLYPHS = {
@@ -269,347 +630,898 @@ const GLYPHS = {
 const DEMO = [
   {id:'000Pw',fen:'6k1/5p1p/4p3/4q3/3nN3/2Q3P1/PP3P1P/6K1 w - - 2 37',
    moves:['e4d2','d4e2','g1f1','e2c3'],rating:1550,ratingDeviation:75,popularity:92,nbPlays:626,
-   themes:['fork','endgame'],primaryCategory:'Fork',difficultyTier:'Advanced',
-   gameUrl:'https://lichess.org/au2lCK5o#73'},
+   themes:['fork','endgame'],primaryCategory:'Fork',difficultyTier:'Advanced',gameUrl:'https://lichess.org/au2lCK5o#73'},
   {id:'0000D',fen:'5rk1/1p3ppp/pq3b2/8/8/1P1Q1N2/P4PPP/3R2K1 w - - 1 26',
    moves:['d3d6','f8d8','d6d8','f6d8'],rating:1579,ratingDeviation:73,popularity:96,nbPlays:36672,
-   themes:['endgame'],primaryCategory:'Endgame',difficultyTier:'Advanced',
-   gameUrl:'https://lichess.org/F8M8OS71#53'},
+   themes:['endgame'],primaryCategory:'Endgame',difficultyTier:'Advanced',gameUrl:'https://lichess.org/F8M8OS71#53'},
   {id:'003xY',fen:'6k1/pp3p1p/2p3p1/2b5/2Bn4/1P4P1/P4P1P/3R2K1 b - - 0 25',
    moves:['d4f3','g1f1','c5e3','d1d8'],rating:1450,ratingDeviation:78,popularity:85,nbPlays:3400,
    themes:['fork','endgame'],primaryCategory:'Fork',difficultyTier:'Intermediate',gameUrl:''},
   {id:'004rZ',fen:'r1b1kb1r/ppqn1ppp/2p1pn2/3p4/2PP4/2NBPN2/PP3PPP/R1BQK2R w KQkq - 2 7',
-   moves:['d4d5','c6d5','c4d5','e6d5','c3d5','f6d5','d1d5'],rating:1720,ratingDeviation:77,
-   popularity:88,nbPlays:4100,themes:['discoveredAttack','middlegame'],
-   primaryCategory:'Discovered Attack',difficultyTier:'Hard',gameUrl:''},
+   moves:['d4d5','c6d5','c4d5','e6d5','c3d5','f6d5','d1d5'],rating:1720,
+   themes:['discoveredAttack','middlegame'],primaryCategory:'Discovered Attack',difficultyTier:'Hard',gameUrl:''},
   {id:'005pN',fen:'r4rk1/1b2ppbp/pq1p1np1/1p6/3BP3/1BN2P2/PPP1Q1PP/R4RK1 b - - 0 15',
-   moves:['b6e3','e2e3','f6e4','c3e4','g7b2'],rating:1830,ratingDeviation:80,popularity:91,
-   nbPlays:6200,themes:['pin','sacrifice'],primaryCategory:'Pin',difficultyTier:'Hard',gameUrl:''},
+   moves:['b6e3','e2e3','f6e4','c3e4','g7b2'],rating:1830,
+   themes:['pin','sacrifice'],primaryCategory:'Pin',difficultyTier:'Hard',gameUrl:''},
   {id:'006mQ',fen:'r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 3',
-   moves:['f1c4','f6e4','c4f7','e8f7'],rating:1380,ratingDeviation:73,popularity:90,nbPlays:8900,
+   moves:['f1c4','f6e4','c4f7','e8f7'],rating:1380,
    themes:['fork','middlegame'],primaryCategory:'Fork',difficultyTier:'Intermediate',gameUrl:''},
   {id:'007hK',fen:'8/8/8/8/3k4/8/3KR3/8 w - - 0 1',
-   moves:['e2e4','d4d3','e4e3'],rating:950,ratingDeviation:80,popularity:85,nbPlays:2100,
+   moves:['e2e4','d4d3','e4e3'],rating:950,
    themes:['rookEndgame','endgame'],primaryCategory:'Rook Endgame',difficultyTier:'Easy',gameUrl:''},
   {id:'008aB',fen:'r2qkb1r/pp3ppp/2n1pn2/2pp4/3P1B2/2PBPN2/PP3PPP/RN1QK2R b KQkq - 0 8',
-   moves:['c5d4','c3d4','f6e4','d4e5','d8a5'],rating:1620,ratingDeviation:76,popularity:89,
-   nbPlays:5300,themes:['hangingPiece','middlegame'],primaryCategory:'Hanging Piece',
-   difficultyTier:'Advanced',gameUrl:''},
+   moves:['c5d4','c3d4','f6e4','d4e5','d8a5'],rating:1620,
+   themes:['hangingPiece','middlegame'],primaryCategory:'Hanging Piece',difficultyTier:'Advanced',gameUrl:''},
   {id:'009kT',fen:'r1b2rk1/pp2ppbp/2np1np1/q7/3NP3/2N1BP2/PPPQ2PP/R3KB1R w KQ - 3 10',
-   moves:['d4c6','b7c6','d2a5','d8a5'],rating:1250,ratingDeviation:74,popularity:88,nbPlays:7200,
-   themes:['hangingPiece','middlegame'],primaryCategory:'Hanging Piece',
-   difficultyTier:'Intermediate',gameUrl:''},
+   moves:['d4c6','b7c6','d2a5','d8a5'],rating:1250,
+   themes:['hangingPiece','middlegame'],primaryCategory:'Hanging Piece',difficultyTier:'Intermediate',gameUrl:''},
   {id:'010vR',fen:'r2q1rk1/pp1bppbp/3p1np1/3P4/2P1PP2/2N5/PP1QB1PP/R3K2R b KQ - 0 13',
-   moves:['f6d5','c3d5','g7d4','d2d4'],rating:1680,ratingDeviation:79,popularity:86,nbPlays:3900,
+   moves:['f6d5','c3d5','g7d4','d2d4'],rating:1680,
    themes:['fork','middlegame'],primaryCategory:'Fork',difficultyTier:'Advanced',gameUrl:''},
 ];
 
-var chess=null, puzzle=null, moveIndex=0, playerColor='w',
-    orientation='white', hintUsed=false, selected=null,
-    highlights={}, dragFromSq=null;
+/* ── Session state ──────────────────────────────────────────────────── */
+var currentUser = '';
+var sessionActive = false;
+var profileCache        = null;   // Chess.com profile (avatar, ratings)
+var analysisProfileCache = null;  // analysis profile (weaknesses, openings, ELO)
+var priorsCache  = null;
+var targetCategory = '';
+var targetSolveRate = 0.5;
+var sessionStreak = 0, sessionAcc = 0, sessionCount = 0;
+var puzzleCompleted = false;
+var pollTimer = null;
 
-var $board=document.getElementById('board');
-var $feedback=document.getElementById('feedbackBanner');
-var $puzzleId=document.getElementById('puzzleId');
-var $gameLink=document.getElementById('gameLink');
-var $diffBadge=document.getElementById('difficultyBadge');
-var $rating=document.getElementById('ratingValue');
-var $plays=document.getElementById('playsLabel');
-var $themes=document.getElementById('themesRow');
-var $dot=document.getElementById('turnDot');
-var $turn=document.getElementById('turnText');
-var $bar=document.getElementById('progressBar');
-var $frac=document.getElementById('progressFraction');
-var $dots=document.getElementById('moveDots');
-var $log=document.getElementById('moveLog');
-var $solved=document.getElementById('solvedCard');
-var $solvedSub=document.getElementById('solvedSub');
-var $overlay=document.getElementById('loadingOverlay');
-var $wrap=document.getElementById('boardWrap');
+/* ── Game state ─────────────────────────────────────────────────────── */
+var chess = null, puzzle = null, moveIndex = 0;
+var playerColor = 'w', orientation = 'white';
+var hintUsed = false, selected = null;
+var highlights = {}, dragFromSq = null;
 
-function buildBoard(){
-  $board.innerHTML='';
-  $board.className='chess-board';
-  var files=['a','b','c','d','e','f','g','h'];
-  var ranks=orientation==='white'?[8,7,6,5,4,3,2,1]:[1,2,3,4,5,6,7,8];
-  var ford=orientation==='white'?files:files.slice().reverse();
-  ranks.forEach(function(rank){
-    ford.forEach(function(file){
-      var sq=file+rank;
-      var light=(files.indexOf(file)+rank)%2!==0;
-      var cell=document.createElement('div');
-      cell.className='sq '+(light?'sq-light':'sq-dark');
-      cell.dataset.sq=sq;
-      if((orientation==='white'&&file==='a')||(orientation==='black'&&file==='h')){
-        var r=document.createElement('span');r.className='coord coord-rank';r.textContent=rank;cell.appendChild(r);
+/* ── DOM refs ───────────────────────────────────────────────────────── */
+var $board    = document.getElementById('board');
+var $feedback = document.getElementById('feedbackBanner');
+var $overlay  = document.getElementById('loadingOverlay');
+var $boardWrap = document.getElementById('boardWrap');
+var $solved   = document.getElementById('solvedCard');
+var $solvedSub = document.getElementById('solvedSub');
+var $puzzleId  = document.getElementById('puzzleId');
+var $gameLink  = document.getElementById('gameLink');
+var $diffBadge = document.getElementById('diffBadge');
+var $rating    = document.getElementById('ratingValue');
+var $plays     = document.getElementById('playsLabel');
+var $themes    = document.getElementById('themesRow');
+var $turnDot   = document.getElementById('turnDot');
+var $turnText  = document.getElementById('turnText');
+var $progBar   = document.getElementById('progressBar');
+var $progFrac  = document.getElementById('progressFraction');
+var $moveDots  = document.getElementById('moveDots');
+var $moveLog   = document.getElementById('moveLog');
+
+/* ════════════════════════════════════════════════════════════════════
+   VIEW SWITCHING
+═══════════════════════════════════════════════════════════════════ */
+function showView(id) {
+  document.querySelectorAll('.view').forEach(function(v){ v.classList.remove('active'); });
+  document.getElementById(id).classList.add('active');
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   LOGIN FLOW
+═══════════════════════════════════════════════════════════════════ */
+function setLoginError(msg) {
+  var el = document.getElementById('loginError');
+  if (msg) { el.textContent = msg; el.style.display = ''; }
+  else      { el.style.display = 'none'; }
+}
+
+async function handleLogin() {
+  var username = document.getElementById('usernameInput').value.trim();
+  if (!username) { setLoginError('Please enter a username.'); return; }
+  setLoginError(null);
+
+  var btn = document.getElementById('btnLookup');
+  btn.textContent = 'Loading…'; btn.disabled = true;
+
+  try {
+    var ctrl = new AbortController();
+    var tmo  = setTimeout(function(){ ctrl.abort(); }, 7000);
+    var res  = await fetch(API + '/api/player/lookup?username=' + encodeURIComponent(username),
+                           { signal: ctrl.signal });
+    clearTimeout(tmo);
+    if (!res.ok) throw new Error('Player not found on Chess.com');
+    var data = await res.json();
+    if (data.error) throw new Error(data.error);
+    currentUser   = username.toLowerCase();
+    profileCache  = data;
+    showProfileCard(data);
+  } catch(e) {
+    setLoginError(e.name === 'AbortError' ? 'Request timed out — check the server is running.'
+                                           : (e.message || 'Could not load profile.'));
+  } finally {
+    btn.textContent = 'Load Profile →'; btn.disabled = false;
+  }
+}
+
+function showProfileCard(data) {
+  /* Avatar */
+  var wrap = document.getElementById('avatarWrap');
+  if (data.avatar) {
+    wrap.innerHTML = '<img class="avatar" src="'+data.avatar+'" alt="" onerror="this.style.display=\'none\'">';
+  } else {
+    wrap.innerHTML = '<div class="avatar-placeholder">♟</div>';
+  }
+
+  /* Name */
+  document.getElementById('profileUsername').innerHTML =
+    data.username + (data.title ? '<span class="title-badge">'+data.title+'</span>' : '');
+  document.getElementById('profileName').textContent = data.name || '';
+
+  /* Ratings */
+  var grid = document.getElementById('ratingsGrid');
+  grid.innerHTML = '';
+  var tcs = [['rapid','Rapid'],['blitz','Blitz'],['bullet','Bullet'],['daily','Daily']];
+  tcs.forEach(function(pair){
+    var tc = pair[0], label = pair[1];
+    var rating = (data.ratings || {})[tc];
+    var div = document.createElement('div'); div.className = 'rating-item';
+    div.innerHTML = '<div class="rating-tc">'+label+'</div>' +
+      (rating ? '<div class="rating-val">'+rating+'</div>'
+              : '<div class="rating-val unrated">unrated</div>');
+    grid.appendChild(div);
+  });
+
+  showView('v-profile');
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   ANALYSIS FLOW
+═══════════════════════════════════════════════════════════════════ */
+var STEP_THRESHOLDS = [10, 35, 50, 90];
+var stepDone = [false, false, false, false];
+
+function resetAnalysisUI() {
+  stepDone = [false, false, false, false];
+  document.getElementById('analysisBar').style.width = '0%';
+  document.getElementById('analysisPct').textContent = '0%';
+  document.getElementById('analysisStatusText').textContent = 'Starting…';
+  for (var i = 0; i < 4; i++) setStepState(i, 'pending');
+}
+
+function setStepState(i, state) {
+  var el = document.getElementById('as' + i);
+  if (!el) return;
+  el.className = 'analysis-step ' + (state === 'done' ? 'done' : state === 'active' ? 'active' : '');
+  var icon = el.querySelector('.step-icon');
+  icon.className = 'step-icon ' + state;
+  icon.textContent = state === 'done' ? '✓' : state === 'active' ? '↻' : '○';
+}
+
+function updateAnalysisProgress(state) {
+  var pct = state.progress || 0;
+  document.getElementById('analysisBar').style.width = pct + '%';
+  document.getElementById('analysisPct').textContent = pct + '%';
+  document.getElementById('analysisStatusText').textContent = state.message || '';
+
+  for (var i = 0; i < 4; i++) {
+    if (!stepDone[i]) {
+      if (pct >= STEP_THRESHOLDS[i]) {
+        setStepState(i, 'done'); stepDone[i] = true;
+      } else if (pct >= (STEP_THRESHOLDS[i - 1] || 0)) {
+        setStepState(i, 'active');
       }
-      if((orientation==='white'&&rank===1)||(orientation==='black'&&rank===8)){
-        var f=document.createElement('span');f.className='coord coord-file';f.textContent=file;cell.appendChild(f);
+    }
+  }
+}
+
+async function startAnalysis() {
+  showView('v-analysis');
+  resetAnalysisUI();
+
+  try {
+    await fetch(API + '/api/analysis/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: currentUser })
+    });
+  } catch(_) {
+    /* server might be down — poll will notice the error state */
+  }
+
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(async function() {
+    try {
+      var res  = await fetch(API + '/api/analysis/status/' + encodeURIComponent(currentUser));
+      var data = await res.json();
+      updateAnalysisProgress(data);
+
+      if (data.status === 'done') {
+        clearInterval(pollTimer); pollTimer = null;
+        for (var i = 0; i < 4; i++) setStepState(i, 'done');
+        priorsCache = data.priors || null;
+        setTimeout(function(){ showDashboard(data.profile || null); }, 800);
+      } else if (data.status === 'error' || data.status === 'not_started') {
+        clearInterval(pollTimer); pollTimer = null;
+        priorsCache = null;
+        showDashboard(null);
       }
-      cell.addEventListener('click',onSqClick);
-      cell.addEventListener('dragover',function(e){e.preventDefault();});
-      cell.addEventListener('drop',onDrop);
+    } catch(_) {
+      clearInterval(pollTimer); pollTimer = null;
+      priorsCache = null;
+      showDashboard(null);
+    }
+  }, 2000);
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   DASHBOARD
+═══════════════════════════════════════════════════════════════════ */
+function showDashboard(profile) {
+  analysisProfileCache = profile;
+  _renderDashboard(profile);
+  showView('v-dashboard');
+  /* Async: load all-time history to populate the returning-user banner */
+  if (currentUser) {
+    fetch(API + '/api/user/stats/' + encodeURIComponent(currentUser))
+      .then(function(r){ return r.json(); })
+      .then(function(d){ _updateHistoryBanner(d); })
+      .catch(function(){});
+  }
+}
+
+function _renderDashboard(profile) {
+  /* Reset history banner until async fetch completes */
+  document.getElementById('dashHistoryBanner').style.display = 'none';
+
+  /* Avatar */
+  var avEl  = document.getElementById('dashAvatarEl');
+  var avSrc = profileCache && profileCache.avatar;
+  avEl.innerHTML = avSrc
+    ? '<img class="dash-av" src="'+avSrc+'" alt="" onerror="this.parentElement.innerHTML=\'<div class=dash-av-ph>♟</div>\'">'
+    : '<div class="dash-av-ph">♟</div>';
+
+  if (profile) {
+    var badge = (profileCache && profileCache.title)
+      ? '<span class="title-badge">'+profileCache.title+'</span>' : '';
+    document.getElementById('dashHeroName').innerHTML =
+      (profile.username || currentUser) + badge;
+    document.getElementById('dashHeroElo').textContent =
+      'Estimated ELO: ~' + (profile.estimatedElo || '?');
+
+    var w = profile.gamesWon || 0, l = profile.gamesLost || 0, d = profile.gamesDrawn || 0;
+    var tierLabel = _eloToTierLabel(profile.estimatedElo);
+    document.getElementById('dashChipRow').innerHTML =
+      '<span class="dash-chip">' + (profile.gamesAnalysed||0) + ' games analysed</span>' +
+      '<span class="dash-chip">' + Math.round(profile.winRate||0) + '% win rate</span>' +
+      '<span class="dash-chip">' + w + 'W / ' + l + 'L / ' + d + 'D</span>' +
+      (tierLabel ? '<span class="dash-chip chip-elo">♟ ' + tierLabel + '</span>' : '');
+
+    /* Interpretation paragraph */
+    var interp = document.getElementById('dashInterpretation');
+    var interpText = _generateInterpretation(profile);
+    interp.textContent = interpText;
+    interp.style.display = interpText ? '' : 'none';
+
+    _renderWeaknesses(profile.weaknessScores || {});
+    _renderOpenings('dashOpeningsWhite', profile.topOpeningsWhite || []);
+    _renderOpenings('dashOpeningsBlack', profile.topOpeningsBlack || []);
+
+    var top3 = Object.entries(profile.weaknessScores || {})
+      .sort(function(a, b){ return b[1] - a[1]; })
+      .slice(0, 3).map(function(x){ return x[0]; });
+    document.getElementById('dashFocusNote').innerHTML = top3.length
+      ? 'The bandit will target: <span class="dash-focus-cats">' + top3.join(', ') + '</span>'
+      : 'The adaptive system will focus on your weakest areas first.';
+  } else {
+    document.getElementById('dashHeroName').textContent  = currentUser || 'Guest';
+    document.getElementById('dashHeroElo').textContent   = 'No game analysis — adaptive mode';
+    document.getElementById('dashChipRow').innerHTML     = '';
+    document.getElementById('dashInterpretation').style.display = 'none';
+    document.getElementById('dashWeaknessList').innerHTML =
+      '<p style="color:var(--text-muted);font-size:.82rem;line-height:1.7">' +
+      'No games were analysed. The bandit starts with equal puzzle distribution ' +
+      'and adapts as you play — typically meaningful after 10–15 puzzles.</p>';
+    document.getElementById('dashOpeningsWhite').innerHTML =
+      '<p style="color:var(--text-dim);font-size:.82rem">—</p>';
+    document.getElementById('dashOpeningsBlack').innerHTML =
+      '<p style="color:var(--text-dim);font-size:.82rem">—</p>';
+    document.getElementById('dashFocusNote').textContent =
+      'Starting with equal puzzle distribution — the system will adapt from your results.';
+  }
+}
+
+/* ELO → puzzle tier label */
+function _eloToTierLabel(elo) {
+  if (!elo) return null;
+  if      (elo < 900)  return 'Beginner puzzles';
+  else if (elo < 1100) return 'Easy puzzles';
+  else if (elo < 1400) return 'Intermediate puzzles';
+  else if (elo < 1700) return 'Advanced puzzles';
+  else if (elo < 1900) return 'Hard puzzles';
+  else                 return 'Expert puzzles';
+}
+
+/* ELO → dropdown value string */
+function _eloToRatingFilter(elo) {
+  if (!elo) return null;
+  if      (elo < 900)  return '600-999';
+  else if (elo < 1100) return '1000-1199';
+  else if (elo < 1400) return '1200-1499';
+  else if (elo < 1700) return '1500-1799';
+  else if (elo < 1900) return '1800-1999';
+  else                 return '2000-2400';
+}
+
+/* Generate 1-2 sentence interpretation of the analysis */
+function _generateInterpretation(profile) {
+  var scores  = profile.weaknessScores || {};
+  var games   = profile.gamesAnalysed  || 0;
+  var elo     = profile.estimatedElo   || null;
+  var winRate = Math.round(profile.winRate || 0);
+  if (!games) return '';
+
+  var TACTICAL = ['Fork','Pin','Skewer','Discovered Attack','Hanging Piece',
+                  'Deflection','King Safety','Mating Pattern','Sacrifice'];
+  var ENDGAME  = ['Endgame','Rook Endgame','Queen Endgame',
+                  'Pawn Endgame','Knight Endgame','Bishop Endgame'];
+
+  var sorted = Object.entries(scores).sort(function(a,b){ return b[1]-a[1]; });
+  var top5   = sorted.slice(0,5).map(function(x){ return x[0]; });
+  var tactN  = top5.filter(function(c){ return TACTICAL.indexOf(c)>=0; }).length;
+  var endgN  = top5.filter(function(c){ return ENDGAME.indexOf(c)>=0; }).length;
+
+  var prefix = 'From ' + games + ' games' + (elo ? ' (ELO ~' + elo + ')' : '') + ': ';
+  var main;
+  if (tactN >= 3)
+    main = 'tactical patterns are your biggest growth area — especially ' + top5.slice(0,2).join(' and ') + '.';
+  else if (endgN >= 2)
+    main = 'endgame technique needs the most attention.';
+  else if (tactN >= 1 && endgN >= 1)
+    main = 'both tactical and endgame skills have room to grow.';
+  else
+    main = 'your game is relatively balanced — the system will fine-tune weaker spots.';
+
+  var suffix = winRate >= 62
+    ? ' Strong win rate (' + winRate + '%) — push further with more ambitious patterns.'
+    : winRate < 45
+    ? ' A ' + winRate + '% win rate suggests tactical recognition is the fastest lever to pull.'
+    : '';
+
+  return prefix + main + suffix;
+}
+
+/* Show/update the returning-user history banner */
+function _updateHistoryBanner(data) {
+  var banner = document.getElementById('dashHistoryBanner');
+  if (!data || !data.hasHistory) { banner.style.display = 'none'; return; }
+
+  var lastStr = '';
+  if (data.lastUpdated) {
+    var days = Math.floor((Date.now() - new Date(data.lastUpdated).getTime()) / 86400000);
+    lastStr = days === 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago';
+  }
+
+  document.getElementById('dashHistoryStats').innerHTML =
+    '<span>' + data.totalPuzzles + ' puzzles total</span>' +
+    '<span>' + data.accuracy + '% all-time accuracy</span>' +
+    '<span>Best streak: ' + data.bestStreak + '</span>' +
+    (lastStr ? '<span>Last session: ' + lastStr + '</span>' : '');
+  banner.style.display = '';
+}
+
+var _WK_GROUPS = [
+  { label: 'Tactical Motifs',
+    cats: ['Fork','Pin','Skewer','Discovered Attack','Hanging Piece','Deflection',
+           'King Safety','Mating Pattern','Sacrifice','X-Ray','Attraction',
+           'Clearance','Trapping','Zwischenzug'] },
+  { label: 'Endgame Technique',
+    cats: ['Endgame','Rook Endgame','Queen Endgame',
+           'Pawn Endgame','Knight Endgame','Bishop Endgame'] },
+  { label: 'Other Patterns',
+    cats: ['Promotion','Zugzwang','Equality'] },
+];
+
+function _wkBar(cat, s) {
+  var pct = Math.round(s * 100);
+  var color, bg, label;
+  if      (s >= 0.60) { color='var(--red)';  bg='rgba(248,81,73,.12)';  label='Focus';  }
+  else if (s >= 0.40) { color='var(--gold)'; bg='rgba(227,179,65,.12)'; label='Review'; }
+  else                { color='var(--green)';bg='rgba(63,185,80,.10)';  label='Strong'; }
+  var div = document.createElement('div'); div.className = 'wk-item';
+  div.innerHTML =
+    '<div class="wk-label-row"><span>' + cat + '</span>' +
+    '<span class="wk-badge" style="background:'+bg+';color:'+color+'">' + label + '</span></div>' +
+    '<div class="wk-track"><div class="wk-fill" style="width:'+pct+'%;background:'+color+'"></div></div>';
+  return div;
+}
+
+function _renderWeaknesses(scores) {
+  var container = document.getElementById('dashWeaknessList');
+  container.innerHTML = '';
+  _WK_GROUPS.forEach(function(group) {
+    /* Sort this group's cats by weakness (worst first) */
+    var items = group.cats
+      .filter(function(c){ return c in scores; })
+      .map(function(c){ return [c, scores[c]]; })
+      .sort(function(a,b){ return b[1]-a[1]; });
+    if (!items.length) return;
+    var lbl = document.createElement('div');
+    lbl.className = 'wk-section-label';
+    lbl.textContent = group.label;
+    container.appendChild(lbl);
+    items.forEach(function(p){ container.appendChild(_wkBar(p[0], p[1])); });
+  });
+}
+
+function _renderOpenings(id, list) {
+  var el = document.getElementById(id);
+  if (!list || !list.length) {
+    el.innerHTML = '<p style="color:var(--text-dim);font-size:.82rem">No data</p>';
+    return;
+  }
+  el.innerHTML = list.slice(0, 5).map(function(o) {
+    var wr = Math.round(o.winRate || 0);
+    var c  = wr >= 60 ? 'var(--green)' : wr >= 45 ? 'var(--gold)' : 'var(--red)';
+    return '<div class="op-card">' +
+      '<div class="op-family">' + o.family + '</div>' +
+      '<div class="op-meta">' +
+        '<div style="color:var(--text-muted);font-size:.72rem">' + o.games + ' games</div>' +
+        '<div class="op-wr" style="color:' + c + '">' + wr + '% wins</div>' +
+      '</div></div>';
+  }).join('');
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   SESSION MANAGEMENT
+═══════════════════════════════════════════════════════════════════ */
+async function startSession(priors, estimatedElo) {
+  /* Auto-set puzzle difficulty to match player ELO */
+  if (estimatedElo) {
+    var tierVal = _eloToRatingFilter(estimatedElo);
+    if (tierVal) document.getElementById('ratingFilter').value = tierVal;
+  }
+
+  try {
+    await fetch(API + '/api/session/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username:     currentUser || 'guest',
+        priors:       priors || null,
+        estimatedElo: estimatedElo || null,
+      })
+    });
+    sessionActive = true;
+  } catch(_) {
+    sessionActive = false;   /* server down — will use demo fallback */
+  }
+
+  /* Update header user label */
+  var uel = document.getElementById('headerUser');
+  uel.textContent = currentUser ? '@ ' + currentUser : 'Guest';
+
+  showView('v-game');
+  loadPuzzle();
+}
+
+async function reportResult(category, solved) {
+  if (!sessionActive || !category) return;
+  try {
+    var res = await fetch(API + '/api/session/result', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        username:  currentUser || 'guest',
+        category:  category,
+        solved:    solved,
+        puzzleId:  puzzle ? (puzzle.id || '') : '',
+        rating:    puzzle ? (puzzle.rating || 0) : 0,
+      })
+    });
+    var stats = await res.json();
+    sessionStreak = stats.streak || 0;
+    sessionAcc    = stats.accuracy || 0;
+    sessionCount  = stats.puzzlesPlayed || 0;
+    updateHeaderStats();
+  } catch(_) {}
+}
+
+function updateHeaderStats() {
+  document.getElementById('statStreak').textContent = sessionStreak;
+  document.getElementById('statAcc').textContent    = sessionCount ? sessionAcc + '%' : '—';
+  document.getElementById('statCount').textContent  = sessionCount;
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   CHESS BOARD — BUILD & RENDER
+═══════════════════════════════════════════════════════════════════ */
+function buildBoard() {
+  $board.innerHTML = '';
+  $board.className = 'chess-board';
+  var files = ['a','b','c','d','e','f','g','h'];
+  var ranks = orientation === 'white' ? [8,7,6,5,4,3,2,1] : [1,2,3,4,5,6,7,8];
+  var ford  = orientation === 'white' ? files : files.slice().reverse();
+
+  ranks.forEach(function(rank) {
+    ford.forEach(function(file) {
+      var sq    = file + rank;
+      var light = (files.indexOf(file) + rank) % 2 !== 0;
+      var cell  = document.createElement('div');
+      cell.className = 'sq ' + (light ? 'sq-light' : 'sq-dark');
+      cell.dataset.sq = sq;
+
+      if ((orientation === 'white' && file === 'a') || (orientation === 'black' && file === 'h')) {
+        var r = document.createElement('span'); r.className = 'coord coord-rank';
+        r.textContent = rank; cell.appendChild(r);
+      }
+      if ((orientation === 'white' && rank === 1) || (orientation === 'black' && rank === 8)) {
+        var f = document.createElement('span'); f.className = 'coord coord-file';
+        f.textContent = file; cell.appendChild(f);
+      }
+
+      cell.addEventListener('click', onSqClick);
+      cell.addEventListener('dragover', function(e){ e.preventDefault(); });
+      cell.addEventListener('drop', onDrop);
       $board.appendChild(cell);
     });
   });
 }
 
-function render(){
-  document.querySelectorAll('.sq').forEach(function(cell){
-    cell.querySelectorAll('.piece').forEach(function(p){p.remove();});
-    var sq=cell.dataset.sq;
+function render() {
+  document.querySelectorAll('.sq').forEach(function(cell) {
+    cell.querySelectorAll('.piece').forEach(function(p){ p.remove(); });
+    var sq = cell.dataset.sq;
     cell.classList.remove('hl-from','hl-to','hl-hint','hl-legal');
-    if(highlights[sq]) cell.classList.add(highlights[sq]);
-    var p=chess.get(sq);
-    if(!p) return;
-    var key=p.color+p.type.toUpperCase();
-    var el=document.createElement('span');
-    el.className='piece piece-'+p.color;
-    el.textContent=GLYPHS[key]||'?';
-    el.draggable=true;
-    el.dataset.sq=sq;
-    el.addEventListener('dragstart',onDragStart);
+    if (highlights[sq]) cell.classList.add(highlights[sq]);
+    var p = chess.get(sq);
+    if (!p) return;
+    var key = p.color + p.type.toUpperCase();
+    var el  = document.createElement('span');
+    el.className = 'piece piece-' + p.color;
+    el.textContent = GLYPHS[key] || '?';
+    el.draggable = true;
+    el.dataset.sq = sq;
+    el.addEventListener('dragstart', onDragStart);
     cell.appendChild(el);
   });
 }
 
-function clrHL(){ highlights={}; selected=null; }
-function setHL(sq,cls){ highlights[sq]=cls; }
+function clrHL(){ highlights = {}; selected = null; }
+function setHL(sq, cls){ highlights[sq] = cls; }
 
-function onDragStart(e){
-  var sq=e.target.dataset.sq;
-  var p=chess.get(sq);
-  if(!p||moveIndex>=puzzle.moves.length||moveIndex%2===0){e.preventDefault();return;}
-  if(p.color!==playerColor){e.preventDefault();return;}
-  dragFromSq=sq;
-  e.dataTransfer.effectAllowed='move';
-  e.dataTransfer.setData('text/plain',sq);
+/* ════════════════════════════════════════════════════════════════════
+   DRAG & CLICK
+═══════════════════════════════════════════════════════════════════ */
+function onDragStart(e) {
+  var sq = e.target.dataset.sq;
+  var p  = chess.get(sq);
+  if (!p || moveIndex >= puzzle.moves.length || moveIndex % 2 === 0) { e.preventDefault(); return; }
+  if (p.color !== playerColor) { e.preventDefault(); return; }
+  dragFromSq = sq;
+  e.dataTransfer.effectAllowed = 'move';
+  e.dataTransfer.setData('text/plain', sq);
 }
-function onDrop(e){
+
+function onDrop(e) {
   e.preventDefault();
-  var to=e.currentTarget.dataset.sq;
-  if(!dragFromSq||!to) return;
-  tryMove(dragFromSq,to);
-  dragFromSq=null;
+  var to = e.currentTarget.dataset.sq;
+  if (!dragFromSq || !to) return;
+  tryMove(dragFromSq, to);
+  dragFromSq = null;
 }
 
-function onSqClick(e){
-  var sq=e.currentTarget.dataset.sq;
-  if(!puzzle||moveIndex>=puzzle.moves.length||moveIndex%2===0) return;
-  if(selected){
-    if(sq===selected){clrHL();render();return;}
-    var cp=chess.get(sq);
-    if(cp&&cp.color===playerColor){selectSq(sq);return;}
-    tryMove(selected,sq);
+function onSqClick(e) {
+  var sq = e.currentTarget.dataset.sq;
+  if (!puzzle || moveIndex >= puzzle.moves.length || moveIndex % 2 === 0) return;
+
+  if (selected) {
+    if (sq === selected) { clrHL(); render(); return; }
+    var cp = chess.get(sq);
+    if (cp && cp.color === playerColor) { selectSq(sq); return; }
+    tryMove(selected, sq);
   } else {
-    var p=chess.get(sq);
-    if(!p||p.color!==playerColor) return;
+    var p = chess.get(sq);
+    if (!p || p.color !== playerColor) return;
     selectSq(sq);
   }
 }
-function selectSq(sq){
-  clrHL(); selected=sq; setHL(sq,'hl-from');
-  chess.moves({square:sq,verbose:true}).forEach(function(m){setHL(m.to,'hl-legal');});
+
+function selectSq(sq) {
+  clrHL(); selected = sq; setHL(sq, 'hl-from');
+  chess.moves({ square: sq, verbose: true }).forEach(function(m){ setHL(m.to, 'hl-legal'); });
   render();
 }
 
-function tryMove(from,to){
-  if(moveIndex%2===0||moveIndex>=puzzle.moves.length) return;
-  var exp=puzzle.moves[moveIndex];
-  var promo=exp.length>4?exp[4]:'q';
-  var result=chess.move({from:from,to:to,promotion:promo});
-  if(!result){clrHL();render();return;}
-  var correct=(from===exp.slice(0,2)&&to===exp.slice(2,4));
-  clrHL(); setHL(from,'hl-from'); setHL(to,'hl-to');
-  if(correct){
-    logMove(result.san,false,true);
-    dotStatus(moveIndex,'correct');
-    moveIndex++;
-    progress();
-    render();
-    if(moveIndex>=puzzle.moves.length){finish(true);}
-    else{feedback('✓ Correct!','correct');flashBoard('correct');turnLabel();autoMove(650);}
+/* ════════════════════════════════════════════════════════════════════
+   MOVE LOGIC
+═══════════════════════════════════════════════════════════════════ */
+function tryMove(from, to) {
+  if (moveIndex % 2 === 0 || moveIndex >= puzzle.moves.length) return;
+  var exp   = puzzle.moves[moveIndex];
+  var promo = exp.length > 4 ? exp[4] : 'q';
+  var result = chess.move({ from: from, to: to, promotion: promo });
+  if (!result) { clrHL(); render(); return; }
+
+  var correct = (from === exp.slice(0,2) && to === exp.slice(2,4));
+  clrHL(); setHL(from, 'hl-from'); setHL(to, 'hl-to');
+
+  if (correct) {
+    logMove(result.san, false, true);
+    dotStatus(moveIndex, 'correct');
+    moveIndex++; progress(); render();
+    if (moveIndex >= puzzle.moves.length) { finish(true); }
+    else { showFeedback('✓ Correct!', 'ok'); flashBoard('correct'); turnLabel(); autoMove(650); }
   } else {
     chess.undo();
-    logMove(result.san,false,false);
-    dotStatus(moveIndex,'wrong');
-    feedback('✗ Not the best move — try again','wrong');
+    logMove(result.san, false, false);
+    dotStatus(moveIndex, 'wrong');
+    showFeedback('✗ Not the best move — try again', 'bad');
     flashBoard('wrong');
     clrHL(); render();
   }
 }
 
-function autoMove(delay){
-  setTimeout(function(){
-    if(!puzzle||moveIndex>=puzzle.moves.length) return;
-    var uci=puzzle.moves[moveIndex];
-    var from=uci.slice(0,2),to=uci.slice(2,4),promo=uci.length>4?uci[4]:'q';
-    var result=chess.move({from:from,to:to,promotion:promo});
-    if(!result){loadPuzzle();return;}
-    clrHL(); setHL(from,'hl-from'); setHL(to,'hl-to');
-    render();
-    logMove(result.san,true,null);
-    moveIndex++;
-    progress();
-    dotStatus(moveIndex-1,'auto');
-    turnLabel();
-  }, delay||400);
+function autoMove(delay) {
+  setTimeout(function() {
+    if (!puzzle || moveIndex >= puzzle.moves.length) return;
+    var uci   = puzzle.moves[moveIndex];
+    var from  = uci.slice(0,2), to = uci.slice(2,4), promo = uci.length > 4 ? uci[4] : 'q';
+    var result = chess.move({ from: from, to: to, promotion: promo });
+    if (!result) { loadPuzzle(); return; }
+    clrHL(); setHL(from, 'hl-from'); setHL(to, 'hl-to');
+    render(); logMove(result.san, true, null);
+    moveIndex++; progress(); dotStatus(moveIndex - 1, 'auto'); turnLabel();
+  }, delay || 400);
 }
 
-function loading(on){ $overlay.classList.toggle('is-hidden',!on); }
+async function finish(ok) {
+  flashBoard(ok ? 'correct' : 'wrong');
+  puzzleCompleted = true;
+  $turnDot.className = 'turn-dot ' + (ok ? 'white' : 'black');
+  $turnText.textContent = ok ? 'Puzzle solved! 🎉' : 'Puzzle failed.';
 
-function flashBoard(t){
-  $wrap.classList.remove('correct','wrong');
-  void $wrap.offsetWidth;
-  $wrap.classList.add(t);
-  setTimeout(function(){$wrap.classList.remove(t);},900);
-}
+  var cat = targetCategory || (puzzle && puzzle.primaryCategory) || '';
+  await reportResult(cat, ok);
 
-function feedback(txt,t){
-  $feedback.textContent=txt;
-  $feedback.className='feedback-banner show-'+t;
-  setTimeout(function(){$feedback.className='feedback-banner';},2400);
-}
-
-function turnLabel(){
-  if(!puzzle||moveIndex>=puzzle.moves.length) return;
-  var t=chess.turn();
-  $dot.className='turn-dot '+(t==='w'?'white':'black');
-  $turn.textContent=t===playerColor?
-    (t==='w'?'White':'Black')+' to move — find the best move':
-    'Opponent is thinking…';
-}
-
-function buildDots(moves){
-  $dots.innerHTML='';
-  moves.forEach(function(_,i){
-    var d=document.createElement('div');d.className='move-dot';d.dataset.index=i;$dots.appendChild(d);
-  });
-}
-
-function dotStatus(idx,cls){
-  var d=$dots.querySelector('[data-index="'+idx+'"]');
-  if(!d) return;
-  d.classList.remove('auto','pending','correct','wrong');
-  d.classList.add(cls);
-}
-
-function progress(){
-  if(!puzzle) return;
-  var tot=puzzle.moves.length;
-  var pt=Math.ceil((tot-1)/2), pd=Math.floor(moveIndex/2);
-  var pct=tot<=1?100:Math.min(100,(moveIndex/(tot-1))*100);
-  $bar.style.width=pct+'%';
-  $frac.textContent=pd+' / '+pt;
-}
-
-function logMove(san,isAuto,isCorrect){
-  var entry=document.createElement('div');
-  var num=document.createElement('span');num.className='move-num';num.textContent=($log.children.length+1)+'.';
-  var mv=document.createElement('span');mv.className='move-san';mv.textContent=san;
-  var tag=document.createElement('span');tag.className='move-tag';
-  if(isAuto){entry.className='log-entry auto-move';tag.textContent='auto';}
-  else if(isCorrect){entry.className='log-entry player-correct';tag.textContent='✓';}
-  else{entry.className='log-entry player-wrong';tag.textContent='✗';}
-  entry.append(num,mv,tag);
-  $log.appendChild(entry);
-  $log.scrollTop=$log.scrollHeight;
-}
-
-function populateInfo(p){
-  $puzzleId.textContent=p.id;
-  $gameLink.href=p.gameUrl||'#';
-  $gameLink.style.visibility=p.gameUrl?'visible':'hidden';
-  var tier=(p.difficultyTier||'intermediate').toLowerCase().replace(/\s+/g,'-');
-  $diffBadge.textContent=p.difficultyTier||'—';
-  $diffBadge.className='difficulty-badge '+tier;
-  $rating.textContent=p.rating;
-  $plays.textContent=p.nbPlays?p.nbPlays.toLocaleString()+' plays':'';
-  $themes.innerHTML='';
-  (p.themes||[]).slice(0,8).forEach(function(t){
-    var tag=document.createElement('span');
-    tag.className='tag is-dark';
-    tag.style.marginRight='4px';tag.style.marginBottom='4px';
-    tag.textContent=t.replace(/([A-Z])/g,' $1').trim();
-    $themes.appendChild(tag);
-  });
-}
-
-function finish(ok){
-  flashBoard(ok?'correct':'wrong');
-  $dot.className='turn-dot '+(ok?'white':'black');
-  $turn.textContent=ok?'Puzzle solved! 🎉':'Puzzle failed.';
-  if(ok){
-    $solvedSub.textContent='Rating '+puzzle.rating+' · '+puzzle.primaryCategory+(hintUsed?' (hint used)':'');
-    $solved.classList.add('is-active');
+  if (ok) {
+    var streakStr = sessionStreak > 1 ? ' · 🔥 ' + sessionStreak + ' streak' : '';
+    $solvedSub.textContent = 'Rating ' + puzzle.rating + ' · ' + (puzzle.primaryCategory || '?') + streakStr;
+    $solved.classList.add('active');
   }
 }
 
-function getFilter(){
-  var val=document.getElementById('ratingFilter').value;
-  if(val==='all') return {lo:600,hi:2400};
-  var parts=val.split('-').map(Number);
-  return {lo:parts[0],hi:parts[1]};
+/* ════════════════════════════════════════════════════════════════════
+   PUZZLE LOADING
+═══════════════════════════════════════════════════════════════════ */
+function getFilter() {
+  var val = document.getElementById('ratingFilter').value;
+  if (val === 'all') return { lo: 600, hi: 2400 };
+  var parts = val.split('-').map(Number);
+  return { lo: parts[0], hi: parts[1] };
 }
 
-function fallback(lo,hi){
-  var pool=DEMO.filter(function(p){return p.rating>=lo&&p.rating<=hi;});
-  var src=pool.length?pool:DEMO;
-  return src[Math.floor(Math.random()*src.length)];
+function fallbackPuzzle(lo, hi) {
+  var pool = DEMO.filter(function(p){ return p.rating >= lo && p.rating <= hi; });
+  var src  = pool.length ? pool : DEMO;
+  return src[Math.floor(Math.random() * src.length)];
 }
 
-async function loadPuzzle(){
+async function loadPuzzle() {
+  /* report abandoned puzzle as failed */
+  if (puzzle && !puzzleCompleted && moveIndex > 0 && moveIndex < puzzle.moves.length) {
+    var cat = targetCategory || (puzzle.primaryCategory) || '';
+    reportResult(cat, false);
+  }
+
   loading(true);
-  $solved.classList.remove('is-active');
-  $log.innerHTML='';
+  $solved.classList.remove('active');
+  $moveLog.innerHTML = '';
   clrHL();
+  puzzleCompleted = false;
 
-  var f=getFilter();
-  try{
-    var ctrl=new AbortController();
-    setTimeout(function(){ctrl.abort();},2500);
-    var res=await fetch(API+'/api/puzzle/random?ratingMin='+f.lo+'&ratingMax='+f.hi,{signal:ctrl.signal});
-    if(!res.ok) throw new Error();
-    puzzle=await res.json();
-    if(typeof puzzle.moves==='string') puzzle.moves=puzzle.moves.split(' ');
-  } catch(_){
-    puzzle=fallback(f.lo,f.hi);
+  var f  = getFilter();
+  var un = currentUser || 'guest';
+
+  try {
+    var ctrl = new AbortController();
+    setTimeout(function(){ ctrl.abort(); }, 3000);
+    var url = sessionActive
+      ? API + '/api/session/puzzle?username=' + encodeURIComponent(un) + '&ratingMin=' + f.lo + '&ratingMax=' + f.hi
+      : API + '/api/puzzle/random?ratingMin=' + f.lo + '&ratingMax=' + f.hi;
+    var res = await fetch(url, { signal: ctrl.signal });
+    if (!res.ok) throw new Error();
+    puzzle = await res.json();
+    if (typeof puzzle.moves === 'string') puzzle.moves = puzzle.moves.split(' ');
+    targetCategory  = puzzle.targetCategory  || puzzle.primaryCategory || '';
+    targetSolveRate = puzzle.targetSolveRate !== undefined ? puzzle.targetSolveRate : 0.5;
+  } catch(_) {
+    puzzle = fallbackPuzzle(f.lo, f.hi);
+    targetCategory  = puzzle.primaryCategory || '';
+    targetSolveRate = 0.5;
   }
 
-  chess=new Chess(puzzle.fen);
-  moveIndex=0; hintUsed=false;
-  var startTurn=chess.turn();
-  playerColor=startTurn==='w'?'b':'w';
-  orientation=playerColor==='w'?'white':'black';
+  chess       = new Chess(puzzle.fen);
+  moveIndex   = 0; hintUsed = false;
+  var startTurn = chess.turn();
+  playerColor  = startTurn === 'w' ? 'b' : 'w';
+  orientation  = playerColor === 'w' ? 'white' : 'black';
 
   buildBoard(); render(); populateInfo(puzzle);
   buildDots(puzzle.moves); progress();
 
-  $dot.className='turn-dot '+(startTurn==='w'?'white':'black');
-  $turn.textContent=(startTurn==='w'?'White':'Black')+' plays first…';
+  $turnDot.className = 'turn-dot ' + (startTurn === 'w' ? 'white' : 'black');
+  $turnText.textContent = (startTurn === 'w' ? 'White' : 'Black') + ' plays first…';
 
+  updateTargetingCard();
   loading(false);
   autoMove(500);
 }
 
-function showHint(){
-  if(!puzzle||moveIndex>=puzzle.moves.length||moveIndex%2===0) return;
-  var uci=puzzle.moves[moveIndex];
-  clrHL(); setHL(uci.slice(0,2),'hl-hint'); render();
-  hintUsed=true; feedback('💡 Move the highlighted piece','correct');
+/* ════════════════════════════════════════════════════════════════════
+   UI HELPERS
+═══════════════════════════════════════════════════════════════════ */
+function loading(on) {
+  $overlay.classList.toggle('hidden', !on);
 }
 
-document.getElementById('btnNext').addEventListener('click',loadPuzzle);
-document.getElementById('btnNextBottom').addEventListener('click',loadPuzzle);
-document.getElementById('btnSolvedNext').addEventListener('click',loadPuzzle);
-document.getElementById('btnHint').addEventListener('click',showHint);
-document.getElementById('btnFlip').addEventListener('click',function(){
-  orientation=orientation==='white'?'black':'white';
+function flashBoard(type) {
+  $boardWrap.classList.remove('correct','wrong');
+  void $boardWrap.offsetWidth;
+  $boardWrap.classList.add(type);
+  setTimeout(function(){ $boardWrap.classList.remove(type); }, 900);
+}
+
+function showFeedback(txt, type) {
+  $feedback.textContent = txt;
+  $feedback.className = 'feedback-banner ' + type;
+  setTimeout(function(){ $feedback.className = 'feedback-banner'; }, 2400);
+}
+
+function turnLabel() {
+  if (!puzzle || moveIndex >= puzzle.moves.length) return;
+  var t = chess.turn();
+  $turnDot.className = 'turn-dot ' + (t === 'w' ? 'white' : 'black');
+  $turnText.textContent = (t === playerColor)
+    ? ((t === 'w' ? 'White' : 'Black') + ' to move — find the best move')
+    : 'Opponent is thinking…';
+}
+
+function buildDots(moves) {
+  $moveDots.innerHTML = '';
+  moves.forEach(function(_, i) {
+    var d = document.createElement('div');
+    d.className = 'move-dot'; d.dataset.index = i; $moveDots.appendChild(d);
+  });
+}
+
+function dotStatus(idx, cls) {
+  var d = $moveDots.querySelector('[data-index="'+idx+'"]');
+  if (!d) return;
+  d.classList.remove('auto','correct','wrong'); d.classList.add(cls);
+}
+
+function progress() {
+  if (!puzzle) return;
+  var tot = puzzle.moves.length;
+  var pt  = Math.ceil((tot - 1) / 2), pd = Math.floor(moveIndex / 2);
+  var pct = tot <= 1 ? 100 : Math.min(100, (moveIndex / (tot - 1)) * 100);
+  $progBar.style.width = pct + '%';
+  $progFrac.textContent = pd + ' / ' + pt;
+}
+
+function logMove(san, isAuto, isCorrect) {
+  var entry = document.createElement('div');
+  var num   = document.createElement('span'); num.className = 'log-num';
+  num.textContent = ($moveLog.children.length + 1) + '.';
+  var mv  = document.createElement('span'); mv.className = 'log-san'; mv.textContent = san;
+  var tag = document.createElement('span'); tag.className = 'log-tag';
+
+  if (isAuto) {
+    entry.className = 'log-entry auto-move'; tag.textContent = 'auto';
+  } else if (isCorrect) {
+    entry.className = 'log-entry player-ok'; tag.textContent = '✓';
+  } else {
+    entry.className = 'log-entry player-bad'; tag.textContent = '✗';
+  }
+  entry.append(num, mv, tag);
+  $moveLog.appendChild(entry);
+  $moveLog.scrollTop = $moveLog.scrollHeight;
+}
+
+function populateInfo(p) {
+  $puzzleId.textContent = p.id;
+  $gameLink.href = p.gameUrl || '#';
+  $gameLink.style.visibility = p.gameUrl ? 'visible' : 'hidden';
+
+  var tier = (p.difficultyTier || 'intermediate').toLowerCase().replace(/\s+/g, '-');
+  $diffBadge.textContent = p.difficultyTier || '—';
+  $diffBadge.className = 'diff-badge ' + tier;
+  $rating.textContent  = p.rating || '—';
+  $plays.textContent   = p.nbPlays ? p.nbPlays.toLocaleString() + ' plays' : '';
+
+  $themes.innerHTML = '';
+  (p.themes || []).slice(0, 8).forEach(function(t) {
+    var tag = document.createElement('span');
+    tag.className = 'theme-tag';
+    tag.textContent = t.replace(/([A-Z])/g, ' $1').trim();
+    $themes.appendChild(tag);
+  });
+}
+
+function updateTargetingCard() {
+  var name  = document.getElementById('targetingName');
+  var bar   = document.getElementById('solveBarFill');
+  var rate  = document.getElementById('targetingRate');
+
+  if (!sessionActive || !targetCategory) {
+    name.textContent = 'Random Mode';
+    bar.style.width  = '50%';
+    bar.style.background = 'var(--text-muted)';
+    rate.textContent = 'No session — all categories equally likely';
+    return;
+  }
+
+  name.textContent  = targetCategory;
+  var pct = Math.round(targetSolveRate * 100);
+  bar.style.width   = pct + '%';
+  /* Color: red when weak (<40%), yellow mid, green when strong (>70%) */
+  bar.style.background = pct < 40 ? 'var(--red)' : pct < 70 ? 'var(--gold)' : 'var(--green)';
+  rate.textContent  = pct + '% estimated solve rate';
+}
+
+function showHint() {
+  if (!puzzle || moveIndex >= puzzle.moves.length || moveIndex % 2 === 0) return;
+  var uci = puzzle.moves[moveIndex];
+  clrHL(); setHL(uci.slice(0,2), 'hl-hint'); render();
+  hintUsed = true;
+  showFeedback('💡 Move the highlighted piece', 'ok');
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   EVENT WIRING
+═══════════════════════════════════════════════════════════════════ */
+/* Login */
+document.getElementById('btnLookup').addEventListener('click', handleLogin);
+document.getElementById('usernameInput').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') handleLogin();
+});
+document.getElementById('btnGuest').addEventListener('click', function(){
+  currentUser = ''; startSession(null);
+});
+
+/* Profile */
+document.getElementById('btnBackLogin').addEventListener('click', function(){ showView('v-login'); });
+document.getElementById('btnAnalyse').addEventListener('click', startAnalysis);
+document.getElementById('btnSkip').addEventListener('click', function(){
+  priorsCache = null;
+  showDashboard(null);
+});
+
+/* Analysis */
+document.getElementById('btnSkipAnalysis').addEventListener('click', function(){
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  priorsCache = null;
+  showDashboard(null);
+});
+
+/* Game */
+document.getElementById('btnNext').addEventListener('click', loadPuzzle);
+document.getElementById('btnNextBottom').addEventListener('click', loadPuzzle);
+document.getElementById('btnSolvedNext').addEventListener('click', loadPuzzle);
+document.getElementById('btnHint').addEventListener('click', showHint);
+document.getElementById('btnFlip').addEventListener('click', function(){
+  orientation = orientation === 'white' ? 'black' : 'white';
   buildBoard(); render();
 });
-document.getElementById('ratingFilter').addEventListener('change',loadPuzzle);
+document.getElementById('ratingFilter').addEventListener('change', loadPuzzle);
 
-loadPuzzle();
+/* Dashboard */
+function _startFromDashboard() {
+  var elo = analysisProfileCache ? analysisProfileCache.estimatedElo : null;
+  startSession(priorsCache, elo);
+}
+document.getElementById('btnStartTraining1').addEventListener('click', _startFromDashboard);
+document.getElementById('btnStartTraining2').addEventListener('click', _startFromDashboard);
 </script>
 </body>
 </html>

@@ -228,8 +228,10 @@ data/cache/
 *.parquet
 *.csv
 
-# Stockfish binary
-stockfish*
+# Stockfish binary (not .py files)
+stockfish
+stockfish.exe
+stockfish-*
 *.exe
 
 # Environment / secrets
