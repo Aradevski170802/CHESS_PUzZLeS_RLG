@@ -412,6 +412,33 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
   border:1px solid rgba(248,113,113,.25);
   box-shadow:0 0 20px rgba(248,113,113,.1)}
 
+/* ── Eval bar ──────────────────────────────────────────────────────── */
+.eval-bar-col{display:flex;flex-direction:column;align-items:center;
+  flex-shrink:0;width:18px;gap:4px}
+.eval-bar{
+  flex:1;width:14px;border-radius:5px;overflow:hidden;
+  background:#0d1117;border:1px solid var(--border);
+  position:relative;min-height:60px}
+.eval-bar-white{
+  position:absolute;bottom:0;left:0;right:0;
+  background:linear-gradient(180deg,#d8d8d0 0%,#f0f0e8 100%);
+  height:50%;
+  transition:height .45s cubic-bezier(.4,0,.2,1)}
+.eval-label{
+  font-size:.58rem;font-weight:700;color:var(--text-muted);
+  text-align:center;line-height:1.2;min-height:14px;
+  letter-spacing:.02em}
+
+/* ── Source game card ──────────────────────────────────────────────── */
+.source-game-card{border-left:2px solid var(--accent) !important}
+.source-game-note{font-size:.76rem;color:var(--text-muted);line-height:1.45;
+  margin:5px 0 10px}
+
+/* ── Solved badge in library ───────────────────────────────────────── */
+.solved-badge{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);
+  color:#10b981;border-radius:4px;font-size:.65rem;font-weight:700;
+  padding:1px 5px;margin-left:4px;flex-shrink:0}
+
 /* ── Game panel ────────────────────────────────────────────────────── */
 .game-panel{width:300px;flex-shrink:0;display:flex;flex-direction:column;
   gap:10px;position:relative}
@@ -1074,6 +1101,7 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
       <span class="lib-title">My Puzzle Library</span>
       <div class="lib-stats-row">
         <span class="lib-stat"><strong id="libTotal">0</strong> puzzles</span>
+        <span class="lib-stat"><strong id="libSolved">0</strong> solved</span>
         <span class="lib-stat"><strong id="libLiked">0</strong> liked</span>
         <span class="lib-stat"><strong id="libDisliked">0</strong> disliked</span>
       </div>
@@ -1086,6 +1114,8 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
         <option value="liked">Liked only</option>
         <option value="disliked">Disliked only</option>
         <option value="unrated">Unrated only</option>
+        <option value="solved">Solved only</option>
+        <option value="unsolved">Unsolved only</option>
       </select>
       <select id="libCatSel" class="lib-select">
         <option value="all">All categories</option>
@@ -1171,7 +1201,16 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
         <span class="pl-icon" id="topPieceIcon">♙</span>
         <span class="pl-name" id="topPlayerName">Opponent</span>
       </div>
-      <div class="board-wrap" id="boardWrap"><div id="board"></div></div>
+      <div style="display:flex;gap:6px;align-items:stretch">
+        <div class="board-wrap" id="boardWrap"><div id="board"></div></div>
+        <!-- Evaluation bar -->
+        <div class="eval-bar-col" id="evalBarCol">
+          <div class="eval-bar" id="evalBar">
+            <div class="eval-bar-white" id="evalBarWhite" style="height:50%"></div>
+          </div>
+          <div class="eval-label" id="evalLabel">0.0</div>
+        </div>
+      </div>
       <div class="player-strip active" id="bottomPlayerStrip">
         <span class="pl-icon" id="bottomPieceIcon">♟</span>
         <span class="pl-name" id="bottomPlayerName">You</span>
@@ -1199,13 +1238,35 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
           <span id="diffBadge" class="diff-badge">—</span>
           <span id="ratingValue" class="rating-num">—</span>
           <span id="playsLabel" class="plays-label"></span>
-          <a id="gameLink" class="game-link" href="#" target="_blank" style="visibility:hidden">↗ Lichess</a>
         </div>
         <div id="themesRow" class="themes-row"></div>
         <div class="puzzle-id-row">
           <span class="card-label">Puzzle</span>
           <span id="puzzleId" class="puzzle-id-code">—</span>
+          <a id="gameLink" class="game-link" href="#" target="_blank"
+             style="visibility:hidden;margin-left:auto">↗ Game</a>
         </div>
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">
+          <a id="lichessAnalysisLink" class="btn btn-ghost"
+             href="#" target="_blank"
+             style="font-size:.75rem;padding:5px 10px;display:none">
+            ⬡ Analyze on Lichess
+          </a>
+        </div>
+      </div>
+
+      <!-- Source game card (generated puzzles only) -->
+      <div class="panel-card source-game-card" id="sourceGameCard" style="display:none">
+        <div class="card-label">Your Mistake</div>
+        <div class="source-game-note">
+          This position came from your game below — you missed a tactic here.
+          Replaying the game will show you why.
+        </div>
+        <a id="sourceGameLink" class="btn btn-ghost"
+           href="#" target="_blank"
+           style="width:100%;justify-content:center;font-size:.8rem">
+          ↗ View Source Game
+        </a>
       </div>
 
       <!-- Turn -->
@@ -2314,6 +2375,7 @@ function tryMove(from, to) {
     logMove(result.san, false, true);
     dotStatus(moveIndex, 'correct');
     moveIndex++; progress(); render();
+    _fetchEval(chess.fen());
     if (moveIndex >= puzzle.moves.length) { finish(true); }
     else { showFeedback('✓ Correct!', 'ok'); flashBoard('correct'); turnLabel(); autoMove(650); }
   } else {
@@ -2344,6 +2406,7 @@ function autoMove(delay) {
     clrHL(); setHL(from, 'hl-from'); setHL(to, 'hl-to');
     render(); logMove(result.san, true, null);
     moveIndex++; progress(); dotStatus(moveIndex - 1, 'auto');
+    _fetchEval(chess.fen());
     if (moveIndex >= puzzle.moves.length) { finish(true); return; }
     turnLabel();
   }, delay || 400);
@@ -2429,8 +2492,10 @@ async function loadPuzzle() {
   try {
     var ctrl = new AbortController();
     setTimeout(function(){ ctrl.abort(); }, 3000);
+    var playerElo = (profileCache && profileCache.estimatedElo) || null;
+    var eloParam  = (sessionActive && playerElo) ? '&elo=' + playerElo : '';
     var url = sessionActive
-      ? API + '/api/session/puzzle?username=' + encodeURIComponent(un) + '&ratingMin=' + f.lo + '&ratingMax=' + f.hi
+      ? API + '/api/session/puzzle?username=' + encodeURIComponent(un) + '&ratingMin=' + f.lo + '&ratingMax=' + f.hi + eloParam
       : API + '/api/puzzle/random?ratingMin=' + f.lo + '&ratingMax=' + f.hi;
     var res = await fetch(url, { signal: ctrl.signal });
     if (!res.ok) throw new Error();
@@ -2466,6 +2531,10 @@ async function loadPuzzle() {
 
   buildBoard(); render(); populateInfo(puzzle);
   buildDots(puzzle.moves); progress();
+
+  /* Reset eval bar to neutral at puzzle start */
+  _updateEvalBar({ cp: 0, mate: null });
+  _fetchEval(puzzle.fen);
 
   $turnDot.className = 'turn-dot ' + (startTurn === 'w' ? 'white' : 'black');
   $turnText.textContent = (startTurn === 'w' ? 'White' : 'Black') + ' plays first…';
@@ -2552,26 +2621,87 @@ function logMove(san, isAuto, isCorrect) {
 
 function populateInfo(p) {
   $puzzleId.textContent = p.id;
+
+  /* Game link (Lichess training or Chess.com) */
   var isGenerated = (p.id || '').startsWith('gen_');
-  var linkUrl = p.gameUrl
-    || (!isGenerated && p.id ? 'https://lichess.org/training/' + p.id : '');
-  $gameLink.href       = linkUrl || '#';
+  var trainingUrl = !isGenerated && p.id ? 'https://lichess.org/training/' + p.id : '';
+  var linkUrl     = p.gameUrl || trainingUrl;
+  $gameLink.href        = linkUrl || '#';
   $gameLink.textContent = p.gameUrl ? '↗ Game' : '↗ Lichess';
   $gameLink.style.visibility = linkUrl ? 'visible' : 'hidden';
 
+  /* Lichess analysis link (always available via FEN) */
+  var $la = document.getElementById('lichessAnalysisLink');
+  if (p.fen) {
+    $la.href        = 'https://lichess.org/analysis/' + p.fen.replace(/ /g, '_');
+    $la.style.display = '';
+  } else {
+    $la.style.display = 'none';
+  }
+
+  /* Source game card (only for generated puzzles with a game URL) */
+  var srcCard = document.getElementById('sourceGameCard');
+  var srcLink = document.getElementById('sourceGameLink');
+  if (isGenerated && p.gameUrl) {
+    srcLink.href = p.gameUrl;
+    srcCard.style.display = '';
+  } else {
+    srcCard.style.display = 'none';
+  }
+
   var tier = (p.difficultyTier || 'intermediate').toLowerCase().replace(/\s+/g, '-');
   $diffBadge.textContent = p.difficultyTier || '—';
-  $diffBadge.className = 'diff-badge ' + tier;
-  $rating.textContent  = p.rating || '—';
-  $plays.textContent   = p.nbPlays ? p.nbPlays.toLocaleString() + ' plays' : '';
+  $diffBadge.className   = 'diff-badge ' + tier;
+  $rating.textContent    = p.rating || '—';
+  $plays.textContent     = p.nbPlays ? p.nbPlays.toLocaleString() + ' plays' : '';
 
   $themes.innerHTML = '';
   (p.themes || []).slice(0, 8).forEach(function(t) {
     var tag = document.createElement('span');
-    tag.className = 'theme-tag';
+    tag.className   = 'theme-tag';
     tag.textContent = t.replace(/([A-Z])/g, ' $1').trim();
     $themes.appendChild(tag);
   });
+}
+
+/* ════════════════════════════════════════════════════════════════════
+   EVALUATION BAR
+═══════════════════════════════════════════════════════════════════ */
+var _evalBarGen = 0;   // cancels stale eval fetches on puzzle change
+
+function _cpToPct(cp) {
+  /* Maps centipawns → white fill % using a tanh curve so extremes cap gracefully */
+  if (cp === null || cp === undefined) return 50;
+  return Math.round(50 + 50 * Math.tanh(cp / 600));
+}
+
+function _updateEvalBar(data) {
+  var white = document.getElementById('evalBarWhite');
+  var label = document.getElementById('evalLabel');
+  if (!white || !label) return;
+  var pct, txt;
+  if (data.mate !== null && data.mate !== undefined) {
+    pct = data.mate > 0 ? 100 : 0;
+    txt = 'M' + Math.abs(data.mate);
+  } else {
+    var cp = data.cp || 0;
+    pct = _cpToPct(cp);
+    var abs = Math.abs(cp);
+    txt = (cp > 0 ? '+' : cp < 0 ? '−' : '') + (abs / 100).toFixed(1);
+  }
+  white.style.height = pct + '%';
+  label.textContent  = txt;
+}
+
+async function _fetchEval(fen) {
+  var gen = ++_evalBarGen;
+  try {
+    var res  = await fetch(API + '/api/eval?fen=' + encodeURIComponent(fen));
+    if (!res.ok || _evalBarGen !== gen) return;
+    var data = await res.json();
+    if (_evalBarGen !== gen) return;
+    _updateEvalBar(data);
+  } catch(_) { /* eval bar optional — no error shown to user */ }
 }
 
 function updateTargetingCard() {
@@ -3176,7 +3306,8 @@ function showLibrary(fromView) {
   _libLoad();
 }
 
-var _libQuality = null;   // cached quality report from API
+var _libQuality  = null;   // cached quality report from API
+var _libSolvedIds = new Set();  // puzzle IDs the user has solved
 
 function _libLoad() {
   if (!currentUser || !sessionToken) {
@@ -3200,8 +3331,9 @@ function _libLoad() {
   .then(function(results){
     var listData    = results[0];
     var qualityData = results[1];
-    _libAllPuzzles = (listData&&listData.puzzles) ? listData.puzzles : [];
-    _libQuality    = qualityData || null;
+    _libAllPuzzles  = (listData&&listData.puzzles) ? listData.puzzles : [];
+    _libQuality     = qualityData || null;
+    _libSolvedIds   = new Set((qualityData && qualityData.solvedIds) ? qualityData.solvedIds : []);
     _libBuildCatFilter();
     _libRenderQuality();
     _libRender();
@@ -3284,10 +3416,14 @@ function _libFiltered() {
   var sort = document.getElementById('libSortSel').value;
 
   var list = _libAllPuzzles.filter(function(p){
-    var f = p.userFeedback||null;
+    var f       = p.userFeedback||null;
+    var pid     = p.PuzzleId || p.puzzleId || '';
+    var isSolved = _libSolvedIds.has(pid);
     if (fb==='liked'    && f!=='liked')    return false;
     if (fb==='disliked' && f!=='disliked') return false;
     if (fb==='unrated'  && f)              return false;
+    if (fb==='solved'   && !isSolved)      return false;
+    if (fb==='unsolved' && isSolved)       return false;
     var c = p.PrimaryCategory||p.primaryCategory||'General';
     if (cat!=='all' && c!==cat) return false;
     return true;
@@ -3311,7 +3447,11 @@ function _libRender() {
   var total    = _libAllPuzzles.length;
   var liked    = _libAllPuzzles.filter(function(p){return p.userFeedback==='liked';}).length;
   var disliked = _libAllPuzzles.filter(function(p){return p.userFeedback==='disliked';}).length;
+  var solved   = _libAllPuzzles.filter(function(p){
+    return _libSolvedIds.has(p.PuzzleId||p.puzzleId||'');
+  }).length;
   document.getElementById('libTotal').textContent    = total;
+  document.getElementById('libSolved').textContent   = solved;
   document.getElementById('libLiked').textContent    = liked;
   document.getElementById('libDisliked').textContent = disliked;
 
@@ -3378,10 +3518,12 @@ function _libCardHTML(p) {
     ? (clarity != null ? 'Clarity: '+clarity+'cp | Drop: '+(drop||'?')+'cp | '+pmoves+' player move(s)' : 'Engine verified')
     : 'Not engine-verified';
 
-  var cardCls = 'puzzle-card'+(fb==='liked'?' liked':fb==='disliked'?' disliked':'');
-  var fbBadge = fb ? '<div class="pc-feedback-badge '+fb+'">'+(fb==='liked'?'♥ Liked':'✕ Disliked')+'</div>' : '';
-  var likeCls = 'pc-btn pc-like'+(fb==='liked'?' fb-active':'');
-  var diskCls = 'pc-btn pc-dislike'+(fb==='disliked'?' fb-active':'');
+  var isSolved = _libSolvedIds.has(id);
+  var cardCls  = 'puzzle-card'+(fb==='liked'?' liked':fb==='disliked'?' disliked':'');
+  var fbBadge  = fb ? '<div class="pc-feedback-badge '+fb+'">'+(fb==='liked'?'♥ Liked':'✕ Disliked')+'</div>' : '';
+  var likeCls  = 'pc-btn pc-like'+(fb==='liked'?' fb-active':'');
+  var diskCls  = 'pc-btn pc-dislike'+(fb==='disliked'?' fb-active':'');
+  var solvedBadge = isSolved ? '<span class="solved-badge">✓ Solved</span>' : '';
 
   var qualityRow = '<div class="pc-meta" style="display:flex;align-items:center;gap:5px;margin-top:4px">'
     +'<span class="pc-quality-dot '+dotCls+'" title="'+_esc(dotTitle)+'"></span>'
@@ -3393,7 +3535,10 @@ function _libCardHTML(p) {
   return '<div class="'+cardCls+'" data-id="'+_esc(id)+'" data-feedback="'+_esc(fb)+'">'
     +'<div class="pc-board-wrap"><div class="mini-board">'+_miniBoardHTML(fen, moves[0])+'</div></div>'
     +'<div class="pc-body">'
-      +'<span class="pc-cat-badge">'+_esc(cat)+'</span>'
+      +'<div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">'
+        +'<span class="pc-cat-badge">'+_esc(cat)+'</span>'
+        +solvedBadge
+      +'</div>'
       +'<div class="pc-rating-row"><span class="pc-rating">'+rating+'</span><span class="pc-tier">'+_esc(tier)+'</span></div>'
       +'<div class="pc-meta">'+depth+' half-moves &middot; '+_esc(mode)+'</div>'
       +qualityRow
