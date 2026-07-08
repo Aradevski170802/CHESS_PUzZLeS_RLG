@@ -2639,11 +2639,12 @@ function populateInfo(p) {
     $la.style.display = 'none';
   }
 
-  /* Source game card (only for generated puzzles with a game URL) */
+  /* Source game card (only for generated puzzles with a valid absolute game URL) */
   var srcCard = document.getElementById('sourceGameCard');
   var srcLink = document.getElementById('sourceGameLink');
-  if (isGenerated && p.gameUrl) {
-    srcLink.href = p.gameUrl;
+  var validGameUrl = p.gameUrl && p.gameUrl.startsWith('http') ? p.gameUrl : '';
+  if (isGenerated && validGameUrl) {
+    srcLink.href = validGameUrl;
     srcCard.style.display = '';
   } else {
     srcCard.style.display = 'none';
