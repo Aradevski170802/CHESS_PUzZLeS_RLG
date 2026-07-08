@@ -15,7 +15,9 @@ GET  /api/session/puzzle            → adaptive puzzle (bandit-selected categor
 POST /api/session/result            → record solve/fail, update bandit, persist to disk
 GET  /api/session/stats             → session accuracy, streak, weakness map
 GET  /api/user/stats/<user>         → all-time stats from persisted history (auth required)
-POST /api/auth/register             → create account (username + password)
+POST /api/auth/challenge            → issue Chess.com ownership verification code
+POST /api/auth/verify-chess         → check Chess.com location field contains code
+POST /api/auth/register             → create account (requires Chess.com verification)
 POST /api/auth/login                → verify password, return 30-day session token
 GET  /api/auth/check                → validate a stored token (for auto-login)
 """
@@ -28,6 +30,8 @@ import random
 import secrets
 import sys
 import threading
+import urllib.error
+import urllib.request as _urllib_req
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -399,6 +403,33 @@ def _save_user_state(username: str, state: dict) -> None:
 
 _TOKEN_DAYS = 30
 
+# Pending Chess.com ownership challenges: {username: {"code": str, "expires": datetime}}
+_VERIFY_CHALLENGES: dict = {}
+_VERIFY_TTL = 600  # seconds
+
+
+def _cleanup_challenges() -> None:
+    now = datetime.now(timezone.utc)
+    stale = [u for u, v in _VERIFY_CHALLENGES.items() if v["expires"] < now]
+    for u in stale:
+        del _VERIFY_CHALLENGES[u]
+
+
+def _chess_com_location(username: str) -> str | None:
+    """Return the Chess.com location field for username, or None on any error."""
+    url = f"https://api.chess.com/pub/player/{username.lower()}"
+    req = _urllib_req.Request(url, headers={"User-Agent": "PuzzleAdvisor/1.0"})
+    try:
+        with _urllib_req.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read())
+        return data.get("location") or ""
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            return None           # account doesn't exist
+        return None
+    except Exception:
+        return None
+
 def _hash_password(password: str) -> tuple[str, str]:
     salt = secrets.token_hex(16)
     h = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 200_000)
@@ -436,14 +467,68 @@ def _check_token(username: str) -> bool:
 
 # ── Auth endpoints ────────────────────────────────────────────────────────────
 
-@app.route("/api/auth/register", methods=["POST"])
-def auth_register():
+@app.route("/api/auth/challenge", methods=["POST"])
+def auth_challenge():
+    """Step 1: issue a verification code the user must paste into Chess.com location."""
     data     = request.get_json(silent=True) or {}
     username = (data.get("username") or "").lower().strip()
-    password = data.get("password") or ""
+    if not username or username == "guest":
+        return jsonify({"error": "Invalid username"}), 400
 
-    if not username or not password:
-        return jsonify({"error": "Missing username or password"}), 400
+    existing = _load_user_state(username)
+    if existing and existing.get("passwordHash"):
+        return jsonify({"error": "Account already exists — log in instead"}), 409
+
+    location = _chess_com_location(username)
+    if location is None:
+        return jsonify({"error": f"Chess.com account '{username}' not found"}), 404
+
+    _cleanup_challenges()
+    code = "PZLADV-" + secrets.token_hex(3).upper()
+    _VERIFY_CHALLENGES[username] = {
+        "code": code,
+        "expires": datetime.now(timezone.utc) + timedelta(seconds=_VERIFY_TTL),
+    }
+    return jsonify({"ok": True, "code": code, "expiresIn": _VERIFY_TTL})
+
+
+@app.route("/api/auth/verify-chess", methods=["POST"])
+def auth_verify_chess():
+    """Step 2: check whether the Chess.com location field contains the challenge code."""
+    data              = request.get_json(silent=True) or {}
+    username          = (data.get("username") or "").lower().strip()
+    verification_code = (data.get("verificationCode") or "").strip()
+
+    if not username or not verification_code:
+        return jsonify({"error": "Missing fields"}), 400
+
+    challenge = _VERIFY_CHALLENGES.get(username)
+    if not challenge:
+        return jsonify({"error": "No challenge found — request a new code"}), 400
+    if datetime.now(timezone.utc) > challenge["expires"]:
+        _VERIFY_CHALLENGES.pop(username, None)
+        return jsonify({"error": "Code expired — request a new code"}), 400
+    if challenge["code"] != verification_code:
+        return jsonify({"error": "Code mismatch"}), 400
+
+    location = _chess_com_location(username)
+    if location is None:
+        return jsonify({"error": f"Could not reach Chess.com for '{username}'"}), 503
+    if verification_code not in location:
+        return jsonify({"error": "Code not found in your Chess.com location field. Make sure you saved the profile."}), 400
+
+    return jsonify({"ok": True, "username": username})
+
+
+@app.route("/api/auth/register", methods=["POST"])
+def auth_register():
+    data              = request.get_json(silent=True) or {}
+    username          = (data.get("username") or "").lower().strip()
+    password          = data.get("password") or ""
+    verification_code = (data.get("verificationCode") or "").strip()
+
+    if not username or not password or not verification_code:
+        return jsonify({"error": "Missing required fields"}), 400
     if username == "guest":
         return jsonify({"error": "Reserved username"}), 400
     if len(password) < 6:
@@ -453,12 +538,29 @@ def auth_register():
     if existing and existing.get("passwordHash"):
         return jsonify({"error": "Account already exists — log in instead"}), 409
 
-    salt, pw_hash    = _hash_password(password)
-    token, expiry    = _new_token()
-    state            = existing or {"username": username, "history": [], "bestStreak": 0}
+    challenge = _VERIFY_CHALLENGES.get(username)
+    if not challenge:
+        return jsonify({"error": "No verification challenge found — request a new code"}), 400
+    if datetime.now(timezone.utc) > challenge["expires"]:
+        _VERIFY_CHALLENGES.pop(username, None)
+        return jsonify({"error": "Verification code expired — request a new code"}), 400
+    if challenge["code"] != verification_code:
+        return jsonify({"error": "Verification code mismatch"}), 400
+
+    location = _chess_com_location(username)
+    if location is None:
+        return jsonify({"error": f"Could not reach Chess.com to verify '{username}'"}), 503
+    if verification_code not in location:
+        return jsonify({"error": "Verification code not found in your Chess.com location field. Make sure you saved the profile."}), 400
+
+    salt, pw_hash = _hash_password(password)
+    token, expiry = _new_token()
+    state = existing or {"username": username, "history": [], "bestStreak": 0}
     state.update({"passwordSalt": salt, "passwordHash": pw_hash,
-                  "token": token, "tokenExpiry": expiry})
+                  "token": token, "tokenExpiry": expiry,
+                  "chessComVerified": True})
     _save_user_state(username, state)
+    _VERIFY_CHALLENGES.pop(username, None)
 
     return jsonify({"ok": True, "token": token, "username": username})
 
@@ -741,7 +843,13 @@ def generate_puzzles():
         return jsonify({"status": "already_running"}), 409
 
     from src.classifier.stockfish_analyzer import find_stockfish
-    sf_path = find_stockfish()   # None → heuristic mode (no Stockfish needed)
+    sf_path = find_stockfish()
+    if not sf_path:
+        return jsonify({
+            "error": "Stockfish not found. Place the binary at "
+                     "stockfish/stockfish-windows-x86-64-avx2.exe or ensure it is in PATH.",
+            "status": "error",
+        }), 503
 
     GENERATE_STORE[username] = {"status": "running", "progress": 0, "message": "Starting…", "count": 0}
 
@@ -750,9 +858,8 @@ def generate_puzzles():
             from src.api.chess_com_fetcher import get_recent_games
             from src.puzzles.generator import generate_from_games, save_user_puzzles
 
-            mode_label = "Stockfish" if sf_path else "heuristic analysis"
             GENERATE_STORE[username]["message"] = "Fetching recent games from Chess.com…"
-            pgns = get_recent_games(username, n=30)
+            pgns = get_recent_games(username, n=40)
             if not pgns:
                 GENERATE_STORE[username].update({
                     "status": "error",
@@ -760,17 +867,17 @@ def generate_puzzles():
                                "Make sure your game history is public.",
                 })
                 return
-            GENERATE_STORE[username]["progress"] = 20
+            GENERATE_STORE[username]["progress"] = 10
             GENERATE_STORE[username]["message"] = (
-                f"Scanning {len(pgns)} games with {mode_label}…"
+                f"Analysing {len(pgns)} games with Stockfish (quality mode)…"
             )
 
             def _cb(done, total, found=0):
-                pct = 20 + int(done / total * 70)
+                pct = 10 + int(done / total * 85)
                 GENERATE_STORE[username]["progress"] = pct
-                found_str = f" ({found} found)" if found else ""
+                found_str = f" — {found} found" if found else ""
                 GENERATE_STORE[username]["message"] = (
-                    f"Scanned {done}/{total} games{found_str}…"
+                    f"Game {done}/{total}{found_str}…"
                 )
 
             puzzles = generate_from_games(pgns, username, sf_path,
@@ -779,10 +886,16 @@ def generate_puzzles():
             if puzzles:
                 save_user_puzzles(username, puzzles)
 
+            msg = (
+                f"Generated {len(puzzles)} verified puzzles from your games!"
+                if puzzles else
+                "No qualifying puzzles found in recent games. "
+                "Try playing more games and regenerate."
+            )
             GENERATE_STORE[username].update({
                 "status":   "done",
                 "progress": 100,
-                "message":  f"Generated {len(puzzles)} puzzles from your games!",
+                "message":  msg,
                 "count":    len(puzzles),
             })
         except Exception as exc:
@@ -806,7 +919,170 @@ def generate_list(username: str):
         return jsonify({"error": "Unauthorized"}), 401
     from src.puzzles.generator import load_user_puzzles
     puzzles = load_user_puzzles(username)
-    return jsonify({"count": len(puzzles), "puzzles": [_serialise(p) for p in puzzles]})
+    # Return raw dicts so all custom fields (userFeedback, generatedBy…) are preserved.
+    # The frontend handles both PascalCase raw and camelCase serialised formats.
+    return jsonify({"count": len(puzzles), "puzzles": puzzles})
+
+
+@app.route("/api/generate/quality/<username>")
+def generate_quality(username: str):
+    """Return quality metrics computed from stored puzzle metadata (no Stockfish needed)."""
+    username = username.lower()
+    if not _check_token(username):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from collections import Counter
+    from src.puzzles.generator import load_user_puzzles
+    puzzles = load_user_puzzles(username)
+    n = len(puzzles)
+    if not n:
+        return jsonify({"error": "No puzzles found"}), 404
+
+    def _moves_len(p):
+        m = p.get("Moves", "")
+        return len(m.split()) if isinstance(m, str) else len(m or [])
+
+    stockfish_n   = sum(1 for p in puzzles if p.get("generatedBy") == "stockfish")
+    clarity_vals  = [p["clarityCp"]   for p in puzzles if p.get("clarityCp")  is not None]
+    drop_vals     = [p["evalDrop"]     for p in puzzles if p.get("evalDrop")   is not None]
+    depths        = [_moves_len(p)     for p in puzzles]
+    player_moves  = [p.get("playerMoves", 1) for p in puzzles]
+
+    clear_n       = sum(1 for v in clarity_vals if v >= 150)
+    deep_n        = sum(1 for d in depths if d >= 3)
+    multi_n       = sum(1 for v in player_moves if v >= 2)
+    tactical_cats = {"Fork","Pin","Skewer","Discovered Attack","Mating Pattern",
+                     "Sacrifice","Promotion","Hanging Piece","X-Ray Attack","King Safety"}
+    tactical_n    = sum(1 for p in puzzles if p.get("PrimaryCategory","") in tactical_cats)
+
+    avg_clarity   = round(sum(clarity_vals) / len(clarity_vals)) if clarity_vals else None
+    avg_drop      = round(sum(drop_vals)    / len(drop_vals))    if drop_vals    else None
+    avg_depth     = round(sum(depths) / n, 1)
+
+    # Weighted overall score (mirrors eval/puzzle_evaluator.py)
+    engine_score  = stockfish_n  / n
+    clarity_score = (clear_n / n) if clarity_vals else 0.5
+    depth_score   = deep_n       / n
+    tactical_score= tactical_n   / n
+    multi_score   = multi_n      / n
+
+    overall = round(
+        0.30 * engine_score  +
+        0.25 * clarity_score +
+        0.20 * depth_score   +
+        0.15 * tactical_score +
+        0.10 * multi_score,
+        3,
+    )
+    grade = "GOOD" if overall >= 0.70 else "FAIR" if overall >= 0.50 else "POOR"
+
+    categories = dict(Counter(p.get("PrimaryCategory","General") for p in puzzles))
+
+    per_puzzle = [
+        {
+            "id":          p.get("PuzzleId", p.get("id", "")),
+            "category":    p.get("PrimaryCategory", "General"),
+            "rating":      p.get("Rating", 0),
+            "clarityCp":   p.get("clarityCp"),
+            "evalDrop":    p.get("evalDrop"),
+            "playerMoves": p.get("playerMoves", 1),
+            "depth":       _moves_len(p),
+            "generatedBy": p.get("generatedBy", "?"),
+        }
+        for p in puzzles
+    ]
+
+    return jsonify({
+        "n":            n,
+        "overall":      overall,
+        "grade":        grade,
+        "metrics": {
+            "engineVerified": {"n": stockfish_n,  "pct": round(stockfish_n /n*100)},
+            "clarityOk":      {"n": clear_n,      "pct": round(clear_n/n*100) if clarity_vals else None, "avgCp": avg_clarity},
+            "sufficientDepth":{"n": deep_n,        "pct": round(deep_n/n*100)},
+            "multiMove":      {"n": multi_n,       "pct": round(multi_n/n*100)},
+            "tactical":       {"n": tactical_n,    "pct": round(tactical_n/n*100)},
+            "avgEvalDrop":    avg_drop,
+            "avgDepth":       avg_depth,
+        },
+        "categories":   categories,
+        "perPuzzle":    per_puzzle,
+    })
+
+
+@app.route("/api/generate/puzzle/<username>/<puzzle_id>", methods=["PATCH"])
+def update_puzzle_feedback(username: str, puzzle_id: str):
+    """Update a puzzle's userFeedback field: liked | disliked | null."""
+    username = username.lower()
+    if not _check_token(username):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data     = request.get_json(silent=True) or {}
+    feedback = data.get("feedback")   # "liked", "disliked", or None/absent = clear
+    if feedback not in ("liked", "disliked", None):
+        return jsonify({"error": "feedback must be 'liked', 'disliked', or null"}), 400
+
+    from src.puzzles.generator import load_user_puzzles, USER_PUZZLES_DIR
+    puzzles = load_user_puzzles(username)
+    updated = False
+    for p in puzzles:
+        if p.get("PuzzleId") == puzzle_id:
+            if feedback is None:
+                p.pop("userFeedback", None)
+            else:
+                p["userFeedback"] = feedback
+            updated = True
+            break
+
+    if not updated:
+        return jsonify({"error": "Puzzle not found"}), 404
+
+    USER_PUZZLES_DIR.mkdir(parents=True, exist_ok=True)
+    (USER_PUZZLES_DIR / f"{username}.json").write_text(
+        json.dumps(puzzles, indent=2), encoding="utf-8"
+    )
+    return jsonify({"ok": True, "puzzleId": puzzle_id, "feedback": feedback})
+
+
+@app.route("/api/generate/puzzle/<username>/<puzzle_id>", methods=["DELETE"])
+def delete_puzzle(username: str, puzzle_id: str):
+    """Remove a single generated puzzle by ID."""
+    username = username.lower()
+    if not _check_token(username):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from src.puzzles.generator import load_user_puzzles, USER_PUZZLES_DIR
+    puzzles  = load_user_puzzles(username)
+    filtered = [p for p in puzzles if p.get("PuzzleId") != puzzle_id]
+
+    if len(filtered) == len(puzzles):
+        return jsonify({"error": "Puzzle not found"}), 404
+
+    USER_PUZZLES_DIR.mkdir(parents=True, exist_ok=True)
+    (USER_PUZZLES_DIR / f"{username}.json").write_text(
+        json.dumps(filtered, indent=2), encoding="utf-8"
+    )
+    return jsonify({"ok": True, "remaining": len(filtered)})
+
+
+@app.route("/api/generate/puzzles/<username>", methods=["DELETE"])
+def delete_all_puzzles(username: str):
+    """Delete the entire puzzle file for a user (full reset before regeneration)."""
+    username = username.lower()
+    if not _check_token(username):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    from src.puzzles.generator import USER_PUZZLES_DIR
+    path = USER_PUZZLES_DIR / f"{username}.json"
+    count = 0
+    if path.exists():
+        try:
+            count = len(json.loads(path.read_text(encoding="utf-8")))
+        except Exception:
+            pass
+        path.unlink()
+
+    return jsonify({"ok": True, "deleted": count})
 
 
 # ── Adaptive session ──────────────────────────────────────────────────────────

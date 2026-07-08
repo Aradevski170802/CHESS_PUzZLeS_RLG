@@ -597,6 +597,117 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
     radial-gradient(ellipse 50% 40% at 70% 60%,rgba(16,185,129,.05) 0%,transparent 60%),
     var(--bg)}
 
+/* ── Registration stepper ──────────────────────────────────────────── */
+.reg-step{display:none}
+.reg-step.active{display:block}
+.reg-title{font-size:1.05rem;font-weight:700;color:var(--text);margin-bottom:4px;text-align:center}
+.reg-sub{font-size:.82rem;color:var(--text-muted);margin-bottom:16px;line-height:1.55;text-align:center}
+.reg-code-box{background:var(--surface2);border:1.5px solid var(--accent);border-radius:10px;
+  padding:12px 14px;text-align:center;font-size:1.25rem;font-weight:700;letter-spacing:.12em;
+  color:var(--accent);flex:1}
+.reg-copy-row{display:flex;align-items:center;gap:8px;margin:10px 0 14px}
+.reg-instructions{font-size:.82rem;color:var(--text-muted);line-height:1.75;
+  background:var(--surface2);border-radius:8px;padding:12px 14px;margin-bottom:16px;
+  counter-reset:step}
+.reg-instructions li{counter-increment:step;list-style:none;padding-left:4px}
+.reg-instructions li::before{content:counter(step)". ";color:var(--accent);font-weight:600}
+.reg-instructions a{color:var(--accent);text-decoration:none}
+.reg-instructions a:hover{text-decoration:underline}
+.reg-ok-badge{background:rgba(16,185,129,.12);border:1px solid rgba(16,185,129,.3);
+  color:#10b981;border-radius:8px;padding:8px 14px;font-size:.82rem;margin-bottom:14px;
+  display:flex;align-items:center;gap:6px;justify-content:center}
+
+/* ── Library view ──────────────────────────────────────────────────── */
+#v-library{align-items:flex-start;justify-content:flex-start;padding:0;overflow-y:auto}
+.lib-wrap{width:100%;max-width:1100px;margin:0 auto;padding:24px 20px;
+  display:flex;flex-direction:column;gap:16px}
+.lib-header{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.lib-title{font-size:1.25rem;font-weight:800;letter-spacing:-.02em;flex:1}
+.lib-stats-row{display:flex;gap:14px;flex-wrap:wrap}
+.lib-stat{font-size:.82rem;color:var(--text-muted)}
+.lib-stat strong{color:var(--text);font-weight:700}
+.lib-toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.lib-select{background:var(--surface2);border:1.5px solid var(--border);border-radius:9px;
+  color:var(--text);padding:7px 11px;font-size:.8rem;cursor:pointer;outline:none;
+  transition:border-color .15s}
+.lib-select:focus{border-color:var(--accent)}
+.btn-danger{background:var(--red-dim);color:var(--red);border:1px solid rgba(248,113,113,.3);
+  border-radius:9px;padding:7px 14px;font-size:.8rem;font-weight:600;cursor:pointer;
+  transition:all .15s}
+.btn-danger:hover{background:rgba(248,113,113,.22);border-color:var(--red)}
+.puzzle-lib-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+/* Individual puzzle card */
+.puzzle-card{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;
+  transition:border-color .18s,box-shadow .18s}
+.puzzle-card:hover{border-color:var(--border-h);box-shadow:var(--shadow)}
+.puzzle-card.liked{border-color:rgba(16,185,129,.4);
+  box-shadow:0 0 14px rgba(16,185,129,.08)}
+.puzzle-card.disliked{border-color:rgba(248,113,113,.25);opacity:.65}
+/* Mini board preview */
+.pc-board-wrap{background:var(--surface2);padding:10px 10px 6px;
+  display:flex;justify-content:center;border-bottom:1px solid var(--border)}
+.mini-board{display:grid;grid-template-columns:repeat(8,14px);
+  border:1px solid #5a4a3a;border-radius:2px;overflow:hidden;line-height:14px}
+.mini-sq{width:14px;height:14px;display:flex;align-items:center;
+  justify-content:center;font-size:10px}
+.mini-sq.msq-l{background:#f0d9b5}
+.mini-sq.msq-d{background:#b58863}
+.mini-pw{color:#fff;text-shadow:0 0 2px #000,0 0 1px #333}
+.mini-pb{color:#1a1209;text-shadow:0 0 1px rgba(255,255,255,.4)}
+/* Card body */
+.pc-body{padding:10px 13px;flex:1;display:flex;flex-direction:column;gap:5px}
+.pc-cat-badge{display:inline-flex;align-items:center;background:var(--accent-dim);
+  color:var(--accent-h);border:1px solid rgba(99,102,241,.22);border-radius:20px;
+  padding:2px 9px;font-size:.68rem;font-weight:700;letter-spacing:.04em;width:fit-content}
+.pc-rating-row{display:flex;align-items:baseline;gap:7px;margin-top:2px}
+.pc-rating{font-size:1.05rem;font-weight:800;color:var(--text)}
+.pc-tier{font-size:.72rem;color:var(--text-muted)}
+.pc-meta{font-size:.73rem;color:var(--text-dim)}
+.pc-feedback-badge{font-size:.68rem;font-weight:700;padding:1px 7px;border-radius:10px;
+  margin-top:2px;width:fit-content}
+.pc-feedback-badge.liked{background:var(--green-dim);color:var(--green)}
+.pc-feedback-badge.disliked{background:var(--red-dim);color:var(--red)}
+/* Card action row */
+.pc-actions{display:flex;gap:5px;padding:8px 10px;
+  border-top:1px solid var(--border);background:var(--surface2)}
+.pc-btn{flex:1;padding:5px 3px;border:1px solid var(--border);border-radius:7px;
+  background:transparent;color:var(--text-muted);cursor:pointer;font-size:.75rem;
+  font-weight:600;transition:all .13s;display:flex;align-items:center;justify-content:center;gap:3px}
+.pc-btn:hover{border-color:var(--border-h);color:var(--text);background:var(--surface3)}
+.pc-play:hover{color:var(--accent);border-color:rgba(99,102,241,.4)}
+.pc-like.fb-active{background:var(--green-dim);border-color:rgba(16,185,129,.4);color:var(--green)}
+.pc-dislike.fb-active{background:var(--red-dim);border-color:rgba(248,113,113,.35);color:var(--red)}
+.pc-delete:hover{color:var(--red);border-color:rgba(248,113,113,.35)}
+/* Empty / loading state */
+.lib-empty{text-align:center;padding:60px 20px;color:var(--text-muted);
+  grid-column:1/-1}
+.lib-empty-icon{font-size:2.8rem;margin-bottom:12px;display:block}
+
+/* ── Quality panel ─────────────────────────────────────────────────── */
+.qp-wrap{background:var(--surface);border:1px solid var(--border);border-radius:14px;
+  padding:20px 24px;margin-bottom:18px;display:none}
+.qp-wrap.visible{display:block}
+.qp-header{display:flex;align-items:center;gap:14px;margin-bottom:16px}
+.qp-grade{font-size:1.5rem;font-weight:900;letter-spacing:-.02em;padding:4px 14px;
+  border-radius:8px}
+.qp-grade.GOOD{background:rgba(16,185,129,.15);color:#10b981}
+.qp-grade.FAIR{background:rgba(234,179,8,.15);color:#eab308}
+.qp-grade.POOR{background:rgba(248,113,113,.15);color:#f87171}
+.qp-score{font-size:1.1rem;font-weight:700;color:var(--text)}
+.qp-score span{font-size:.8rem;font-weight:400;color:var(--text-muted)}
+.qp-note{font-size:.78rem;color:var(--text-muted);margin-left:auto}
+.qp-metrics{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.qm-item{background:var(--surface2);border-radius:10px;padding:10px 14px}
+.qm-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.06em;
+  color:var(--text-muted);margin-bottom:6px}
+.qm-bar-wrap{height:5px;background:var(--border);border-radius:3px;overflow:hidden;margin-bottom:5px}
+.qm-bar{height:100%;border-radius:3px;transition:width .4s}
+.qm-val{font-size:.85rem;font-weight:700;color:var(--text)}
+.qm-sub{font-size:.7rem;color:var(--text-muted)}
+.pc-quality-dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px;flex-shrink:0}
+.qd-good{background:#10b981}.qd-fair{background:#eab308}.qd-poor{background:#f87171}
+
 /* ── Responsive ────────────────────────────────────────────────────── */
 @media (max-width:900px){
   .chess-board{--sq:52px}
@@ -638,6 +749,7 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
 
     <div id="loginError" class="error-msg" style="display:none"></div>
 
+    <!-- LOGIN -->
     <div id="loginFields">
       <div class="form-group">
         <label class="form-label" for="usernameInput">Chess.com username</label>
@@ -648,18 +760,61 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
         <label class="form-label" for="passwordInput">Password</label>
         <input type="password" id="passwordInput" class="form-input" placeholder="Your account password"/>
       </div>
-      <div class="form-group" id="confirmPwGroup" style="display:none">
-        <label class="form-label" for="confirmPwInput">Confirm password</label>
-        <input type="password" id="confirmPwInput" class="form-input" placeholder="Repeat password"/>
+      <button id="btnLogin" class="btn btn-primary" style="width:100%;margin-bottom:12px">Log In →</button>
+      <p class="auth-mode-hint">No account yet? <a id="authModeToggle">Register here</a></p>
+    </div>
+
+    <!-- REGISTRATION (3-step) -->
+    <div id="regPane" style="display:none">
+
+      <!-- Step 1: enter Chess.com username -->
+      <div id="regStep1" class="reg-step active">
+        <div class="reg-title">Create Account</div>
+        <div class="reg-sub">We'll verify you own this Chess.com account before creating a profile.</div>
+        <div class="form-group">
+          <label class="form-label" for="regUsernameInput">Chess.com username</label>
+          <input type="text" id="regUsernameInput" class="form-input" placeholder="e.g. hikaru"
+                 autocomplete="off" autocapitalize="none" spellcheck="false"/>
+        </div>
+        <button id="btnGetCode" class="btn btn-primary" style="width:100%;margin-bottom:14px">Get Verification Code →</button>
+        <p class="auth-mode-hint"><a id="lnkBackLogin">← Back to login</a></p>
       </div>
 
-      <div class="auth-btn-row">
-        <button id="btnLogin"    class="btn btn-primary">Log In →</button>
-        <button id="btnRegister" class="btn btn-secondary" id="btnRegister">Create Account</button>
+      <!-- Step 2: paste code into Chess.com location -->
+      <div id="regStep2" class="reg-step">
+        <div class="reg-title">Verify Ownership</div>
+        <div class="reg-sub">Paste this code into your <strong>Chess.com profile location</strong> field, then click Verify.</div>
+        <div class="reg-copy-row">
+          <div id="regVerifyCode" class="reg-code-box">—</div>
+          <button id="btnCopyCode" class="btn btn-ghost" title="Copy to clipboard">Copy</button>
+        </div>
+        <ol class="reg-instructions">
+          <li>Open <a href="https://www.chess.com/settings/profile" target="_blank">chess.com → Settings → Profile</a></li>
+          <li>Find the <strong>Location</strong> field and paste the code</li>
+          <li>Click <strong>Save</strong> on the profile page</li>
+          <li>Click <strong>Verify →</strong> below</li>
+        </ol>
+        <button id="btnVerifyCode" class="btn btn-primary" style="width:100%;margin-bottom:14px">Verify →</button>
+        <p class="auth-mode-hint" style="margin-top:0"><a id="lnkBackStep1">← Change username</a></p>
       </div>
-      <p class="auth-mode-hint" id="authModeHint">
-        No account yet? <a id="authModeToggle">Register here</a>
-      </p>
+
+      <!-- Step 3: set app password -->
+      <div id="regStep3" class="reg-step">
+        <div class="reg-ok-badge">✓ Verified as <strong id="regVerifiedUser" style="margin-left:3px"></strong></div>
+        <div class="reg-title">Set Your Password</div>
+        <div class="reg-sub">Choose a password for signing in to this app.</div>
+        <div class="form-group">
+          <label class="form-label" for="regPasswordInput">Password</label>
+          <input type="password" id="regPasswordInput" class="form-input" placeholder="At least 6 characters"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="regConfirmInput">Confirm password</label>
+          <input type="password" id="regConfirmInput" class="form-input" placeholder="Repeat password"/>
+        </div>
+        <button id="btnCompleteReg" class="btn btn-primary" style="width:100%;margin-bottom:14px">Create Account →</button>
+        <p class="auth-mode-hint" style="margin-top:0"><a id="lnkBackStep2">← Re-verify</a></p>
+      </div>
+
     </div>
 
     <div class="divider"><span>or</span></div>
@@ -883,6 +1038,9 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
         <button class="btn btn-primary" id="btnPracticeOwn" style="display:none;font-size:.85rem">
           ▶ Practice my puzzles
         </button>
+        <button class="btn btn-ghost" id="btnOpenLibrary" style="display:none;font-size:.85rem">
+          📚 Library
+        </button>
       </div>
     </div>
 
@@ -903,6 +1061,70 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
 
   </div><!-- /dash-wrap -->
 </div><!-- /v-dashboard -->
+
+<!-- ══════════════════════════════════════════════════════════════════════
+  VIEW 5 — Puzzle Library
+════════════════════════════════════════════════════════════════════════ -->
+<div id="v-library" class="view">
+  <div class="lib-wrap">
+
+    <!-- Header -->
+    <div class="lib-header">
+      <button class="btn-back" id="btnLibBack">← Back</button>
+      <span class="lib-title">My Puzzle Library</span>
+      <div class="lib-stats-row">
+        <span class="lib-stat"><strong id="libTotal">0</strong> puzzles</span>
+        <span class="lib-stat"><strong id="libLiked">0</strong> liked</span>
+        <span class="lib-stat"><strong id="libDisliked">0</strong> disliked</span>
+      </div>
+    </div>
+
+    <!-- Toolbar: filters + sort + danger button -->
+    <div class="lib-toolbar">
+      <select id="libFilterSel" class="lib-select">
+        <option value="all">All puzzles</option>
+        <option value="liked">Liked only</option>
+        <option value="disliked">Disliked only</option>
+        <option value="unrated">Unrated only</option>
+      </select>
+      <select id="libCatSel" class="lib-select">
+        <option value="all">All categories</option>
+      </select>
+      <select id="libSortSel" class="lib-select">
+        <option value="default">Default order</option>
+        <option value="rating-asc">Rating: low → high</option>
+        <option value="rating-desc">Rating: high → low</option>
+        <option value="liked-first">Liked first</option>
+        <option value="depth-desc">Deepest first</option>
+      </select>
+      <button class="btn-danger" id="btnLibDeleteAll" style="margin-left:auto">
+        🗑 Delete All &amp; Regenerate
+      </button>
+    </div>
+
+    <!-- Quality panel — filled by JS after fetch -->
+    <div id="qualityPanel" class="qp-wrap">
+      <div class="qp-header">
+        <div id="qpGrade" class="qp-grade">—</div>
+        <div>
+          <div id="qpScore" class="qp-score">— <span>/ 1.00</span></div>
+          <div id="qpNote" style="font-size:.75rem;color:var(--text-muted)">Quality report</div>
+        </div>
+        <div class="qp-note" id="qpCount"></div>
+      </div>
+      <div id="qpMetrics" class="qp-metrics"></div>
+    </div>
+
+    <!-- Puzzle grid — filled by JS -->
+    <div id="puzzleLibGrid" class="puzzle-lib-grid">
+      <div class="lib-empty">
+        <span class="lib-empty-icon">♟</span>
+        Loading your puzzles…
+      </div>
+    </div>
+
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════════════════════════════
   VIEW 4 — Game
@@ -977,7 +1199,7 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
           <span id="diffBadge" class="diff-badge">—</span>
           <span id="ratingValue" class="rating-num">—</span>
           <span id="playsLabel" class="plays-label"></span>
-          <a id="gameLink" class="game-link" href="#" target="_blank" style="visibility:hidden">↗</a>
+          <a id="gameLink" class="game-link" href="#" target="_blank" style="visibility:hidden">↗ Lichess</a>
         </div>
         <div id="themesRow" class="themes-row"></div>
         <div class="puzzle-id-row">
@@ -1014,6 +1236,7 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
       <div class="controls-row">
         <button class="btn btn-secondary" id="btnHint">💡 Hint</button>
         <button class="btn btn-ghost"     id="btnFlip">⇅</button>
+        <button class="btn btn-ghost" id="btnSeeSolution" style="display:none;color:var(--gold)">👁 Solution</button>
         <button class="btn btn-primary flex-1" id="btnNextBottom">Next puzzle →</button>
       </div>
 
@@ -1101,6 +1324,8 @@ var $modeBadge    = null;   // set after DOM ready
 
 /* ── Game state ─────────────────────────────────────────────────────── */
 var chess = null, puzzle = null, moveIndex = 0;
+var _puzzleGen    = 0;   // incremented each loadPuzzle; guards stale autoMove timers
+var _wrongAttempts = 0;  // wrong moves in current puzzle
 var playerColor = 'w', orientation = 'white';
 var hintUsed = false, selected = null;
 var highlights = {}, dragFromSq = null;
@@ -1182,9 +1407,12 @@ async function _tryAutoLogin() {
 }
 
 /* ════════════════════════════════════════════════════════════════════
-   LOGIN FLOW
+   LOGIN / REGISTRATION FLOW
 ═══════════════════════════════════════════════════════════════════ */
-var _registerMode = false;
+
+// Registration state
+var _regUsername  = '';
+var _regCode      = '';
 
 function setLoginError(msg) {
   var el = document.getElementById('loginError');
@@ -1192,30 +1420,31 @@ function setLoginError(msg) {
   else      { el.style.display = 'none'; }
 }
 
-function _setAuthMode(register) {
-  _registerMode = register;
-  document.getElementById('confirmPwGroup').style.display = register ? '' : 'none';
-  document.getElementById('btnLogin').style.display    = register ? 'none' : '';
-  document.getElementById('btnRegister').textContent   = register ? 'Create Account →' : 'Create Account';
-  document.getElementById('btnRegister').className     = register ? 'btn btn-primary' : 'btn btn-secondary';
-  document.getElementById('authModeHint').innerHTML    = register
-    ? 'Already have an account? <a id="authModeToggle">Log in</a>'
-    : 'No account yet? <a id="authModeToggle">Register here</a>';
-  document.getElementById('authModeToggle').onclick = function() { _setAuthMode(!_registerMode); };
+function _showLoginPane() {
+  document.getElementById('loginFields').style.display = '';
+  document.getElementById('regPane').style.display     = 'none';
+  setLoginError(null);
+}
+
+function _showRegStep(n) {
+  document.getElementById('loginFields').style.display = 'none';
+  document.getElementById('regPane').style.display     = '';
+  [1,2,3].forEach(function(i){
+    var el = document.getElementById('regStep' + i);
+    el.classList.toggle('active', i === n);
+  });
   setLoginError(null);
 }
 
 async function _afterAuth(username, token) {
   _saveSession(username, token);
   setLoginError(null);
-  /* load chess.com profile then show profile card */
   try {
     var res  = await fetch(API + '/api/player/lookup?username=' + encodeURIComponent(username));
     var data = res.ok ? await res.json() : {};
     profileCache = data;
     showProfileCard(data);
   } catch(_) {
-    /* fallback: skip profile card and go straight to dashboard */
     showView('v-dashboard');
   }
 }
@@ -1244,21 +1473,68 @@ async function handleLogin() {
   }
 }
 
-async function handleRegister() {
-  var username = document.getElementById('usernameInput').value.trim().toLowerCase();
-  var password = document.getElementById('passwordInput').value;
-  var confirm  = document.getElementById('confirmPwInput').value;
+/* Step 1 → 2: get verification code from backend */
+async function _handleGetCode() {
+  var username = document.getElementById('regUsernameInput').value.trim().toLowerCase();
   if (!username) { setLoginError('Enter your Chess.com username.'); return; }
+  setLoginError(null);
+
+  var btn = document.getElementById('btnGetCode');
+  btn.textContent = 'Checking…'; btn.disabled = true;
+  try {
+    var res  = await fetch(API + '/api/auth/challenge', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username })
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Could not issue code');
+    _regUsername = username;
+    _regCode     = data.code;
+    document.getElementById('regVerifyCode').textContent = data.code;
+    _showRegStep(2);
+  } catch(e) {
+    setLoginError(e.message || 'Failed to get verification code.');
+  } finally {
+    btn.textContent = 'Get Verification Code →'; btn.disabled = false;
+  }
+}
+
+/* Step 2 → 3: verify Chess.com location contains the code */
+async function _handleVerifyCode() {
+  setLoginError(null);
+  var btn = document.getElementById('btnVerifyCode');
+  btn.textContent = 'Checking Chess.com…'; btn.disabled = true;
+  try {
+    var res  = await fetch(API + '/api/auth/verify-chess', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: _regUsername, verificationCode: _regCode })
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Verification failed');
+    document.getElementById('regVerifiedUser').textContent = _regUsername;
+    _showRegStep(3);
+  } catch(e) {
+    setLoginError(e.message || 'Verification failed.');
+  } finally {
+    btn.textContent = 'Verify →'; btn.disabled = false;
+  }
+}
+
+/* Step 3: complete registration with password */
+async function _handleCompleteReg() {
+  var password = document.getElementById('regPasswordInput').value;
+  var confirm  = document.getElementById('regConfirmInput').value;
   if (!password) { setLoginError('Enter a password.'); return; }
+  if (password.length < 6) { setLoginError('Password must be at least 6 characters.'); return; }
   if (password !== confirm) { setLoginError('Passwords do not match.'); return; }
   setLoginError(null);
 
-  var btn = document.getElementById('btnRegister');
+  var btn = document.getElementById('btnCompleteReg');
   btn.textContent = 'Creating…'; btn.disabled = true;
   try {
     var res  = await fetch(API + '/api/auth/register', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password })
+      body: JSON.stringify({ username: _regUsername, password, verificationCode: _regCode })
     });
     var data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Registration failed');
@@ -1266,18 +1542,17 @@ async function handleRegister() {
   } catch(e) {
     setLoginError(e.message || 'Registration failed.');
   } finally {
-    btn.textContent = _registerMode ? 'Create Account →' : 'Create Account';
-    btn.disabled = false;
+    btn.textContent = 'Create Account →'; btn.disabled = false;
   }
 }
 
 function handleLogout() {
   _clearSession();
-  _setAuthMode(false);
+  _showLoginPane();
   document.getElementById('autoLoginBadge').style.display = 'none';
-  document.getElementById('loginFields').style.display = '';
   document.getElementById('usernameInput').value = '';
   document.getElementById('passwordInput').value = '';
+  _regUsername = ''; _regCode = '';
   showView('v-login');
 }
 
@@ -2045,14 +2320,22 @@ function tryMove(from, to) {
     chess.undo();
     logMove(result.san, false, false);
     dotStatus(moveIndex, 'wrong');
-    showFeedback('✗ Not the best move — try again', 'bad');
     flashBoard('wrong');
+    _wrongAttempts++;
+    if (_wrongAttempts >= 2) {
+      document.getElementById('btnSeeSolution').style.display = '';
+      showFeedback('✗ Wrong again — use 👁 Solution to see the answer', 'bad');
+    } else {
+      showFeedback('✗ Not the best move — try again', 'bad');
+    }
     clrHL(); render();
   }
 }
 
 function autoMove(delay) {
+  var gen = _puzzleGen;
   setTimeout(function() {
+    if (_puzzleGen !== gen) return;   // a newer puzzle loaded — discard
     if (!puzzle || moveIndex >= puzzle.moves.length) return;
     var uci   = puzzle.moves[moveIndex];
     var from  = uci.slice(0,2), to = uci.slice(2,4), promo = uci.length > 4 ? uci[4] : 'q';
@@ -2060,7 +2343,9 @@ function autoMove(delay) {
     if (!result) { loadPuzzle(); return; }
     clrHL(); setHL(from, 'hl-from'); setHL(to, 'hl-to');
     render(); logMove(result.san, true, null);
-    moveIndex++; progress(); dotStatus(moveIndex - 1, 'auto'); turnLabel();
+    moveIndex++; progress(); dotStatus(moveIndex - 1, 'auto');
+    if (moveIndex >= puzzle.moves.length) { finish(true); return; }
+    turnLabel();
   }, delay || 400);
 }
 
@@ -2104,11 +2389,16 @@ async function loadPuzzle() {
     reportResult(cat, false);
   }
 
+  _puzzleGen++;
+  var _myGen = _puzzleGen;   // captured for this load cycle
+
   loading(true);
   $solved.classList.remove('active');
   $moveLog.innerHTML = '';
   clrHL();
-  puzzleCompleted = false;
+  puzzleCompleted  = false;
+  _wrongAttempts   = 0;
+  document.getElementById('btnSeeSolution').style.display = 'none';
 
   var f  = getFilter();
   var un = currentUser || 'guest';
@@ -2262,8 +2552,12 @@ function logMove(san, isAuto, isCorrect) {
 
 function populateInfo(p) {
   $puzzleId.textContent = p.id;
-  $gameLink.href = p.gameUrl || '#';
-  $gameLink.style.visibility = p.gameUrl ? 'visible' : 'hidden';
+  var isGenerated = (p.id || '').startsWith('gen_');
+  var linkUrl = p.gameUrl
+    || (!isGenerated && p.id ? 'https://lichess.org/training/' + p.id : '');
+  $gameLink.href       = linkUrl || '#';
+  $gameLink.textContent = p.gameUrl ? '↗ Game' : '↗ Lichess';
+  $gameLink.style.visibility = linkUrl ? 'visible' : 'hidden';
 
   var tier = (p.difficultyTier || 'intermediate').toLowerCase().replace(/\s+/g, '-');
   $diffBadge.textContent = p.difficultyTier || '—';
@@ -2325,6 +2619,51 @@ function showHint() {
   hintUsed = true;
   showFeedback('💡 Move the highlighted piece', 'ok');
 }
+
+function _revealSolution() {
+  if (!puzzle || puzzleCompleted) return;
+  puzzleCompleted = true;
+  document.getElementById('btnSeeSolution').style.display = 'none';
+
+  var cat = targetCategory || (puzzle && puzzle.primaryCategory) || '';
+  reportResult(cat, false);
+
+  $turnCard.classList.remove('player-turn');
+  $turnText.textContent = 'Solution:';
+
+  var gen   = _puzzleGen;
+  var idx   = moveIndex;
+
+  function playNext() {
+    if (_puzzleGen !== gen) return;
+    if (idx >= puzzle.moves.length) {
+      showFeedback('Solution complete — study the position', 'ok');
+      return;
+    }
+    var uci   = puzzle.moves[idx];
+    var from  = uci.slice(0,2), to = uci.slice(2,4), promo = uci[4] || 'q';
+    var r     = chess.move({ from: from, to: to, promotion: promo });
+    if (!r) return;
+
+    clrHL();
+    setHL(from, 'hl-hint');   // orange "hint" highlight reused for solution moves
+    setHL(to,   'hl-to');
+    render();
+
+    var isPlayerMove = (idx % 2 === 1);  // odd indices are player moves in the solution
+    logMove(r.san, !isPlayerMove, isPlayerMove ? true : null);
+    dotStatus(idx, isPlayerMove ? 'correct' : 'auto');
+    idx++;
+    progress();
+
+    setTimeout(playNext, isPlayerMove ? 900 : 500);
+  }
+
+  showFeedback('Showing solution…', 'ok');
+  setTimeout(playNext, 400);
+}
+
+document.getElementById('btnSeeSolution').addEventListener('click', _revealSolution);
 
 /* ════════════════════════════════════════════════════════════════════
    STATS PANEL
@@ -2544,11 +2883,8 @@ function _spDrawAcc(svgId, hist, W, H) {
 ═══════════════════════════════════════════════════════════════════ */
 /* Login / Auth */
 document.getElementById('btnLogin').addEventListener('click', handleLogin);
-document.getElementById('btnRegister').addEventListener('click', function(){
-  if (_registerMode) handleRegister(); else _setAuthMode(true);
-});
 document.getElementById('authModeToggle').addEventListener('click', function(){
-  _setAuthMode(!_registerMode);
+  _showRegStep(1);
 });
 document.getElementById('btnLogout').addEventListener('click', handleLogout);
 document.getElementById('btnDashLogout').addEventListener('click', handleLogout);
@@ -2556,11 +2892,31 @@ document.getElementById('usernameInput').addEventListener('keydown', function(e)
   if (e.key === 'Enter') document.getElementById('passwordInput').focus();
 });
 document.getElementById('passwordInput').addEventListener('keydown', function(e){
-  if (e.key === 'Enter') { if (_registerMode) document.getElementById('confirmPwInput').focus(); else handleLogin(); }
+  if (e.key === 'Enter') handleLogin();
 });
-document.getElementById('confirmPwInput').addEventListener('keydown', function(e){
-  if (e.key === 'Enter') handleRegister();
+/* Registration steps */
+document.getElementById('btnGetCode').addEventListener('click', _handleGetCode);
+document.getElementById('regUsernameInput').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') _handleGetCode();
 });
+document.getElementById('btnCopyCode').addEventListener('click', function(){
+  navigator.clipboard.writeText(_regCode).then(function(){
+    var btn = document.getElementById('btnCopyCode');
+    btn.textContent = 'Copied!';
+    setTimeout(function(){ btn.textContent = 'Copy'; }, 1500);
+  });
+});
+document.getElementById('btnVerifyCode').addEventListener('click', _handleVerifyCode);
+document.getElementById('btnCompleteReg').addEventListener('click', _handleCompleteReg);
+document.getElementById('regPasswordInput').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') document.getElementById('regConfirmInput').focus();
+});
+document.getElementById('regConfirmInput').addEventListener('keydown', function(e){
+  if (e.key === 'Enter') _handleCompleteReg();
+});
+document.getElementById('lnkBackLogin').addEventListener('click', _showLoginPane);
+document.getElementById('lnkBackStep1').addEventListener('click', function(){ _showRegStep(1); });
+document.getElementById('lnkBackStep2').addEventListener('click', function(){ _showRegStep(2); });
 document.getElementById('btnGuest').addEventListener('click', function(){
   currentUser = ''; sessionToken = ''; startSession(null);
 });
@@ -2694,10 +3050,17 @@ function _loadGenBreakdown(username) {
 }
 
 function _renderGenBreakdown(puzzles) {
-  if (!puzzles || !puzzles.length) return;
-  var bdEl  = document.getElementById('genBreakdown');
-  var catsEl = document.getElementById('genBdCats');
+  var bdEl        = document.getElementById('genBreakdown');
+  var catsEl      = document.getElementById('genBdCats');
   var practiceBtn = document.getElementById('btnPracticeOwn');
+  var libBtn      = document.getElementById('btnOpenLibrary');
+
+  if (!puzzles || !puzzles.length) {
+    bdEl.style.display = 'none';
+    if (practiceBtn) practiceBtn.style.display = 'none';
+    if (libBtn)      libBtn.style.display      = 'none';
+    return;
+  }
 
   // Aggregate stats
   var cats = {}, totalRating = 0, minR = Infinity, maxR = 0;
@@ -2724,6 +3087,7 @@ function _renderGenBreakdown(puzzles) {
 
   bdEl.style.display = '';
   if (practiceBtn) practiceBtn.style.display = '';
+  if (libBtn)      libBtn.style.display      = '';
 }
 
 document.getElementById('btnPracticeOwn').addEventListener('click', function() {
@@ -2736,6 +3100,406 @@ document.getElementById('btnPracticeOwn').addEventListener('click', function() {
     var t = _myPuzzles[i]; _myPuzzles[i] = _myPuzzles[j]; _myPuzzles[j] = t;
   }
   startSession(priorsCache, null);
+});
+
+/* ══════════════════════════════════════════════════════════════════════
+   PUZZLE LIBRARY
+   ══════════════════════════════════════════════════════════════════════ */
+
+var _libAllPuzzles  = [];          // master list from /api/generate/list
+var _libReturnView  = 'v-dashboard';
+
+/* ── Mini board renderer ─────────────────────────────────────────────── */
+var _MINI_PIECES = {
+  K:'♔',Q:'♕',R:'♖',B:'♗',N:'♘',P:'♙',
+  k:'♚',q:'♛',r:'♜',b:'♝',n:'♞',p:'♟'
+};
+
+function _parseFenGrid(fen) {
+  var grid = [], ranks = ((fen||'').split(' ')[0]).split('/');
+  for (var r = 0; r < 8; r++) {
+    var row = [], s = ranks[r] || '';
+    for (var i = 0; i < s.length; i++) {
+      if (s[i] >= '1' && s[i] <= '8') {
+        for (var n = 0; n < +s[i]; n++) row.push(null);
+      } else { row.push(s[i]); }
+    }
+    while (row.length < 8) row.push(null);
+    grid.push(row);
+  }
+  return grid;
+}
+
+function _applyMoveGrid(g, uci) {
+  if (!uci || uci.length < 4) return g;
+  var ff = uci.charCodeAt(0)-97, fr = 8-+uci[1];
+  var tf = uci.charCodeAt(2)-97, tr = 8-+uci[3];
+  var promo = uci[4]||null;
+  var ng = g.map(function(row){ return row.slice(); });
+  var pc = ng[fr][ff]; if (!pc) return ng;
+  ng[fr][ff] = null;
+  if (promo) {
+    ng[tr][tf] = (pc===pc.toUpperCase()) ? promo.toUpperCase() : promo.toLowerCase();
+  } else {
+    if ((pc==='P'||pc==='p') && ff!==tf && !ng[tr][tf]) ng[fr][tf]=null; // en passant
+    if (pc==='K' && Math.abs(tf-ff)===2) {
+      if (tf===6){ng[7][7]=null;ng[7][5]='R';}else{ng[7][0]=null;ng[7][3]='R';}
+    }
+    if (pc==='k' && Math.abs(tf-ff)===2) {
+      if (tf===6){ng[0][7]=null;ng[0][5]='r';}else{ng[0][0]=null;ng[0][3]='r';}
+    }
+    ng[tr][tf] = pc;
+  }
+  return ng;
+}
+
+function _miniBoardHTML(fen, oppMoveUci) {
+  var grid = _parseFenGrid(fen);
+  if (oppMoveUci) grid = _applyMoveGrid(grid, oppMoveUci);
+  var h = '';
+  for (var rank = 0; rank < 8; rank++) {
+    for (var file = 0; file < 8; file++) {
+      var light = (file+rank)%2===0;
+      var pc    = grid[rank][file];
+      var inner = pc ? '<span class="'+(pc===pc.toUpperCase()?'mini-pw':'mini-pb')+'">'
+                       +(_MINI_PIECES[pc]||'')+'</span>' : '';
+      h += '<div class="mini-sq '+(light?'msq-l':'msq-d')+'">' + inner + '</div>';
+    }
+  }
+  return h;
+}
+
+/* ── Library navigation ──────────────────────────────────────────────── */
+function showLibrary(fromView) {
+  _libReturnView = fromView || 'v-dashboard';
+  showView('v-library');
+  _libLoad();
+}
+
+var _libQuality = null;   // cached quality report from API
+
+function _libLoad() {
+  if (!currentUser || !sessionToken) {
+    document.getElementById('puzzleLibGrid').innerHTML =
+      '<div class="lib-empty"><span class="lib-empty-icon">🔒</span>Log in to view your library.</div>';
+    document.getElementById('qualityPanel').classList.remove('visible');
+    return;
+  }
+  document.getElementById('puzzleLibGrid').innerHTML =
+    '<div class="lib-empty"><span class="lib-empty-icon">⏳</span>Loading…</div>';
+  document.getElementById('qualityPanel').classList.remove('visible');
+
+  var auth = {headers:{'Authorization':'Bearer '+(sessionToken||'')}};
+  var user = encodeURIComponent(currentUser);
+
+  // Fetch puzzles and quality report in parallel
+  Promise.all([
+    fetch(API+'/api/generate/list/'+user, auth).then(function(r){return r.ok?r.json():null;}),
+    fetch(API+'/api/generate/quality/'+user, auth).then(function(r){return r.ok?r.json():null;})
+  ])
+  .then(function(results){
+    var listData    = results[0];
+    var qualityData = results[1];
+    _libAllPuzzles = (listData&&listData.puzzles) ? listData.puzzles : [];
+    _libQuality    = qualityData || null;
+    _libBuildCatFilter();
+    _libRenderQuality();
+    _libRender();
+  })
+  .catch(function(){
+    document.getElementById('puzzleLibGrid').innerHTML =
+      '<div class="lib-empty"><span class="lib-empty-icon">⚠</span>Could not load puzzles.</div>';
+  });
+}
+
+function _libRenderQuality() {
+  var panel = document.getElementById('qualityPanel');
+  var q = _libQuality;
+  if (!q || !q.n) { panel.classList.remove('visible'); return; }
+  panel.classList.add('visible');
+
+  var grade = q.grade || 'FAIR';
+  var gradeEl = document.getElementById('qpGrade');
+  gradeEl.textContent = grade;
+  gradeEl.className   = 'qp-grade ' + grade;
+
+  document.getElementById('qpScore').innerHTML =
+    '<strong>' + q.overall.toFixed(2) + '</strong> <span>/ 1.00 overall quality</span>';
+  document.getElementById('qpCount').textContent = q.n + ' puzzles';
+
+  var m = q.metrics;
+  var defs = [
+    { key:'engineVerified', label:'Engine Verified',  icon:'⚙',
+      pct: m.engineVerified.pct, val: m.engineVerified.n+'/'+q.n,
+      sub: 'Stockfish confirmed' },
+    { key:'clarityOk',      label:'Clear Solution',   icon:'🎯',
+      pct: m.clarityOk.pct != null ? m.clarityOk.pct : 50,
+      val: m.clarityOk.avgCp != null ? m.clarityOk.avgCp+'cp avg gap' : '—',
+      sub: 'PV1−PV2 ≥ 150cp' },
+    { key:'sufficientDepth',label:'Sufficient Depth', icon:'📏',
+      pct: m.sufficientDepth.pct, val: m.sufficientDepth.n+'/'+q.n,
+      sub: 'Avg '+m.avgDepth+' moves' },
+    { key:'multiMove',      label:'Multi-Move',       icon:'🔄',
+      pct: m.multiMove.pct, val: m.multiMove.n+'/'+q.n,
+      sub: '≥2 player moves' },
+    { key:'tactical',       label:'Tactical Pattern', icon:'⚡',
+      pct: m.tactical.pct, val: m.tactical.n+'/'+q.n,
+      sub: 'Fork / Pin / Mate…' },
+    { key:'avgEvalDrop',    label:'Avg Eval Drop',    icon:'📉',
+      pct: m.avgEvalDrop ? Math.min(100,Math.round(m.avgEvalDrop/5)) : 0,
+      val: m.avgEvalDrop ? m.avgEvalDrop+'cp' : '—',
+      sub: 'Blunder magnitude' },
+  ];
+
+  document.getElementById('qpMetrics').innerHTML = defs.map(function(d){
+    var pct = d.pct || 0;
+    var color = pct >= 70 ? '#10b981' : pct >= 40 ? '#eab308' : '#f87171';
+    return '<div class="qm-item">'
+      +'<div class="qm-label">'+d.icon+' '+d.label+'</div>'
+      +'<div class="qm-bar-wrap"><div class="qm-bar" style="width:'+pct+'%;background:'+color+'"></div></div>'
+      +'<div class="qm-val">'+d.val+'</div>'
+      +'<div class="qm-sub">'+d.sub+'</div>'
+      +'</div>';
+  }).join('');
+}
+
+function _libBuildCatFilter() {
+  var counts = {};
+  _libAllPuzzles.forEach(function(p){
+    var c = p.PrimaryCategory||p.primaryCategory||'General';
+    counts[c] = (counts[c]||0)+1;
+  });
+  var sel = document.getElementById('libCatSel');
+  sel.innerHTML = '<option value="all">All categories</option>';
+  Object.keys(counts).sort().forEach(function(c){
+    var o = document.createElement('option');
+    o.value = c; o.textContent = c+' ('+counts[c]+')';
+    sel.appendChild(o);
+  });
+}
+
+function _libFiltered() {
+  var fb   = document.getElementById('libFilterSel').value;
+  var cat  = document.getElementById('libCatSel').value;
+  var sort = document.getElementById('libSortSel').value;
+
+  var list = _libAllPuzzles.filter(function(p){
+    var f = p.userFeedback||null;
+    if (fb==='liked'    && f!=='liked')    return false;
+    if (fb==='disliked' && f!=='disliked') return false;
+    if (fb==='unrated'  && f)              return false;
+    var c = p.PrimaryCategory||p.primaryCategory||'General';
+    if (cat!=='all' && c!==cat) return false;
+    return true;
+  });
+
+  if (sort==='rating-asc')  list.sort(function(a,b){return (a.Rating||0)-(b.Rating||0);});
+  if (sort==='rating-desc') list.sort(function(a,b){return (b.Rating||0)-(a.Rating||0);});
+  if (sort==='liked-first') list.sort(function(a,b){
+    return (a.userFeedback==='liked'?-1:a.userFeedback==='disliked'?1:0)
+          -(b.userFeedback==='liked'?-1:b.userFeedback==='disliked'?1:0);
+  });
+  if (sort==='depth-desc') list.sort(function(a,b){
+    var am=typeof a.Moves==='string'?a.Moves.split(' ').length:(a.Moves||[]).length;
+    var bm=typeof b.Moves==='string'?b.Moves.split(' ').length:(b.Moves||[]).length;
+    return bm-am;
+  });
+  return list;
+}
+
+function _libRender() {
+  var total    = _libAllPuzzles.length;
+  var liked    = _libAllPuzzles.filter(function(p){return p.userFeedback==='liked';}).length;
+  var disliked = _libAllPuzzles.filter(function(p){return p.userFeedback==='disliked';}).length;
+  document.getElementById('libTotal').textContent    = total;
+  document.getElementById('libLiked').textContent    = liked;
+  document.getElementById('libDisliked').textContent = disliked;
+
+  var list = _libFiltered();
+  var grid = document.getElementById('puzzleLibGrid');
+
+  if (!list.length) {
+    grid.innerHTML = '<div class="lib-empty"><span class="lib-empty-icon">♟</span>' +
+      (total ? 'No puzzles match this filter.' :
+               'No puzzles yet — go to the dashboard to generate some!') + '</div>';
+    return;
+  }
+
+  grid.innerHTML = list.map(_libCardHTML).join('');
+
+  grid.querySelectorAll('.pc-play').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      _libPlayOne(btn.closest('.puzzle-card').dataset.id);
+    });
+  });
+  grid.querySelectorAll('.pc-like').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var card=btn.closest('.puzzle-card');
+      _libSetFeedback(card.dataset.id, card.dataset.feedback==='liked'?null:'liked');
+    });
+  });
+  grid.querySelectorAll('.pc-dislike').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      var card=btn.closest('.puzzle-card');
+      _libSetFeedback(card.dataset.id, card.dataset.feedback==='disliked'?null:'disliked');
+    });
+  });
+  grid.querySelectorAll('.pc-delete').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      _libDeleteOne(btn.closest('.puzzle-card').dataset.id);
+    });
+  });
+}
+
+function _esc(s){ return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+function _libCardHTML(p) {
+  var id    = p.PuzzleId||p.id||'';
+  var fen   = p.FEN||p.fen||'';
+  var movesRaw = p.Moves||p.moves||'';
+  var moves = typeof movesRaw==='string' ? movesRaw.split(' ') : (movesRaw||[]);
+  var rating  = p.Rating||p.rating||1200;
+  var cat     = p.PrimaryCategory||p.primaryCategory||'General';
+  var tier    = p.DifficultyTier||p.difficultyTier||'';
+  var mode    = p.generatedBy||'stockfish';
+  var fb      = p.userFeedback||'';
+  var depth   = moves.length;
+
+  // Per-puzzle quality indicators
+  var clarity = p.clarityCp;
+  var drop    = p.evalDrop;
+  var pmoves  = p.playerMoves || Math.floor((depth-1)/2) || 1;
+  var verified= mode === 'stockfish';
+
+  // Quality dot: green if clarity≥150 and verified; yellow if verified but low clarity; red otherwise
+  var dotCls  = (verified && clarity != null && clarity >= 150) ? 'qd-good'
+              : verified ? 'qd-fair' : 'qd-poor';
+  var dotTitle= verified
+    ? (clarity != null ? 'Clarity: '+clarity+'cp | Drop: '+(drop||'?')+'cp | '+pmoves+' player move(s)' : 'Engine verified')
+    : 'Not engine-verified';
+
+  var cardCls = 'puzzle-card'+(fb==='liked'?' liked':fb==='disliked'?' disliked':'');
+  var fbBadge = fb ? '<div class="pc-feedback-badge '+fb+'">'+(fb==='liked'?'♥ Liked':'✕ Disliked')+'</div>' : '';
+  var likeCls = 'pc-btn pc-like'+(fb==='liked'?' fb-active':'');
+  var diskCls = 'pc-btn pc-dislike'+(fb==='disliked'?' fb-active':'');
+
+  var qualityRow = '<div class="pc-meta" style="display:flex;align-items:center;gap:5px;margin-top:4px">'
+    +'<span class="pc-quality-dot '+dotCls+'" title="'+_esc(dotTitle)+'"></span>'
+    +(clarity!=null ? '<span title="Clarity gap">'+clarity+'cp</span> &middot; ' : '')
+    +(drop    !=null ? '<span title="Eval drop">-'+drop+'cp</span> &middot; ' : '')
+    +'<span>'+pmoves+' move'+(pmoves!==1?'s':'')+'</span>'
+    +'</div>';
+
+  return '<div class="'+cardCls+'" data-id="'+_esc(id)+'" data-feedback="'+_esc(fb)+'">'
+    +'<div class="pc-board-wrap"><div class="mini-board">'+_miniBoardHTML(fen, moves[0])+'</div></div>'
+    +'<div class="pc-body">'
+      +'<span class="pc-cat-badge">'+_esc(cat)+'</span>'
+      +'<div class="pc-rating-row"><span class="pc-rating">'+rating+'</span><span class="pc-tier">'+_esc(tier)+'</span></div>'
+      +'<div class="pc-meta">'+depth+' half-moves &middot; '+_esc(mode)+'</div>'
+      +qualityRow
+      +fbBadge
+    +'</div>'
+    +'<div class="pc-actions">'
+      +'<button class="pc-btn pc-play" title="Play this puzzle">&#9654; Play</button>'
+      +'<button class="'+likeCls+'" title="Like">&#9825;</button>'
+      +'<button class="'+diskCls+'" title="Dislike">&#10005;</button>'
+      +'<button class="pc-btn pc-delete" title="Delete">&#128465;</button>'
+    +'</div>'
+    +'</div>';
+}
+
+/* ── Library actions ─────────────────────────────────────────────────── */
+function _libSetFeedback(puzzleId, feedback) {
+  if (!currentUser||!sessionToken) return;
+  fetch(API+'/api/generate/puzzle/'+encodeURIComponent(currentUser)+'/'+encodeURIComponent(puzzleId),{
+    method:'PATCH',
+    headers:{'Content-Type':'application/json','Authorization':'Bearer '+sessionToken},
+    body:JSON.stringify({feedback:feedback})
+  })
+  .then(function(r){return r.ok?r.json():null;})
+  .then(function(d){
+    if (!d||!d.ok) return;
+    // Update master list in-place
+    for (var i=0;i<_libAllPuzzles.length;i++){
+      if ((_libAllPuzzles[i].PuzzleId||_libAllPuzzles[i].id)===puzzleId){
+        if (feedback===null) delete _libAllPuzzles[i].userFeedback;
+        else _libAllPuzzles[i].userFeedback = feedback;
+        break;
+      }
+    }
+    // Keep practice queue in sync
+    _myPuzzles = _libAllPuzzles.slice();
+    _libRender();
+  })
+  .catch(function(){});
+}
+
+function _libDeleteOne(puzzleId) {
+  if (!currentUser||!sessionToken) return;
+  if (!confirm('Delete this puzzle? This cannot be undone.')) return;
+  fetch(API+'/api/generate/puzzle/'+encodeURIComponent(currentUser)+'/'+encodeURIComponent(puzzleId),{
+    method:'DELETE',
+    headers:{'Authorization':'Bearer '+sessionToken}
+  })
+  .then(function(r){return r.ok?r.json():null;})
+  .then(function(d){
+    if (!d||!d.ok) return;
+    _libAllPuzzles = _libAllPuzzles.filter(function(p){return (p.PuzzleId||p.id)!==puzzleId;});
+    _myPuzzles = _libAllPuzzles.slice();
+    _renderGenBreakdown(_libAllPuzzles);
+    _libRender();
+  })
+  .catch(function(){});
+}
+
+function _libDeleteAll() {
+  if (!currentUser||!sessionToken) return;
+  var n = _libAllPuzzles.length;
+  if (!n) { alert('No puzzles to delete.'); return; }
+  if (!confirm('Delete all '+n+' puzzles and start a fresh generation?\n\nThis cannot be undone.')) return;
+
+  fetch(API+'/api/generate/puzzles/'+encodeURIComponent(currentUser),{
+    method:'DELETE',
+    headers:{'Authorization':'Bearer '+sessionToken}
+  })
+  .then(function(r){return r.ok?r.json():null;})
+  .then(function(d){
+    if (!d||!d.ok) return;
+    _libAllPuzzles = [];
+    _myPuzzles     = [];
+    _myPuzzleMode  = false;
+    _renderGenBreakdown([]);
+    _libRender();
+    // Go back to dashboard and kick off a fresh generation
+    showView('v-dashboard');
+    setTimeout(function(){ document.getElementById('btnGenerate').click(); }, 300);
+  })
+  .catch(function(){});
+}
+
+function _libPlayOne(puzzleId) {
+  for (var i=0;i<_libAllPuzzles.length;i++){
+    if ((_libAllPuzzles[i].PuzzleId||_libAllPuzzles[i].id)===puzzleId){
+      _myPuzzles    = [_libAllPuzzles[i]];
+      _myPuzzleIdx  = 0;
+      _myPuzzleMode = true;
+      showView('v-game');
+      loadPuzzle();
+      return;
+    }
+  }
+}
+
+/* ── Library event listeners ─────────────────────────────────────────── */
+document.getElementById('btnLibBack').addEventListener('click', function(){
+  showView(_libReturnView);
+});
+document.getElementById('btnLibDeleteAll').addEventListener('click', _libDeleteAll);
+document.getElementById('btnOpenLibrary').addEventListener('click', function(){
+  showLibrary('v-dashboard');
+});
+['libFilterSel','libCatSel','libSortSel'].forEach(function(id){
+  document.getElementById(id).addEventListener('change', _libRender);
 });
 
 /* ── Stats panel ── */
