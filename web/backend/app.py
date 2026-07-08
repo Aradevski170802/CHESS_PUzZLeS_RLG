@@ -11,7 +11,8 @@ GET  /api/player/lookup             → Chess.com profile card (fast, no analysi
 POST /api/analysis/start            → launch background game-analysis thread
 GET  /api/analysis/status/<user>    → poll analysis progress
 POST /api/session/start             → create Thompson-Sampling bandit for user
-GET  /api/session/puzzle            → adaptive puzzle (bandit-selected category)
+GET  /api/session/puzzle            → adaptive puzzle (bandit-selected, rating-matched, skips solved)
+GET  /api/eval                      → Stockfish evaluation for a FEN position (eval bar)
 POST /api/session/result            → record solve/fail, update bandit, persist to disk
 GET  /api/session/stats             → session accuracy, streak, weakness map
 GET  /api/user/stats/<user>         → all-time stats from persisted history (auth required)
@@ -1007,6 +1008,7 @@ def generate_quality(username: str):
         },
         "categories":   categories,
         "perPuzzle":    per_puzzle,
+        "solvedIds":    list((_load_user_state(username) or {}).get("solvedPuzzleIds", [])),
     })
 
 
@@ -1125,11 +1127,47 @@ def session_start():
     })
 
 
+@app.route("/api/eval")
+def position_eval():
+    """Quick Stockfish evaluation of a FEN position for the eval bar."""
+    fen = request.args.get("fen", "").strip()
+    if not fen:
+        return jsonify({"error": "Missing fen"}), 400
+
+    from src.classifier.stockfish_analyzer import find_stockfish
+    sf_path = find_stockfish()
+    if not sf_path:
+        return jsonify({"error": "Stockfish not available"}), 503
+
+    try:
+        import chess
+        import chess.engine
+        board = chess.Board(fen)
+        with chess.engine.SimpleEngine.popen_uci(sf_path) as engine:
+            info = engine.analyse(board, chess.engine.Limit(depth=14))
+        score = info["score"].white()
+        if score.is_mate():
+            m = score.mate()
+            return jsonify({"mate": m, "cp": None,
+                            "advantage": "white" if (m or 0) > 0 else "black"})
+        cp = score.score()
+        return jsonify({"cp": cp, "mate": None,
+                        "advantage": "white" if (cp or 0) > 0 else "black" if (cp or 0) < 0 else "equal"})
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
+
+
 @app.route("/api/session/puzzle")
 def session_puzzle():
     username   = (request.args.get("username") or "guest").strip().lower()
     rating_min = request.args.get("ratingMin", 600,  type=int)
     rating_max = request.args.get("ratingMax", 2400, type=int)
+    elo        = request.args.get("elo", type=int)
+
+    # Narrow the rating window around the player's known ELO (±300)
+    if elo:
+        rating_min = max(rating_min, elo - 300)
+        rating_max = min(rating_max, elo + 300)
 
     bandit = SESSION_STORE.get(username)
     if bandit is None:
@@ -1139,24 +1177,30 @@ def session_puzzle():
     target = bandit.select_one()
     solve_rate = bandit.solve_rate(target)
 
+    # Load solved puzzle IDs so we never repeat a solved puzzle
+    saved = _load_user_state(username) if username != "guest" else None
+    solved_ids = set((saved or {}).get("solvedPuzzleIds", []))
+
     # Blend user-generated puzzles (priority) with Lichess pool
     from src.puzzles.generator import load_user_puzzles
     user_puzzles = load_user_puzzles(username) if username != "guest" else []
 
+    def _in_range(p):
+        return rating_min <= p.get("Rating", 1200) <= rating_max
+
+    def _not_solved(p):
+        return p.get("PuzzleId") not in solved_ids
+
     chosen = None
 
-    # Try user's own puzzles first (~40% of the time when available, or always
-    # when the target category matches)
     if user_puzzles:
         user_cat = [p for p in user_puzzles
-                    if p.get("PrimaryCategory") == target
-                    and rating_min <= p.get("Rating", 1200) <= rating_max]
+                    if p.get("PrimaryCategory") == target and _in_range(p) and _not_solved(p)]
         if user_cat:
             chosen = _pick_valid(user_cat) or random.choice(user_cat)
             chosen = dict(chosen, source="generated")
         elif random.random() < 0.4:
-            user_range = [p for p in user_puzzles
-                          if rating_min <= p.get("Rating", 1200) <= rating_max]
+            user_range = [p for p in user_puzzles if _in_range(p) and _not_solved(p)]
             if user_range:
                 chosen = _pick_valid(user_range) or random.choice(user_range)
                 chosen = dict(chosen, source="generated")
@@ -1165,9 +1209,12 @@ def session_puzzle():
     # Fall back to Lichess pool
     if chosen is None:
         cat_pool = [p for p in PUZZLE_BY_CAT.get(target, [])
-                    if rating_min <= p["Rating"] <= rating_max]
+                    if _in_range(p) and _not_solved(p)]
         if not cat_pool:
-            fallback_pool = [p for p in PUZZLE_POOL if rating_min <= p["Rating"] <= rating_max]
+            fallback_pool = [p for p in PUZZLE_POOL if _in_range(p) and _not_solved(p)]
+            if not fallback_pool:
+                # All puzzles in range solved — broaden and allow repeats
+                fallback_pool = [p for p in PUZZLE_POOL if rating_min <= p["Rating"] <= rating_max]
             if not fallback_pool:
                 return jsonify({"error": "No puzzles found in this rating range"}), 404
             chosen = _pick_valid(fallback_pool) or random.choice(fallback_pool)
@@ -1213,6 +1260,10 @@ def session_result():
             "rating":   rating,
             "solved":   solved,
         })
+        if solved and puzzle_id:
+            ids = set(_s.get("solvedPuzzleIds", []))
+            ids.add(puzzle_id)
+            _s["solvedPuzzleIds"] = list(ids)
         _save_user_state(username, _s)
 
     return jsonify({
