@@ -27,7 +27,7 @@ per-category skill) → puzzle pool (Lichess DB + own-game miner) → web UI.
 | Beta–Bernoulli Thompson bandit | `src/recommender/bandit.py` | The original policy (`RECOMMENDER=beta`). Fractional priors, optional discounting (`BANDIT_DISCOUNT`), selection-probability logging. |
 | Game analyzer | `src/classifier/stockfish_analyzer.py` | Node-limited (deterministic) MultiPV analysis. Errors are graded on win-% loss. Every critical ("only-move") position is logged as an **opportunity**, found or missed. |
 | Tactic tagger | `src/puzzles/tactic_tagger.py` | Tags the engine's whole line, using its mate verdict. Agreement with Lichess themes is **58% (κ = 0.52)**, vs 31% (κ = 0.23) for the old single-move labeller, measured on a held-out sample. |
-| Weakness profiler | `src/classifier/player_profiler.py` | Per-category hit rate = found / opportunities. Recent games are weighted more (25-game half-life) and bullet less, then shrunk toward the player's own rate (empirical Bayes). Priors for both policies come from this. |
+| Weakness profiler | `src/classifier/player_profiler.py` | Per-category hit rate = found / opportunities. Recent games are weighted more (25-game half-life) and bullet less, then shrunk toward the **population norm for that category** at the player's level (`src/data/category_norms.json`, fitted on the cohort; cross-validated strength ≈ 256). Priors for both policies come from this. |
 | Glicko-2 fitter | `src/analysis/difficulty_fitter.py` | From-scratch Glicko-2, validated against Glickman's published example; `freeze_pool` mode; prequential hook. |
 | RandomForest weakness model | `src/classifier/ml_weakness_model.py` | Opt-in (`WEAKNESS_MODEL=ml`); trained on simulated players. |
 | Puzzle miner | `src/puzzles/generator.py` | Four-gate Stockfish extraction of puzzles from the player's own games. |
@@ -54,7 +54,7 @@ checks and off-policy evaluation.
 | `validate_labeller.py` | Do tactic labels agree with Lichess themes? | Old 31% / κ 0.23 → new 58% / κ 0.52 (held-out) |
 | `run_simulation.py` | Does adaptivity help, and which policy is best? (5 experiments, 200 paired runs) | Pre-registered: bandit fails C1 and C2, passes C3. IRT-TS cuts frustrating puzzles 44% → 3% and lowers regret. Learning gain depends on the assumed learning model. |
 | `evaluate_difficulty_models.py` | Prequential calibration on the real solve logs | Static Elo is badly miscalibrated (predicts 45% solved; players solve 77%) |
-| `fetch_cohort.py` → `analyze_cohort.py` → `evaluate_weakness_models.py` | Which weakness model predicts a real player's *future* misses? | See `eval/research/cohort_evaluation.json` |
+| `fetch_cohort.py` → `analyze_cohort.py` → `evaluate_weakness_models.py` | Which weakness model predicts a real player's *future* misses? (300 players, 60 per rating band) | Shrinking toward **population category norms** (production) and a real-data RF tie for best. The original rule-based scorer has no predictive value (AUC 0.47). Per-category reliability from ~40 games is near zero, so personal weaknesses must be learned online from puzzles. |
 | `make_figures.py` | Figures | `eval/research/figures/` |
 
 The design for a live study is in `docs/USER_STUDY_PROTOCOL.md`: a

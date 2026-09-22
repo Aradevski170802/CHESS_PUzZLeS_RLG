@@ -126,62 +126,56 @@ def sig(z):
 
 
 # ── model predictions: each returns a (K,) vector of P(miss) for one player ──
+# Population quantities are computed ONCE per fold (FoldStats) from the
+# training players only, then applied to each held-out player.
 
-def pred_global(train_players, p):
-    h = sum(q["tr_h"].sum() for q in train_players)
-    n = sum(q["tr_n"].sum() for q in train_players)
-    return np.full(K, 1 - h / n)
-
-
-def category_rates(train_players):
-    h = sum(q["tr_h"] for q in train_players)
-    n = sum(q["tr_n"] for q in train_players)
-    g = 1 - h.sum() / n.sum()
-    return np.where(n > 0, (n - h + 2 * g) / (n + 2), g), g
+class FoldStats:
+    def __init__(self, train_players):
+        h = sum(q["tr_h"] for q in train_players)
+        n = sum(q["tr_n"] for q in train_players)
+        self.g = 1 - h.sum() / n.sum()                       # global miss rate
+        self.cat = np.where(n > 0, (n - h + 2 * self.g) / (n + 2), self.g)
 
 
-def pred_category(train_players, p):
-    return category_rates(train_players)[0]
+def pred_global(fs, p):
+    return np.full(K, fs.g)
 
 
-def pred_player(train_players, p):
+def pred_category(fs, p):
+    return fs.cat
+
+
+def player_miss(fs, p):
     n = p["tr_n"].sum()
-    g = pred_global(train_players, p)[0]
-    return np.full(K, (n - p["tr_h"].sum() + 4 * g) / (n + 4))
+    return (n - p["tr_h"].sum() + 4 * fs.g) / (n + 4)
 
 
-def pred_empirical_bayes(train_players, p):
+def pred_player(fs, p):
+    return np.full(K, player_miss(fs, p))
+
+
+def pred_empirical_bayes(fs, p):
     stats = p["profile"].opportunity_stats
     base = p["profile"].overall_hit_rate or 0.5
     return np.array([1 - stats.get(c, {}).get("rate", base) for c in WEAKNESS_CATEGORIES])
 
 
-def pred_hier_eb(train_players, p, strength):
-    cat, g = category_rates(train_players)
-    player_miss = pred_player(train_players, p)[0]
-    prior = sig(logit(player_miss) + logit(cat) - logit(g))
+def pred_hier_eb(fs, p, strength):
+    prior = sig(logit(player_miss(fs, p)) + logit(fs.cat) - logit(fs.g))
     misses = p["tr_n"] - p["tr_h"]
     return (misses + strength * prior) / (p["tr_n"] + strength)
 
 
-def _score_vec(p, kind, rf_syn=None):
-    if kind == "rule":
-        return np.array([p["profile"].weakness_scores.get(c, 0.5) for c in WEAKNESS_CATEGORIES])
-    feats = _profile_to_features(p["profile"]).reshape(1, -1)
-    return np.clip(rf_syn.predict(feats)[0], 0, 1)
-
-
-def calibrated(train_players, p, kind, rf_syn=None):
-    """Isotonic map from a score to P(miss), fitted on training players' test events."""
+def fit_calibration(train_idx, scores, players):
+    """Isotonic map from a score to P(miss), fitted on the training players only."""
     xs, ys, ws = [], [], []
-    for q in train_players:
-        s = _score_vec(q, kind, rf_syn)
-        for k in range(K):
-            if q["te_n"][k] > 0:
-                xs.append(s[k]); ys.append(q["te_miss"][k] / q["te_n"][k]); ws.append(q["te_n"][k])
+    for i in train_idx:
+        q = players[i]
+        ok = q["te_n"] > 0
+        xs.extend(scores[i][ok]); ys.extend(q["te_miss"][ok] / q["te_n"][ok]); ws.extend(q["te_n"][ok])
     iso = IsotonicRegression(y_min=EPS, y_max=1 - EPS, out_of_bounds="clip")
     iso.fit(xs, ys, sample_weight=ws)
-    return iso.predict(_score_vec(p, kind, rf_syn))
+    return iso
 
 
 def _rf_rows(players, cat_rates, g):
@@ -231,39 +225,50 @@ def main() -> None:
              "RF (synthetic-trained)", "EB, shrink to player rate", "EB, shrink to population norms",
              "RF (real-data)"]
     preds = {m: np.zeros((n, K)) for m in names}
+    # Scores that do not depend on the fold, computed once per player
+    # (the synthetic-trained RF in a single batch call).
+    rule_scores = np.array([[p["profile"].weakness_scores.get(c, 0.5) for c in WEAKNESS_CATEGORIES]
+                            for p in players])
+    rf_scores = (np.clip(rf_syn.predict(np.array([_profile_to_features(p["profile"]) for p in players])), 0, 1)
+                 if rf_syn is not None else None)
     chosen_strength = []
     folds = GroupKFold(n_splits=5)
     idx = np.arange(n)
     for tr, te in folds.split(idx, groups=idx):
         train_players = [players[i] for i in tr]
+        fs = FoldStats(train_players)
         # inner choice of hierarchical-EB strength on the training players
         best, best_ll = None, 1e9
-        for s in (1, 2, 4, 8, 16, 32):
+        # Grid extends well past 32: on the full cohort every fold chose the
+        # old maximum (32), i.e. the optimum lay on the boundary.
+        for s in (1, 2, 4, 8, 16, 32, 64, 128, 256, 512):
             ll = 0.0
             for q in train_players:
-                pr = np.clip(pred_hier_eb(train_players, q, s), EPS, 1 - EPS)
+                pr = np.clip(pred_hier_eb(fs, q, s), EPS, 1 - EPS)
                 ll -= (q["te_miss"] * np.log(pr) + (q["te_n"] - q["te_miss"]) * np.log(1 - pr)).sum()
             if ll < best_ll:
                 best, best_ll = s, ll
         chosen_strength.append(best)
-        cat, g = category_rates(train_players)
-        X, y, w = _rf_rows(train_players, cat, g)
+        iso_rule = fit_calibration(tr, rule_scores, players)
+        iso_rf = fit_calibration(tr, rf_scores, players) if rf_scores is not None else None
+        X, y, w = _rf_rows(train_players, fs.cat, fs.g)
         ok = ~np.isnan(y)
         rf = RandomForestRegressor(n_estimators=300, min_samples_leaf=20, max_features=0.5,
                                    random_state=0, n_jobs=-1)
         rf.fit(X[ok], y[ok], sample_weight=w[ok])
-        for i in te:
+        Xte, _, _ = _rf_rows([players[i] for i in te], fs.cat, fs.g)
+        rf_te = np.clip(rf.predict(Xte), EPS, 1 - EPS).reshape(len(te), K)
+        for j, i in enumerate(te):
             p = players[i]
-            preds["Global base rate"][i] = pred_global(train_players, p)
-            preds["Category base rate"][i] = pred_category(train_players, p)
-            preds["Player base rate"][i] = pred_player(train_players, p)
-            preds["Rule-based scorer"][i] = calibrated(train_players, p, "rule")
-            if rf_syn is not None:
-                preds["RF (synthetic-trained)"][i] = calibrated(train_players, p, "rf", rf_syn)
-            preds["EB, shrink to player rate"][i] = pred_empirical_bayes(train_players, p)
-            preds["EB, shrink to population norms"][i] = pred_hier_eb(train_players, p, best)
-            Xi, _, _ = _rf_rows([p], cat, g)
-            preds["RF (real-data)"][i] = np.clip(rf.predict(Xi), EPS, 1 - EPS)
+            preds["Global base rate"][i] = pred_global(fs, p)
+            preds["Category base rate"][i] = pred_category(fs, p)
+            preds["Player base rate"][i] = pred_player(fs, p)
+            preds["Rule-based scorer"][i] = iso_rule.predict(rule_scores[i])
+            if iso_rf is not None:
+                preds["RF (synthetic-trained)"][i] = iso_rf.predict(rf_scores[i])
+            preds["EB, shrink to player rate"][i] = pred_empirical_bayes(fs, p)
+            preds["EB, shrink to population norms"][i] = pred_hier_eb(fs, p, best)
+            preds["RF (real-data)"][i] = rf_te[j]
     if rf_syn is None:
         names.remove("RF (synthetic-trained)")
 
