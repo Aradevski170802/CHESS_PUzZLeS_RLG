@@ -35,18 +35,20 @@ import chess
 import chess.engine
 import chess.pgn
 
+from src.puzzles.tactic_tagger import tag_line
+
 logger = logging.getLogger(__name__)
 
 # ── Tuning constants ───────────────────────────────────────────────────────────
 PUZZLE_THRESHOLD   = 150   # cp: player's move must be this far below engine best
-MIN_CLARITY_CP     = 150   # cp: PV1 must beat PV2 by at least this (no dual solutions)
+MIN_CLARITY_CP     = 100   # cp: PV1 must beat PV2 by at least this (no dual solutions)
 FORCED_OPP_MARGIN  = 80    # cp: opponent's forced response gap — below this = ambiguous
 DETECT_TIME        = 0.10  # s:  Stockfish time for blunder-detection pass
 VERIFY_DEPTH       = 18    # ply: depth for post-extraction verification
 SOLUTION_DEPTH     = 16    # ply: depth used to build the continuation
 CONTINUATION_MOVES = 6     # max extra half-moves to append after player's first move
-MIN_PLAYER_MOVES   = 2     # puzzle must require at least this many player moves
-MAX_PER_GAME       = 3     # hard cap on puzzles extracted per game
+MIN_PLAYER_MOVES   = 1     # puzzle must require at least this many player moves
+MAX_PER_GAME       = 5     # hard cap on puzzles extracted per game
 SKIP_PLIES         = 8     # ignore the opening
 MATE_CP            = 9_000
 
@@ -65,29 +67,33 @@ def _piece_value(pt: chess.PieceType) -> int:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def generate_from_games(
-    pgn_strings:      list[str],
-    username:         str,
-    stockfish_path:   Optional[str],
+    pgn_strings:       list[str],
+    username:          str,
+    stockfish_path:    Optional[str],
     *,
-    max_total:        int = 30,
-    progress_callback = None,
+    max_total:         int = 30,
+    progress_callback  = None,
+    target_categories: list[str] | None = None,
 ) -> list[dict]:
     """
     Extract verified tactical puzzles from PGN strings.
 
-    Requires a Stockfish binary.  If stockfish_path is None the function returns
-    an empty list and logs a warning — call sites should surface this to the user.
+    When target_categories is provided the function collects up to 3× the
+    normal cap, then returns target-category puzzles first so storage and
+    session selection naturally favour the player's known weaknesses.
     """
     if not stockfish_path:
         logger.warning("No Stockfish binary found — puzzle generation skipped. "
                        "Install Stockfish and set STOCKFISH_PATH.")
         return []
 
+    # Collect more raw puzzles when we need to filter by category afterwards
+    raw_limit    = max_total * 3 if target_categories else max_total
     all_puzzles: list[dict] = []
     seen_fens:   set[str]   = set()
 
     for i, pgn in enumerate(pgn_strings):
-        if len(all_puzzles) >= max_total:
+        if len(all_puzzles) >= raw_limit:
             break
         try:
             puzzles = _extract_stockfish(pgn, username, stockfish_path)
@@ -95,7 +101,7 @@ def generate_from_games(
                 if p["FEN"] not in seen_fens:
                     seen_fens.add(p["FEN"])
                     all_puzzles.append(p)
-                    if len(all_puzzles) >= max_total:
+                    if len(all_puzzles) >= raw_limit:
                         break
             if puzzles:
                 logger.info("Game %d: +%d puzzles (total %d)",
@@ -105,6 +111,17 @@ def generate_from_games(
 
         if progress_callback:
             progress_callback(i + 1, len(pgn_strings), len(all_puzzles))
+
+    # Targeted categories come first; rest fill the remainder
+    if target_categories:
+        target_set = set(target_categories)
+        targeted   = [p for p in all_puzzles if p["PrimaryCategory"] in target_set]
+        others     = [p for p in all_puzzles if p["PrimaryCategory"] not in target_set]
+        all_puzzles = targeted + others
+        logger.info(
+            "Targeted generation: %d/%d puzzles match categories %s",
+            len(targeted), len(all_puzzles), target_categories,
+        )
 
     return all_puzzles[:max_total]
 
@@ -293,7 +310,12 @@ def _extract_stockfish(pgn_str: str, username: str, stockfish_path: str) -> list
                 if s1 is not None and s2 is not None:
                     clarity_cp = s1 - s2
 
-            tactic    = _classify_tactic(b, best_move)
+            # Tag the whole solution line (player move first), trusting the
+            # engine's mate verdict -- see src/puzzles/tactic_tagger.py for why
+            # the single-move _classify_tactic was replaced.
+            best_cp = _pov_cp(infos[0]["score"], b.turn) if infos else None
+            tactic    = tag_line(b, [chess.Move.from_uci(u) for u in solution[1:]],
+                                 mate=(best_cp is not None and best_cp >= MATE_CP) or None)
             rating    = _estimate_rating(eval_drop, len(solution))
             puzzle_id = "gen_" + hashlib.md5(
                 (setup_fen + "".join(solution)).encode()
@@ -361,15 +383,30 @@ def _classify_tactic(board: chess.Board, move: chess.Move) -> str:
     if move.promotion:
         return "Promotion"
 
-    attacks           = b2.attacks(move.to_square)
-    attacked_opp      = [sq for sq in attacks if b2.piece_at(sq) and b2.piece_at(sq).color == opp]
+    attacks      = b2.attacks(move.to_square)
+    attacked_opp = [sq for sq in attacks if b2.piece_at(sq) and b2.piece_at(sq).color == opp]
     high_val_attacked = [sq for sq in attacked_opp
                          if b2.piece_at(sq).piece_type in (chess.QUEEN, chess.ROOK, chess.KING)]
-    if len(attacked_opp) >= 2 and high_val_attacked:
+    # A double attack on two *loose* pieces is still a fork even when neither is
+    # a queen, rook or king — requiring heavy material missed knight-forks-two-
+    # minor-pieces entirely.
+    loose_attacked = [sq for sq in attacked_opp if not b2.is_attacked_by(opp, sq)]
+    if len(attacked_opp) >= 2 and (high_val_attacked or len(loose_attacked) >= 2):
         return "Fork"
 
     if target and not board.is_attacked_by(opp, move.to_square):
         return "Hanging Piece"
+
+    # Capturing a piece that was defending something else is a deflection /
+    # removal of the guard, not an anonymous trade.
+    if target:
+        defended_by_target = [
+            sq for sq in board.attacks(move.to_square)
+            if board.piece_at(sq) and board.piece_at(sq).color == opp
+            and board.is_attacked_by(piece.color, sq)
+        ]
+        if defended_by_target:
+            return "Deflection"
 
     if piece.piece_type in (chess.BISHOP, chess.ROOK, chess.QUEEN):
         opp_king_sq = b2.king(opp)
@@ -403,6 +440,13 @@ def _classify_tactic(board: chess.Board, move: chess.Move) -> str:
         if piece.piece_type == chess.ROOK:
             return "Rook Endgame"
         return "Endgame"
+
+    # Neither a capture, a check, nor a promotion, yet the engine says it is
+    # decisively best — that is exactly Lichess's "quietMove" motif.  Labelling
+    # these "General" left a third of every generated set without a teachable
+    # name and polluted the bandit's weakness model.
+    if not target and not b2.is_check():
+        return "Quiet Move"
 
     return "General"
 

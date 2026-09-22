@@ -94,6 +94,83 @@ THEME_CATEGORIES: dict[str, list[str]] = {
     "equality":           [],
 }
 
+# ---------------------------------------------------------------------------
+# Primary-category resolution
+# ---------------------------------------------------------------------------
+# Lichess emits themes in alphabetical order, so a naive "first mapped tag wins"
+# rule lets the *phase* tag `endgame` outrank real motifs — `crushing endgame
+# fork short` was being filed under "Endgame" instead of "Fork".  On the shipped
+# dataset that mislabelled ~198k of the 305k "Endgame" puzzles and made the
+# Training Focus card (and therefore the bandit's weakness model) wrong for
+# roughly 45 % of all puzzles.
+#
+# MOTIF_PRIORITY fixes that by resolving the primary category from a fixed
+# specificity ranking instead of tag order:
+#   forced mate  >  concrete tactical motif  >  generic attack  >  endgame type
+#   >  bare endgame  >  General
+
+MATE_TAGS: set[str] = {
+    "mate", "mateIn1", "mateIn2", "mateIn3", "mateIn4", "mateIn5",
+    "smotheredMate", "bodensMate", "arabianMate", "anastasiaMate",
+    "backRankMate", "doubleBishopMate", "hookMate", "epauletteMate",
+    "killBoxMate", "dovetailMate", "vukovicMate", "operaMate",
+}
+
+MOTIF_PRIORITY: list[tuple[str, set[str]]] = [
+    # 1 — a forced mate is always the defining point of the puzzle
+    ("Mating Pattern",    MATE_TAGS),
+    # 2 — concrete, teachable tactical motifs
+    ("Fork",              {"fork"}),
+    ("Pin",               {"pin"}),
+    ("Skewer",            {"skewer"}),
+    ("Discovered Attack", {"discoveredAttack", "doubleCheck"}),
+    ("X-Ray Attack",      {"xRayAttack"}),
+    ("Deflection",        {"deflection", "capturingDefender"}),
+    ("Attraction",        {"attraction"}),
+    ("Interference",      {"interference", "intermezzo"}),
+    ("Clearance",         {"clearance"}),
+    ("Hanging Piece",     {"hangingPiece", "trappedPiece"}),
+    ("Sacrifice",         {"sacrifice"}),
+    ("Promotion",         {"promotion", "underPromotion"}),
+    ("En Passant",        {"enPassant"}),
+    ("Zugzwang",          {"zugzwang"}),
+    ("Quiet Move",        {"quietMove"}),
+    # 3 — generic attacking themes (only when no specific motif applies)
+    ("King Safety",       {"exposedKing", "kingsideAttack", "queensideAttack"}),
+    # 4 — endgame technique, most specific type first
+    ("Rook Endgame",      {"rookEndgame"}),
+    ("Pawn Endgame",      {"pawnEndgame"}),
+    ("Queen Endgame",     {"queenEndgame", "queenRookEndgame"}),
+    ("Bishop Endgame",    {"bishopEndgame"}),
+    ("Knight Endgame",    {"knightEndgame"}),
+    ("Endgame",           {"endgame", "bishopVsKnight"}),
+]
+
+# Themes that make a puzzle a poor fit for a *tactics* trainer.  `equality`
+# puzzles ask you to hold a draw and `defensiveMove` puzzles reward a passive
+# retreat — both read as "the answer makes no sense" to someone drilling tactics.
+LOW_QUALITY_THEMES: set[str] = {"equality", "defensiveMove"}
+
+
+# Keep the multi-label map in sync: every mate tag also belongs to Categories.
+for _tag in MATE_TAGS:
+    THEME_CATEGORIES.setdefault(_tag, ["Mating Pattern"])
+del _tag
+
+
+def resolve_primary_category(themes: str | list[str]) -> str:
+    """
+    Pick the single most-specific weakness category for a puzzle.
+
+    Returns "General" when the puzzle carries no recognisable motif (typically
+    `advantage middlegame short` — win material somehow, no pattern to learn).
+    """
+    tags = set(themes.split()) if isinstance(themes, str) else set(themes or [])
+    for category, motif_tags in MOTIF_PRIORITY:
+        if tags & motif_tags:
+            return category
+    return "General"
+
 # The ordered set of categories exposed to the recommender's weakness tracker.
 # Only these are used for bandit arms — the others are metadata.
 WEAKNESS_CATEGORIES: list[str] = [
@@ -248,12 +325,10 @@ def _enrich(df: pd.DataFrame) -> pd.DataFrame:
     # Map to weakness categories (deduplicated, order preserved)
     df["Categories"] = df["ThemeList"].apply(_tags_to_categories)
 
-    # Primary category = first WEAKNESS category found, else "General"
-    # Phase tags (Opening, Middlegame) appear in Categories but are excluded here.
-    weakness_set = set(WEAKNESS_CATEGORIES)
-    df["PrimaryCategory"] = df["Categories"].apply(
-        lambda cats: next((c for c in cats if c in weakness_set), "General")
-    )
+    # Primary category = most specific motif present (see MOTIF_PRIORITY).
+    # Resolved from the raw tags, not from Categories order, so the `endgame`
+    # phase tag cannot outrank a real motif.
+    df["PrimaryCategory"] = df["ThemeList"].apply(resolve_primary_category)
 
     # Difficulty tier from rating
     df["DifficultyTier"] = df["Rating"].apply(rating_to_tier)
