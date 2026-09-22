@@ -1,0 +1,178 @@
+<!DOCTYPE html><html lang='en'><head><meta charset='utf-8'><title>Research Results</title><style>
+@page { size: A4; margin: 18mm 17mm 20mm 17mm; }
+:root{--navy:#151d38;--ink:#1a2340;--slate:#4a5578;--line:#d8ddea;--tint:#f5f6fb;--gold:#a8801f;
+--good:#25674c;--good-soft:#e8f3ee;--warn:#96461a;--warn-soft:#fdf0e6;--gold-soft:#fbf3e2;}
+*{box-sizing:border-box} body{font-family:Georgia,Cambria,serif;font-size:10pt;line-height:1.55;color:var(--ink);
+margin:0;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+h1,h2,h3,h4,table,.sans{font-family:"Segoe UI",Arial,sans-serif}
+h1{font-size:25pt;color:var(--navy);margin:0 0 3mm;letter-spacing:-.01em}
+h2{font-size:15pt;color:var(--navy);margin:0 0 3mm;padding-bottom:2mm;border-bottom:2px solid var(--gold);break-after:avoid}
+h3{font-size:11.5pt;color:var(--navy);margin:6mm 0 2mm;break-after:avoid}
+p{margin:0 0 2.6mm;text-align:justify}
+table{width:100%;border-collapse:collapse;font-size:8.4pt;margin:2.5mm 0 4mm;break-inside:avoid}
+th,td{text-align:left;padding:1.4mm 2mm;border-bottom:.5pt solid var(--line);vertical-align:top}
+th{background:var(--navy);color:#fff;font-weight:600;font-size:8pt}
+tbody tr:nth-child(even){background:#fafbfd}
+code{font-family:Consolas,monospace;font-size:8.4pt;background:#f1f3f9;padding:.3mm 1mm;border-radius:2px}
+pre{font-family:Consolas,monospace;font-size:8.2pt;background:#f1f3f9;border-left:3px solid var(--gold);padding:2.5mm 3.5mm;white-space:pre-wrap}
+.callout{border:.5pt solid var(--line);border-left:3px solid var(--slate);background:var(--tint);padding:2.5mm 3.5mm;margin:3mm 0;break-inside:avoid;font-size:9.4pt}
+.callout.good{border-left-color:var(--good);background:var(--good-soft)}
+.callout.warn{border-left-color:var(--warn);background:var(--warn-soft)}
+.callout.key{border-left-color:var(--gold);background:var(--gold-soft)}
+.callout b.t{display:block;font-family:"Segoe UI",Arial,sans-serif;margin-bottom:1mm}
+figure{margin:3mm 0 4mm;break-inside:avoid;text-align:center} figure img{max-width:100%}
+figcaption{font-family:"Segoe UI",Arial,sans-serif;font-size:8pt;color:var(--slate);margin-top:1.5mm}
+.pb{break-before:page} .kicker{font-family:"Segoe UI",Arial,sans-serif;font-size:9pt;letter-spacing:.14em;
+text-transform:uppercase;color:var(--gold);font-weight:600;margin-bottom:3mm}
+.lead{font-size:11pt;color:var(--slate);font-style:italic}
+.pass{color:var(--good);font-weight:700} .fail{color:var(--warn);font-weight:700}
+.refs li{margin-bottom:2mm;font-family:"Segoe UI",Arial,sans-serif;font-size:8.8pt;line-height:1.45}
+</style></head><body>
+<section style="height:240mm;display:flex;flex-direction:column;justify-content:center">
+<div class="kicker">MSc Dissertation · Research results</div>
+<h1>Examining and Comparing the Algorithms<br>of the Adaptive Chess Puzzle Advisor</h1>
+<p class="lead" style="max-width:150mm">Measurement validity, a pre-registered replication, a paired simulation study,
+prequential calibration on real logs, and a real-player cohort evaluation, all generated
+from the result files in <code>eval/research/</code>.</p>
+<p class="sans" style="margin-top:12mm;font-size:9.5pt">Aleksandar Radevski · City College, University of York · 22 September 2026</p>
+</section>
+
+<section class="pb"><h2>1 &nbsp; Measurement validity: the tactic labeller</h2>
+<p>Every weakness estimate in the system depends on the tactic label attached to each missed move.
+It decides which bandit arm the evidence goes to. So I measured the original labeller
+(<code>generator._classify_tactic</code>) against an independent reference: the themes of Lichess puzzles,
+resolved with the same priority rule the puzzle pool uses. Lichess themes come from an automatic
+tagger too, so these numbers measure <em>agreement</em>, not accuracy against human judgement.
+There are two samples: a uniform one of 30,000 puzzles (for prevalence-true agreement and κ)
+and a stratified one of 48,000 puzzles, up to 2,000 per class (for per-class recall).</p>
+<p>The original labeller scored κ = 0.23 ("fair" agreement on the Landis &amp; Koch scale [8]).
+It could never emit 8 of the 23 categories. Its failures were structural. It looked
+at a single move, so a mate in three was labelled as its opening check. It treated the king as a high-value
+fork target. And its skewer and X-ray rules were geometrically wrong. The replacement,
+<code>src/puzzles/tactic_tagger.py</code>, tags the engine's whole principal variation, uses the engine's mate
+verdict, gets pin and skewer from ray geometry, and takes endgame type from the material left on the board.
+It was developed on one sample (seed 7) and then scored on a <b>fresh held-out sample</b> (seed 11):</p>
+<table class=""><thead><tr><th>Metric</th><th>Old labeller</th><th>New tagger (held-out)</th><th>New tagger (development)</th></tr></thead><tbody><tr><td>Strict agreement</td><td>31.2%</td><td><b>58.4%</b></td><td>57.6%</td></tr><tr><td>Lenient agreement (any mapped theme)</td><td>37.4%</td><td><b>60.9%</b></td><td>60.2%</td></tr><tr><td>Cohen's κ</td><td>0.23</td><td><b>0.52</b></td><td>0.51</td></tr><tr><td>Macro recall (stratified)</td><td>14.4%</td><td><b>32.0%</b></td><td>31.6%</td></tr><tr><td>Macro precision (uniform)</td><td>30.3%</td><td><b>53.7%</b></td><td>53.4%</td></tr><tr><td>Categories never emitted</td><td>8</td><td>5</td><td>—</td></tr></tbody></table>
+<table class=""><thead><tr><th>Category</th><th>Recall old</th><th>Recall new</th><th>Precision old</th><th>Precision new</th></tr></thead><tbody><tr><td>Mating Pattern</td><td>0.46</td><td>1.00</td><td>1.00</td><td>1.00</td></tr><tr><td>Fork</td><td>0.82</td><td>0.96</td><td>0.25</td><td>0.61</td></tr><tr><td>Skewer</td><td>0.12</td><td>0.76</td><td>0.06</td><td>0.36</td></tr><tr><td>Discovered Attack</td><td>0.08</td><td>0.69</td><td>0.71</td><td>0.58</td></tr><tr><td>Promotion</td><td>0.08</td><td>0.64</td><td>0.77</td><td>0.87</td></tr><tr><td>Pin</td><td>0.20</td><td>0.23</td><td>0.42</td><td>0.43</td></tr><tr><td>Hanging Piece</td><td>0.59</td><td>0.57</td><td>0.33</td><td>0.53</td></tr></tbody></table>
+<figure><img src="../eval/research/labeller_confusion_heldout.png">
+<figcaption><b>Figure 1.</b> Confusion matrices, old and new, on the held-out sample, normalised by row.</figcaption></figure>
+<div class="callout"><b class="t">What still cannot be detected</b>
+Attraction, Interference, Clearance, Zugzwang, X-Ray Attack: these need deeper reasoning about the line. The new tagger
+deliberately emits nothing for them rather than guessing. The old X-Ray rule's guesses had a precision of 0.</div>
+</section>
+
+<section class="pb"><h2>2 &nbsp; Simulation study</h2>
+<p class="lead">Synthetic players with known weaknesses, puzzle difficulties drawn from the real Lichess
+distribution for each category, game evidence mislabelled with the measured confusion matrix of the
+real tagger, and the production policy classes run unmodified. Every comparison is paired:
+200 seeds, each facing every policy with the same player. Tests are paired t-tests with Holm correction [9],
+effect sizes are Cohen's d<sub>z</sub>, and CIs are bootstrap.</p>
+<h3>E1 · Pre-registered replication</h3>
+<p>This is the protocol fixed before any result existed: three categories solved 30% of the time, twenty at 80%,
+200 runs of 150 attempts, uniform priors, and the original Beta Thompson bandit.</p>
+<table class=""><thead><tr><th>Pre-registered criterion</th><th>Threshold</th><th>Result [95% CI]</th><th></th></tr></thead><tbody><tr><td>C1 &nbsp; weak-category targeting, trials 131–150</td><td>≥ 80%</td><td>71.4% [0.695, 0.732]</td><td><span class="fail">FAIL</span></td></tr><tr><td>C2 &nbsp; posterior MAE at trial 100</td><td>≤ 0.10</td><td>0.111 [0.108, 0.114]</td><td><span class="fail">FAIL</span></td></tr><tr><td>C3 &nbsp; vs random: Welch's t, p &lt; 0.01 and d &gt; 0.8</td><td>both</td><td>p &lt; 0.0001, d = 5.38</td><td><span class="pass">PASS</span></td></tr></tbody></table>
+<figure><img src="../eval/research/figures/e1_preregistered.png">
+<figcaption><b>Figure 2.</b> E1 learning curves: targeting (left) and posterior MAE (right).</figcaption></figure>
+<div class="callout warn"><b class="t">Reported as it came out</b>
+The original bandit clearly beats random selection (C3). It misses the targeting threshold it was held to
+(C1) and narrowly misses the estimation threshold (C2). Thompson Sampling keeps exploring the 20 strong
+arms, which lowers targeting and leaves their estimates noisy. That is the price of exploration, and these
+thresholds were set without accounting for it.</div>
+
+<h3 class="pb">E2 · Main comparison on semi-synthetic players</h3>
+<table class=""><thead><tr><th>Policy</th><th>Targeting, last 50</th><th>Cum. regret</th><th>Frustrating puzzles (P &lt; 0.3)</th><th>In productive zone</th><th>Top-3 recall</th></tr></thead><tbody><tr><td>Random</td><td>0.130</td><td>189.2</td><td>33.8%</td><td>37%</td><td>0.40</td></tr><tr><td>Round-robin</td><td>0.132</td><td>189.1</td><td>33.6%</td><td>37%</td><td>0.41</td></tr><tr><td>Static profile (top-3)</td><td>0.206</td><td>166.6</td><td>35.8%</td><td>36%</td><td>0.26</td></tr><tr><td>Greedy (Beta mean)</td><td>0.520</td><td>103.5</td><td>49.3%</td><td>25%</td><td>0.26</td></tr><tr><td>Beta-TS</td><td>0.404</td><td>145.9</td><td>44.1%</td><td>29%</td><td>0.45</td></tr><tr><td>Beta-TS (γ=0.97)</td><td>0.244</td><td>164.9</td><td>39.8%</td><td>32%</td><td>0.35</td></tr><tr><td>IRT-TS (Elo band)</td><td>0.409</td><td>142.3</td><td>42.5%</td><td>31%</td><td>0.49</td></tr><tr><td><b>IRT-TS</b></td><td>0.445</td><td>135.9</td><td>3.2%</td><td>72%</td><td>0.49</td></tr><tr><td>Oracle</td><td>1.000</td><td>0.0</td><td>0.0%</td><td>82%</td><td>1.00</td></tr></tbody></table>
+<p>Paired against the original Beta-TS policy (no learning), the new difficulty-aware IRT-TS policy shows:
+targeting +0.041 [0.002, 0.081]
+(p<sub>Holm</sub> 0.089);
+cumulative regret -10.0 [-15.3, -4.8]
+(p<sub>Holm</sub> 0.0006);
+share of frustrating puzzles -0.410
+(d<sub>z</sub> = -2.52).</p>
+<figure><img src="../eval/research/figures/e2_targeting_and_difficulty.png">
+<figcaption><b>Figure 3.</b> Targeting over time (left) and the true solve probability of each served puzzle (right).
+IRT-TS tracks the Oracle's difficulty inside the productive zone.</figcaption></figure>
+<h3>Learning gain depends on how players learn</h3>
+<p>A learning gain in simulation follows from an <em>assumed</em> learning model, so it is reported under two.
+Under "zpd", players learn most from puzzles near the edge of their ability. Under "error", they learn from
+seeing the solution after a miss. The gain is the mean improvement of the initially weak categories, in logits:</p>
+<table class=""><thead><tr><th>Learning model</th><th>Random</th><th>Beta-TS</th><th>IRT-TS</th><th>IRT-TS − Beta-TS (paired)</th></tr></thead><tbody><tr><td>zpd</td><td>0.256</td><td>0.543</td><td>0.675</td><td>+0.133 [0.092, 0.174], d<sub>z</sub> = +0.45, p<sub>Holm</sub> &lt; 0.0001</td></tr><tr><td>error</td><td>0.284</td><td>0.516</td><td>0.386</td><td>-0.130 [-0.163, -0.098], d<sub>z</sub> = -0.53, p<sub>Holm</sub> &lt; 0.0001</td></tr></tbody></table>
+<figure><img src="../eval/research/figures/e2_summary.png">
+<figcaption><b>Figure 4.</b> Frustration, regret and learning gain by policy, with 95% CIs.</figcaption></figure>
+<div class="callout key"><b class="t">Interpretation</b>
+The ablation "IRT-TS (Elo band)" uses the same category selection with the old difficulty band. It
+performs like Beta-TS on every metric. So the new policy's effect comes almost entirely from
+<em>difficulty targeting</em>, not from category selection. Whether that helps learning depends on the
+learning mechanism. With learning at the edge of ability it helps. With learning from failures it
+hurts, because easier puzzles produce fewer failures. Only a real study can decide between these
+(see <code>docs/USER_STUDY_PROTOCOL.md</code>).</div>
+
+<h3 class="pb">E3 · Does the labeller matter downstream?</h3>
+<table class=""><thead><tr><th>Game evidence</th><th>Beta-TS targeting, first 30</th><th>IRT-TS targeting, first 30</th></tr></thead><tbody><tr><td>No game evidence</td><td>0.148</td><td>0.151</td></tr><tr><td>Old labeller</td><td>0.178</td><td>0.201</td></tr><tr><td>New tagger</td><td>0.189</td><td>0.226</td></tr><tr><td>Perfect labels</td><td>0.239</td><td>0.321</td></tr></tbody></table>
+<p>Paired within IRT-TS: game evidence against none gives +0.075 (p &lt; 0.0001). The new tagger against the old gives +0.025 (p 0.062). Perfect labels against the new tagger give +0.095 (p &lt; 0.0001).</p>
+<figure><img src="../eval/research/figures/e3_label_quality.png">
+<figcaption><b>Figure 5.</b> Early targeting under four qualities of game evidence.</figcaption></figure>
+
+<h3>E4 · The player fixes a weakness mid-session</h3>
+<p>At t = 75 the player's worst category improves by 1.5 logits away from the app. The metric is cumulative
+regret over the remaining 125 attempts:</p>
+<table class=""><thead><tr><th>Policy</th><th>Post-change regret [95% CI]</th><th>vs Beta-TS</th></tr></thead><tbody><tr><td>Beta-TS</td><td>102.1 [98.2, 106.0]</td><td>reference</td></tr><tr><td>Beta-TS (γ=0.97)</td><td>121.3 [118.3, 124.4]</td><td>+19.2, d<sub>z</sub> = +0.82</td></tr><tr><td>Beta-TS (γ=0.93)</td><td>128.2 [125.4, 131.0]</td><td>+26.1, d<sub>z</sub> = +1.01</td></tr><tr><td>IRT-TS</td><td>100.7 [97.2, 104.3]</td><td>-1.4, d<sub>z</sub> = -0.04</td></tr><tr><td>Oracle</td><td>0.0 [0.0, 0.0]</td><td>-102.1, d<sub>z</sub> = -3.66</td></tr></tbody></table>
+<div class="callout warn"><b class="t">Discounting makes things worse here</b>
+Discounted Thompson Sampling [10], recommended in the original review, <em>raises</em> regret. With 23 arms and
+few attempts on each, forgetting every arm costs more than forgetting the one arm that changed.
+The app therefore keeps γ = 1. The IRT learner's random-walk drift has no such cost.</div>
+<figure><img src="../eval/research/figures/e4_changepoint.png">
+<figcaption><b>Figure 6.</b> Per-attempt regret around the change point.</figcaption></figure>
+<h3>E6 · Family-structured prior</h3>
+<p>The IRT prior can link related motifs, so that evidence about pins also moves skewers. The difference
+(family prior minus plain prior) is tested on populations with and without real family structure:</p>
+<table class=""><thead><tr><th>Population</th><th>Metric</th><th>Difference [95% CI]</th><th>d<sub>z</sub></th><th>p</th></tr></thead><tbody><tr><td>no family structure</td><td>targeting first30</td><td>+0.018 [0.006, 0.029]</td><td>+0.21</td><td>0.003</td></tr><tr><td>no family structure</td><td>cum regret</td><td>-0.471 [-3.655, 2.637]</td><td>-0.02</td><td>0.771</td></tr><tr><td>weaknesses cluster in one family</td><td>targeting first30</td><td>+0.009 [-0.004, 0.022]</td><td>+0.09</td><td>0.186</td></tr><tr><td>weaknesses cluster in one family</td><td>cum regret</td><td>-2.860 [-5.598, -0.167]</td><td>-0.15</td><td>0.040</td></tr></tbody></table>
+</section>
+
+<section class="pb"><h2>3 &nbsp; Difficulty models on the real solve logs</h2>
+<p>The evaluation is prequential [11]: 123 real attempts by 5 players are replayed in time order,
+and each model predicts every attempt <em>before</em> learning from it. The observed solve rate was
+85%, and 68% of attempts were on puzzles mined from the player's own games.</p>
+<table class=""><thead><tr><th>Model</th><th>Log loss ↓</th><th>Brier ↓</th><th>AUC</th><th>Mean prediction</th><th>Δ log loss vs static Elo [95% CI]</th></tr></thead><tbody><tr><td>Base rate</td><td>0.451</td><td>0.139</td><td>0.51</td><td>0.77</td><td>-0.758 [-1.013, -0.513]</td></tr><tr><td>Static Elo</td><td>1.208</td><td>0.374</td><td>0.54</td><td>0.45</td><td>+0.000 [0.000, 0.000]</td></tr><tr><td>Glicko-2 (symmetric)</td><td>0.639</td><td>0.212</td><td>0.57</td><td>0.69</td><td>-0.569 [-0.758, -0.375]</td></tr><tr><td>Glicko-2 (pool frozen)</td><td>0.714</td><td>0.242</td><td>0.46</td><td>0.69</td><td>-0.495 [-0.692, -0.295]</td></tr><tr><td>IRT, θ only</td><td>0.652</td><td>0.222</td><td>0.48</td><td>0.70</td><td>-0.556 [-0.764, -0.348]</td></tr><tr><td>IRT, per category</td><td>0.599</td><td>0.202</td><td>0.54</td><td>0.71</td><td>-0.609 [-0.812, -0.406]</td></tr></tbody></table>
+<figure><img src="../eval/research/difficulty_calibration.png" style="max-width:62%">
+<figcaption><b>Figure 7.</b> Calibration of the prequential predictions.</figcaption></figure>
+<div class="callout"><b class="t">What this data can and cannot show</b>
+The original assumption (Chess.com Elo against puzzle rating, the basis of the Elo ± 300 band) is badly
+miscalibrated: it predicts about 45% solved, while players solve
+85%. Every learned model corrects this, with CIs that exclude zero. But with this few events no
+model yet tells <em>which</em> puzzles will be solved (AUC ≈ 0.5), so a constant base rate is still the best
+calibrated. That limit comes from the amount of data; it is not a verdict on any of the models.</div>
+</section>
+<section class="pb"><h2>4 &nbsp; Weakness models on real players</h2>
+<div class="callout warn"><b class="t">Pending</b>The cohort analysis is still running. Re-run
+<code>python -m scripts.research.evaluate_weakness_models</code> and then this builder.</div></section>
+
+<section class="pb"><h2>5 &nbsp; What changed in the application</h2>
+<table><thead><tr><th>Component</th><th>Before</th><th>After</th><th>Evidence</th></tr></thead><tbody>
+<tr><td>Recommendation policy</td><td>Beta Thompson bandit; raw solve counts; Elo ± 300 band</td>
+<td>Difficulty-aware IRT learner (default). The Beta bandit is kept as <code>RECOMMENDER=beta</code>; both update on every attempt.</td><td>§2 E2, §3</td></tr>
+<tr><td>Puzzle difficulty</td><td>Fixed Elo ± 300 window</td><td>Pitched per category so the predicted solve rate is 65%; "Adaptive" is the UI default</td><td>§2 E2/E5, §3</td></tr>
+<tr><td>Error grading</td><td>Centipawn loss (50/100/200)</td><td>Win-probability loss (5/10/15 points), using Lichess's curve [12]</td><td>§1 (design)</td></tr>
+<tr><td>Engine search</td><td>50 ms time limit (non-reproducible)</td><td>75k-node limit, MultiPV 2 (deterministic)</td><td>tested: identical output on re-run</td></tr>
+<tr><td>Weakness evidence</td><td>Error counts only</td><td>Critical positions found or missed (with a denominator), weighted by recency and time control, shrunk toward the player's own rate</td><td>§4</td></tr>
+<tr><td>Tactic labels</td><td><code>_classify_tactic</code>, first move only</td><td><code>tactic_tagger</code> on the whole engine line</td><td>§1</td></tr>
+<tr><td>Accuracy estimate</td><td>Lichess formula fed <em>centipawns</em> (~15% for a typical player)</td><td>Fed win-% loss, as defined [12]</td><td>unit bug</td></tr>
+<tr><td>Bandit priors</td><td><code>round((1 − w)·10)</code>, integers, same confidence for every category</td><td>Fractional; confidence scales with evidence</td><td>§2 E3</td></tr>
+<tr><td>Logging</td><td>Outcome only</td><td>Serving policy, selection propensity, prediction before the outcome</td><td>enables off-policy evaluation</td></tr>
+<tr><td>Colour detection</td><td>Substring match on the username</td><td>Exact match first</td><td>regression test</td></tr>
+</tbody></table>
+<p>The test suite grew from 128 to 228 tests, all of which run offline.</p>
+</section>
+<section class="pb"><h2>6 &nbsp; Reproduction</h2>
+<pre>python -m scripts.research.validate_labeller --seed 11 --tag _heldout
+python -m scripts.research.run_simulation --runs 200
+python -m scripts.research.run_simulation --runs 200 --only E6
+python -m scripts.research.evaluate_difficulty_models
+python -m scripts.research.fetch_cohort --per-band 60
+python -m scripts.research.analyze_cohort --workers 14 --max-games 60
+python -m scripts.research.evaluate_weakness_models
+python -m scripts.research.make_figures
+python -m scripts.research.build_report</pre>
+<h2 style="margin-top:8mm">References</h2>
+<ol class="refs"><li>Thompson, W. R. (1933). On the likelihood that one unknown probability exceeds another in view of the evidence of two samples. <i>Biometrika</i>, 25(3–4), 285–294.</li><li>Russo, D. J., Van Roy, B., Kazerouni, A., Osband, I., &amp; Wen, Z. (2018). A tutorial on Thompson sampling. <i>Foundations and Trends in Machine Learning</i>, 11(1), 1–96.</li><li>Chapelle, O., &amp; Li, L. (2011). An empirical evaluation of Thompson sampling. <i>Advances in Neural Information Processing Systems 24</i>, 2249–2257.</li><li>Glickman, M. E. (1999). Parameter estimation in large dynamic paired comparison experiments. <i>JRSS Series C</i>, 48(3), 377–394.</li><li>Glickman, M. E. (2012). <i>Example of the Glicko-2 system</i>. Boston University. glicko.net/glicko/glicko2.pdf</li><li>Pelánek, R. (2016). Applications of the Elo rating system in adaptive educational systems. <i>Computers &amp; Education</i>, 98, 169–179. doi:10.1016/j.compedu.2016.03.017</li><li>Clement, B., Roy, D., Oudeyer, P.-Y., &amp; Lopes, M. (2015). Multi-armed bandits for intelligent tutoring systems. <i>Journal of Educational Data Mining</i>, 7(2), 20–48.</li><li>Landis, J. R., &amp; Koch, G. G. (1977). The measurement of observer agreement for categorical data. <i>Biometrics</i>, 33(1), 159–174.</li><li>Holm, S. (1979). A simple sequentially rejective multiple test procedure. <i>Scandinavian Journal of Statistics</i>, 6(2), 65–70.</li><li>Raj, V., &amp; Kalyani, S. (2017). Taming non-stationary bandits: A Bayesian approach. arXiv:1707.09727.</li><li>Dawid, A. P. (1984). Statistical theory: The prequential approach. <i>JRSS Series A</i>, 147(2), 278–292. doi:10.2307/2981683</li><li>Lichess. <i>Lichess accuracy metric</i> (win-percentage and accuracy formulas). lichess.org/page/accuracy</li><li>Garivier, A., &amp; Moulines, E. (2011). On upper-confidence bound policies for switching bandit problems. <i>ALT 2011</i>, LNCS 6925, 174–188.</li><li>McIlroy-Young, R., Sen, S., Kleinberg, J., &amp; Anderson, A. (2020). Aligning superhuman AI with human behavior: Chess as a model system. <i>Proc. KDD '20</i>, 1677–1687.</li></ol>
+<p class="sans" style="font-size:8pt;color:#4a5578">All references were checked against the publisher or the primary source.</p>
+</section></body></html>
