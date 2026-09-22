@@ -196,6 +196,42 @@ def section_sim(sim):
 (family prior minus plain prior) is tested on populations with and without real family structure:</p>
 {table(["Population", "Metric", "Difference [95% CI]", "d<sub>z</sub>", "p"], rows)}"""
 
+    e7 = sim.get("E7_realistic")
+    e7_html = ""
+    if e7:
+        rows, worlds = [], list(e7["worlds"].items())
+        for world, d in worlds:
+            t, c, br = d["table"], d["IRT_vs_Beta"], d["Beta_vs_Random"]
+            no_weak = world.startswith("no category")
+            # With no true weaknesses there is no "bottom 3", so targeting is undefined.
+            tg = "undefined (no true weaknesses)" if no_weak else (
+                f"{f(t['Random']['targeting_last50']['mean'])} / {f(t['Beta-TS']['targeting_last50']['mean'])} / "
+                f"{f(t['IRT-TS']['targeting_last50']['mean'])}")
+            beta_rand = "—" if no_weak else (
+                f"{br['targeting_last50']['mean_diff']:+.3f} (d<sub>z</sub> {br['targeting_last50']['d_z']:+.2f})")
+            irt_beta = "—" if no_weak else (
+                f"{c['targeting_last50']['mean_diff']:+.3f} (p {p_fmt(c['targeting_last50']['p_paired_t'])})")
+            fr = c["frac_frustrating"]
+            rows.append([world, tg, beta_rand, irt_beta,
+                         f"{pct(t['Beta-TS']['frac_frustrating']['mean'], 1)} → {pct(t['IRT-TS']['frac_frustrating']['mean'], 1)} "
+                         f"(d<sub>z</sub> {fr['d_z']:+.2f})"])
+        (w0, d0), (w1, d1) = worlds[0], worlds[1]
+        fr_dz = [d["IRT_vs_Beta"]["frac_frustrating"]["d_z"] for _, d in worlds]
+        e7_html = f"""<h3>E7 · Realistic effect sizes (calibrated on the real cohort)</h3>
+<p>E2 assumed large, well-separated weaknesses, but the real cohort (§4) found far subtler category
+effects. E7 repeats the key comparison using the cohort's measured category frequencies and hit rate,
+in three worlds with progressively weaker category effects:</p>
+{table(["World", "Targeting, last 50: Random / Beta-TS / IRT-TS", "Beta-TS − Random", "IRT − Beta",
+        "Frustrating puzzles: Beta-TS → IRT-TS"], rows)}
+<div class="callout key"><b class="t">What survives when the effects are realistic</b>
+With subtle weaknesses, adaptivity still pays off, but by less. Beta-TS's targeting advantage over random
+falls from {d0['Beta_vs_Random']['targeting_last50']['mean_diff']:+.3f} to
+{d1['Beta_vs_Random']['targeting_last50']['mean_diff']:+.3f}, and IRT-TS's extra edge over Beta-TS
+({d0['IRT_vs_Beta']['targeting_last50']['mean_diff']:+.3f} → {d1['IRT_vs_Beta']['targeting_last50']['mean_diff']:+.3f})
+disappears. The difficulty-calibration benefit does not need category effects to exist at all. The fall in
+frustrating puzzles holds in every world (d<sub>z</sub> between {min(fr_dz):.2f} and {max(fr_dz):.2f}),
+which makes it the most robust result in the study.</div>"""
+
     return f"""
 <section class="pb"><h2>2 &nbsp; Simulation study</h2>
 <p class="lead">Synthetic players with known weaknesses, puzzle difficulties drawn from the real Lichess
@@ -260,6 +296,7 @@ The app therefore keeps γ = 1. The IRT learner's random-walk drift has no such 
 <figure><img src="../eval/research/figures/e4_changepoint.png">
 <figcaption><b>Figure 6.</b> Per-attempt regret around the change point.</figcaption></figure>
 {e6_html}
+{e7_html}
 </section>"""
 
 
@@ -296,10 +333,21 @@ def section_cohort(ce):
              f(v["within_player_spearman"], 2) if v["within_player_spearman"] is not None else "—",
              f(v["top3_recall"], 2) if v["top3_recall"] is not None else "—"] for m, v in ce["models"].items()]
     rel = sorted(ce.get("reliability", []), key=lambda r: -r["split_half_r"])
-    rel_rows = [[r["category"], r["players"], f(r["split_half_r"], 2), f(r["spearman_brown"], 2) if r["spearman_brown"] is not None else "—"]
+    # Spearman–Brown is only meaningful for a non-negative split-half correlation.
+    rel_rows = [[r["category"], r["players"], f(r["split_half_r"], 2),
+                 f(r["spearman_brown"], 2) if r["spearman_brown"] is not None and r["split_half_r"] >= 0 else "—"]
                 for r in rel]
     sc = ce["simulator_calibration"]
     fam = ce.get("family_correlation")
+    ranked = sorted(ce["models"].items(), key=lambda kv: kv[1]["log_loss"])
+    (b1, v1), (b2, v2) = ranked[0], ranked[1]
+    gap = v2["log_loss"] - v1["log_loss"]
+    best_txt = (f"The two best models, <b>{esc(b1)}</b> and <b>{esc(b2)}</b>, are statistically tied "
+                f"(log losses {f(v1['log_loss'], 4)} and {f(v2['log_loss'], 4)}, a gap of {gap:.4f}, well inside either "
+                f"model's CI against the reference). Production uses the empirical-Bayes model: it is as accurate, "
+                f"needs no training, and every estimate is interpretable as a shrunk hit rate.")
+    rule = ce["models"].get("Rule-based scorer", {})
+    strengths = ce.get("hier_eb_strength_chosen", [])
     fam_txt = ""
     if fam:
         fam_txt = (f"<p>The within-family correlation of players' category deviations is {f(fam['within'], 3)}, against "
@@ -321,6 +369,24 @@ sets a ceiling on how well <em>any</em> model can personalise:</p>
 (observed {sc['observed_sd_of_category_logit_deviation']}), and the overall hit rate in critical positions is
 {sc['overall_hit_rate']}. The simulation assumed a background σ of 0.35, with 3 categories at −1.2.</p>
 {fam_txt}
+<div class="callout key"><b class="t">What the real players show</b>
+{best_txt} The original rule-based scorer carries no usable information about a
+player's future misses (AUC {f(rule.get('auc', 0), 2)}, no better than a single global base rate), and neither
+does the RandomForest trained on simulated players. The inner cross-validation chose shrinkage strengths of
+{esc(strengths)} pseudo-opportunities toward the population norm. That is heavy pooling: a player's own
+per-category record barely moves the estimate. Split-half reliability confirms it. Most categories'
+personal deviations do not replicate from one half of a player's games to the other, and the observed spread
+is about what sampling noise alone would produce.</div>
+<div class="callout warn"><b class="t">Two explanations, and what each implies</b>
+<p>(a) <b>Category-specific skill differences between players are genuinely small</b>, compared with overall
+strength and with how hard each motif is for everyone. (b) <b>The measurement is too noisy to see them.</b>
+About 80 critical positions per player are spread over 15+ categories, and they are labelled by a tagger
+with κ ≈ 0.5, which spreads each true weakness across neighbouring labels. Both explanations lead to the
+same design conclusion. Game history can supply only a weak prior on <em>which</em> motif to train. The
+reliable signal is the player's overall level together with population-level motif difficulty. Identifying
+personal weaknesses has to happen online, from targeted puzzle attempts, which is exactly what the IRT
+learner does. The profiler now shrinks toward population norms, and a player's game evidence counts as only
+half a puzzle attempt.</p></div>
 </section>"""
 
 
@@ -348,6 +414,8 @@ def section_changes():
 <tr><td>Error grading</td><td>Centipawn loss (50/100/200)</td><td>Win-probability loss (5/10/15 points), using Lichess's curve [12]</td><td>§1 (design)</td></tr>
 <tr><td>Engine search</td><td>50 ms time limit (non-reproducible)</td><td>75k-node limit, MultiPV 2 (deterministic)</td><td>tested: identical output on re-run</td></tr>
 <tr><td>Weakness evidence</td><td>Error counts only</td><td>Critical positions found or missed (with a denominator), weighted by recency and time control, shrunk toward the player's own rate</td><td>§4</td></tr>
+<tr><td>Shrinkage target</td><td>The player's own overall hit rate</td>
+<td>Population category norms (<code>src/data/category_norms.json</code>, aggregate statistics fitted on the cohort), with cross-validated strength</td><td>§4</td></tr>
 <tr><td>Tactic labels</td><td><code>_classify_tactic</code>, first move only</td><td><code>tactic_tagger</code> on the whole engine line</td><td>§1</td></tr>
 <tr><td>Accuracy estimate</td><td>Lichess formula fed <em>centipawns</em> (~15% for a typical player)</td><td>Fed win-% loss, as defined [12]</td><td>unit bug</td></tr>
 <tr><td>Bandit priors</td><td><code>round((1 − w)·10)</code>, integers, same confidence for every category</td><td>Fractional; confidence scales with evidence</td><td>§2 E3</td></tr>

@@ -126,6 +126,19 @@ The app therefore keeps γ = 1. The IRT learner's random-walk drift has no such 
 <p>The IRT prior can link related motifs, so that evidence about pins also moves skewers. The difference
 (family prior minus plain prior) is tested on populations with and without real family structure:</p>
 <table class=""><thead><tr><th>Population</th><th>Metric</th><th>Difference [95% CI]</th><th>d<sub>z</sub></th><th>p</th></tr></thead><tbody><tr><td>no family structure</td><td>targeting first30</td><td>+0.018 [0.006, 0.029]</td><td>+0.21</td><td>0.003</td></tr><tr><td>no family structure</td><td>cum regret</td><td>-0.471 [-3.655, 2.637]</td><td>-0.02</td><td>0.771</td></tr><tr><td>weaknesses cluster in one family</td><td>targeting first30</td><td>+0.009 [-0.004, 0.022]</td><td>+0.09</td><td>0.186</td></tr><tr><td>weaknesses cluster in one family</td><td>cum regret</td><td>-2.860 [-5.598, -0.167]</td><td>-0.15</td><td>0.040</td></tr></tbody></table>
+<h3>E7 · Realistic effect sizes (calibrated on the real cohort)</h3>
+<p>E2 assumed large, well-separated weaknesses, but the real cohort (§4) found far subtler category
+effects. E7 repeats the key comparison using the cohort's measured category frequencies and hit rate,
+in three worlds with progressively weaker category effects:</p>
+<table class=""><thead><tr><th>World</th><th>Targeting, last 50: Random / Beta-TS / IRT-TS</th><th>Beta-TS − Random</th><th>IRT − Beta</th><th>Frustrating puzzles: Beta-TS → IRT-TS</th></tr></thead><tbody><tr><td>original assumption (σ 0.35, 3 weak at −1.2)</td><td>0.130 / 0.422 / 0.457</td><td>+0.292 (d<sub>z</sub> +1.20)</td><td>+0.035 (p 0.102)</td><td>45.2% → 3.1% (d<sub>z</sub> -2.55)</td></tr><tr><td>subtle weaknesses (σ 0.15, 3 weak at −0.5)</td><td>0.130 / 0.235 / 0.236</td><td>+0.104 (d<sub>z</sub> +0.55)</td><td>+0.001 (p 0.947)</td><td>34.9% → 1.4% (d<sub>z</sub> -2.14)</td></tr><tr><td>no category weaknesses (σ 0)</td><td>undefined (no true weaknesses)</td><td>—</td><td>—</td><td>28.0% → 0.9% (d<sub>z</sub> -1.72)</td></tr></tbody></table>
+<div class="callout key"><b class="t">What survives when the effects are realistic</b>
+With subtle weaknesses, adaptivity still pays off, but by less. Beta-TS's targeting advantage over random
+falls from +0.292 to
++0.104, and IRT-TS's extra edge over Beta-TS
+(+0.035 → +0.001)
+disappears. The difficulty-calibration benefit does not need category effects to exist at all. The fall in
+frustrating puzzles holds in every world (d<sub>z</sub> between -2.55 and -1.72),
+which makes it the most robust result in the study.</div>
 </section>
 
 <section class="pb"><h2>3 &nbsp; Difficulty models on the real solve logs</h2>
@@ -142,9 +155,41 @@ miscalibrated: it predicts about 45% solved, while players solve
 model yet tells <em>which</em> puzzles will be solved (AUC ≈ 0.5), so a constant base rate is still the best
 calibrated. That limit comes from the amount of data; it is not a verdict on any of the models.</div>
 </section>
+
 <section class="pb"><h2>4 &nbsp; Weakness models on real players</h2>
-<div class="callout warn"><b class="t">Pending</b>The cohort analysis is still running. Re-run
-<code>python -m scripts.research.evaluate_weakness_models</code> and then this builder.</div></section>
+<p>The cohort is 300 Chess.com players (band 0: 60, band 1: 60, band 2: 60, band 3: 60, band 4: 60), stratified by rating and stored pseudonymised. Their games were
+analysed with the production analyzer. Each player's oldest two-thirds of games are used to predict the
+critical positions they miss in their newest third. That gives 11,973 held-out
+opportunities in total. Population-level parameters are always fitted on other players (5-fold, grouped by player).</p>
+<table class=""><thead><tr><th>Model</th><th>Log loss</th><th>Brier</th><th>AUC</th><th>Δ LL vs category base rate [95% CI]</th><th>Within-player ρ</th><th>Top-3 recall</th></tr></thead><tbody><tr><td>Global base rate</td><td>0.6545</td><td>0.2309</td><td>0.494</td><td>+0.0144 [0.0111, 0.0178]</td><td>0.06</td><td>0.60</td></tr><tr><td>Category base rate</td><td>0.6401</td><td>0.2245</td><td>0.582</td><td>+0.0000 [0.0000, 0.0000]</td><td>0.29</td><td>0.71</td></tr><tr><td>Player base rate</td><td>0.6491</td><td>0.2284</td><td>0.568</td><td>+0.0091 [0.0036, 0.0146]</td><td>0.06</td><td>0.60</td></tr><tr><td>Rule-based scorer</td><td>0.6547</td><td>0.2310</td><td>0.474</td><td>+0.0147 [0.0113, 0.0180]</td><td>-0.07</td><td>0.59</td></tr><tr><td>RF (synthetic-trained)</td><td>0.6529</td><td>0.2300</td><td>0.505</td><td>+0.0128 [0.0094, 0.0164]</td><td>0.09</td><td>0.61</td></tr><tr><td>EB, shrink to player rate</td><td>0.6506</td><td>0.2288</td><td>0.582</td><td>+0.0105 [0.0047, 0.0163]</td><td>0.19</td><td>0.66</td></tr><tr><td>EB, shrink to population norms</td><td>0.6326</td><td>0.2211</td><td>0.620</td><td>-0.0074 [-0.0115, -0.0034]</td><td>0.29</td><td>0.70</td></tr><tr><td>RF (real-data)</td><td>0.6321</td><td>0.2210</td><td>0.618</td><td>-0.0080 [-0.0115, -0.0045]</td><td>0.28</td><td>0.71</td></tr></tbody></table>
+<h3>How much stable, per-player signal exists?</h3>
+<p>Split-half reliability of each player's category deviation (odd against even games, Spearman–Brown corrected)
+sets a ceiling on how well <em>any</em> model can personalise:</p>
+<table class=""><thead><tr><th>Category</th><th>Players</th><th>Split-half r</th><th>Spearman–Brown</th></tr></thead><tbody><tr><td>Discovered Attack</td><td>24</td><td>0.37</td><td>0.54</td></tr><tr><td>Mating Pattern</td><td>43</td><td>0.09</td><td>0.17</td></tr><tr><td>Fork</td><td>227</td><td>0.08</td><td>0.15</td></tr><tr><td>Quiet Move</td><td>299</td><td>0.03</td><td>0.06</td></tr><tr><td>Deflection</td><td>48</td><td>0.02</td><td>0.04</td></tr><tr><td>Hanging Piece</td><td>148</td><td>-0.06</td><td>—</td></tr><tr><td>King Safety</td><td>54</td><td>-0.08</td><td>—</td></tr><tr><td>Sacrifice</td><td>41</td><td>-0.46</td><td>—</td></tr></tbody></table>
+<h3>Calibrating the simulator</h3>
+<p>Across players, the noise-corrected spread of category deviations is σ ≈ 0.0 logits
+(observed 0.853), and the overall hit rate in critical positions is
+0.649. The simulation assumed a background σ of 0.35, with 3 categories at −1.2.</p>
+<p>The within-family correlation of players' category deviations is -0.083, against -0.120 across families (7 and 31 category pairs).</p>
+<div class="callout key"><b class="t">What the real players show</b>
+The two best models, <b>RF (real-data)</b> and <b>EB, shrink to population norms</b>, are statistically tied (log losses 0.6321 and 0.6326, a gap of 0.0005, well inside either model's CI against the reference). Production uses the empirical-Bayes model: it is as accurate, needs no training, and every estimate is interpretable as a shrunk hit rate. The original rule-based scorer carries no usable information about a
+player's future misses (AUC 0.47, no better than a single global base rate), and neither
+does the RandomForest trained on simulated players. The inner cross-validation chose shrinkage strengths of
+[256, 256, 256, 128, 128] pseudo-opportunities toward the population norm. That is heavy pooling: a player's own
+per-category record barely moves the estimate. Split-half reliability confirms it. Most categories'
+personal deviations do not replicate from one half of a player's games to the other, and the observed spread
+is about what sampling noise alone would produce.</div>
+<div class="callout warn"><b class="t">Two explanations, and what each implies</b>
+<p>(a) <b>Category-specific skill differences between players are genuinely small</b>, compared with overall
+strength and with how hard each motif is for everyone. (b) <b>The measurement is too noisy to see them.</b>
+About 80 critical positions per player are spread over 15+ categories, and they are labelled by a tagger
+with κ ≈ 0.5, which spreads each true weakness across neighbouring labels. Both explanations lead to the
+same design conclusion. Game history can supply only a weak prior on <em>which</em> motif to train. The
+reliable signal is the player's overall level together with population-level motif difficulty. Identifying
+personal weaknesses has to happen online, from targeted puzzle attempts, which is exactly what the IRT
+learner does. The profiler now shrinks toward population norms, and a player's game evidence counts as only
+half a puzzle attempt.</p></div>
+</section>
 
 <section class="pb"><h2>5 &nbsp; What changed in the application</h2>
 <table><thead><tr><th>Component</th><th>Before</th><th>After</th><th>Evidence</th></tr></thead><tbody>
@@ -154,13 +199,15 @@ calibrated. That limit comes from the amount of data; it is not a verdict on any
 <tr><td>Error grading</td><td>Centipawn loss (50/100/200)</td><td>Win-probability loss (5/10/15 points), using Lichess's curve [12]</td><td>§1 (design)</td></tr>
 <tr><td>Engine search</td><td>50 ms time limit (non-reproducible)</td><td>75k-node limit, MultiPV 2 (deterministic)</td><td>tested: identical output on re-run</td></tr>
 <tr><td>Weakness evidence</td><td>Error counts only</td><td>Critical positions found or missed (with a denominator), weighted by recency and time control, shrunk toward the player's own rate</td><td>§4</td></tr>
+<tr><td>Shrinkage target</td><td>The player's own overall hit rate</td>
+<td>Population category norms (<code>src/data/category_norms.json</code>, aggregate statistics fitted on the cohort), with cross-validated strength</td><td>§4</td></tr>
 <tr><td>Tactic labels</td><td><code>_classify_tactic</code>, first move only</td><td><code>tactic_tagger</code> on the whole engine line</td><td>§1</td></tr>
 <tr><td>Accuracy estimate</td><td>Lichess formula fed <em>centipawns</em> (~15% for a typical player)</td><td>Fed win-% loss, as defined [12]</td><td>unit bug</td></tr>
 <tr><td>Bandit priors</td><td><code>round((1 − w)·10)</code>, integers, same confidence for every category</td><td>Fractional; confidence scales with evidence</td><td>§2 E3</td></tr>
 <tr><td>Logging</td><td>Outcome only</td><td>Serving policy, selection propensity, prediction before the outcome</td><td>enables off-policy evaluation</td></tr>
 <tr><td>Colour detection</td><td>Substring match on the username</td><td>Exact match first</td><td>regression test</td></tr>
 </tbody></table>
-<p>The test suite grew from 128 to 228 tests, all of which run offline.</p>
+<p>The test suite grew from 128 to 231 tests, all of which run offline.</p>
 </section>
 <section class="pb"><h2>6 &nbsp; Reproduction</h2>
 <pre>python -m scripts.research.validate_labeller --seed 11 --tag _heldout

@@ -244,6 +244,41 @@ def experiment_e6(ex, args, weights, rng) -> dict:
     return out
 
 
+def experiment_e7(ex, args, rng) -> dict:
+    """
+    E7: robustness to realistic effect sizes. The real-player cohort found
+    per-category skill differences far smaller than E2 assumed (split-half
+    reliability near zero). Re-run the key comparison with the cohort's own
+    category frequencies and hit rate, under three worlds.
+    """
+    ce = json.loads((OUT / "cohort_evaluation.json").read_text("utf-8"))
+    sc = ce["simulator_calibration"]
+    weights = [max(1e-4, sc["category_frequency"].get(c, 0.0)) for c in WEAKNESS_CATEGORIES]
+    base = {"game_base_hit": sc["overall_hit_rate"],
+            "opportunities_mean": sc["opportunities_per_player_train"]}
+    worlds = {
+        "original assumption (σ 0.35, 3 weak at −1.2)": {},
+        "subtle weaknesses (σ 0.15, 3 weak at −0.5)": {"delta_sd": 0.15, "weak_delta_mean": -0.5,
+                                                       "weak_delta_sd": 0.1},
+        "no category weaknesses (σ 0)": {"delta_sd": 0.0, "n_weak": 0},
+    }
+    specs = {n: POLICIES[n] for n in ("Random", "Beta-TS", "IRT-TS", "Oracle")}
+    out = {"calibration_source": "eval/research/cohort_evaluation.json", "worlds": {}}
+    for label, pop in worlds.items():
+        cfg = {"T": 150, "labels": "new", "weights": weights, "learn": {"model": "none"},
+               "pop": {**base, **pop}}
+        summ = run(ex, "episode", list(specs), cfg, args.runs, args.chunk, specs=specs)
+        out["worlds"][label] = {
+            "table": table(summ, ["targeting_last50", "cum_regret", "frac_frustrating",
+                                  "frac_in_zpd", "top3_recall_final"]),
+            "IRT_vs_Beta": {m: paired(summ["IRT-TS"][m], summ["Beta-TS"][m], rng)
+                            for m in ("targeting_last50", "cum_regret", "frac_frustrating")},
+            "Beta_vs_Random": {m: paired(summ["Beta-TS"][m], summ["Random"][m], rng)
+                               for m in ("targeting_last50", "cum_regret")},
+        }
+    return out
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--runs", type=int, default=200)
@@ -271,6 +306,8 @@ def main() -> None:
                                  initargs=(str(POOL_CACHE), str(CONFUSION_JSON))) as ex:
             if "E6" in only:
                 results["E6_family"] = experiment_e6(ex, args, weights, rng)
+            if "E7" in only:
+                results["E7_realistic"] = experiment_e7(ex, args, rng)
         (OUT / "simulation_results.json").write_text(json.dumps(results, indent=1, default=float),
                                                      encoding="utf-8")
         print(f"merged {sorted(only)} -> simulation_results.json ({time.time() - t0:.0f}s)")

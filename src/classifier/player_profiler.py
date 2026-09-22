@@ -331,7 +331,9 @@ def aggregate_opportunities(
         rate = (hits[cat] + strength * expected) / (n[cat] + strength)
         stats[cat] = {"hits": round(hits[cat], 4), "n": round(n[cat], 4),
                       "raw_n": raw_n[cat], "rate": round(rate, 4),
-                      "expected": round(expected, 4)}
+                      "expected": round(expected, 4),
+                      # share of `rate` that comes from this player's own record
+                      "personal_weight": round(n[cat] / (n[cat] + strength), 4)}
     return stats, round(overall, 4)
 
 
@@ -407,7 +409,12 @@ def profile_to_irt_prior(profile: PlayerProfile) -> dict[str, tuple[float, float
             # how hard a motif is for everyone), so compare against what is
             # typical for this category at this player's level when norms exist.
             mu = max(-1.5, min(1.5, _logit(rate) - _logit(s.get("expected", base))))
-            info = GAME_EVIDENCE_WEIGHT * s["n"] * rate * (1.0 - rate)
+            # Credit only the personal share of the evidence: under heavy
+            # population pooling (the cohort's cross-validated strength is
+            # ~128-256) a player's own record says little about their δ, and
+            # the prior must stay wide enough for puzzle attempts to move it.
+            share = s.get("personal_weight", 1.0)
+            info = GAME_EVIDENCE_WEIGHT * share * s["n"] * rate * (1.0 - rate)
             sd = 1.0 / math.sqrt(1.0 / IRT_DELTA_SD ** 2 + info)
             prior[cat] = (round(mu, 4), round(sd, 4))
         return prior

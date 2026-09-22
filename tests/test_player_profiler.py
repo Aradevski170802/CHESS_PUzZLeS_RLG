@@ -12,8 +12,19 @@ from src.classifier.player_profiler import (
     profile_to_bandit_priors,
     profile_to_irt_prior,
 )
+# Bound at import, before the autouse fixture below replaces it, so the
+# loader itself can still be tested.
+from src.classifier.player_profiler import load_category_norms as _real_load_norms
 from src.classifier.stockfish_analyzer import GameAnalysis, Opportunity
 from src.data.puzzle_loader import WEAKNESS_CATEGORIES
+
+
+@pytest.fixture(autouse=True)
+def _no_population_norms(monkeypatch):
+    """Keep these tests hermetic: the shipped norms file must not change them.
+    TestPopulationNorms installs its own norms explicitly."""
+    import src.classifier.player_profiler as pp
+    monkeypatch.setattr(pp, "load_category_norms", lambda *a, **k: None)
 
 
 def _opp(cat, hit):
@@ -135,5 +146,30 @@ class TestPopulationNorms:
         assert abs(prior["Fork"][0]) < 0.1
 
     def test_missing_norms_file_means_fallback(self, tmp_path):
+        assert _real_load_norms(tmp_path / "nope.json") is None
+
+    def test_loader_reads_a_norms_file(self, tmp_path):
+        import json
+        path = tmp_path / "norms.json"
+        path.write_text(json.dumps({"offsets": {"Fork": 0.1}, "shrink_strength": 8}), encoding="utf-8")
+        assert _real_load_norms(path)["offsets"]["Fork"] == 0.1
+
+    def test_shipped_norms_file_is_valid(self):
+        import json
         import src.classifier.player_profiler as pp
-        assert pp.load_category_norms(tmp_path / "nope.json") is None
+        norms = json.loads(pp.NORMS_PATH.read_text(encoding="utf-8"))
+        assert norms["shrink_strength"] >= 1
+        assert norms["players"] >= 100
+        for cat in ("Fork", "Pin", "Hanging Piece", "Mating Pattern"):
+            assert cat in norms["offsets"]
+        assert "username" not in json.dumps(norms).lower()   # aggregate statistics only
+
+    def test_heavy_pooling_keeps_the_irt_prior_wide(self, monkeypatch):
+        import src.classifier.player_profiler as pp
+        norms = {"offsets": {"Fork": 0.0, "Quiet Move": 0.0}, "shrink_strength": 256.0}
+        monkeypatch.setattr(pp, "load_category_norms", lambda *a, **k: norms)
+        prior = profile_to_irt_prior(build_profile(self._games(), "u", 1500))
+        # 10 game opportunities barely count against 256 pseudo-opportunities,
+        # so the prior sd stays close to the default and puzzles can move it.
+        assert prior["Quiet Move"][1] > 0.58
+        assert abs(prior["Quiet Move"][0]) < 0.25
