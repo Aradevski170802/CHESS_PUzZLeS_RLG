@@ -11,10 +11,13 @@ GET  /api/player/lookup             → Chess.com profile card (fast, no analysi
 POST /api/analysis/start            → launch background game-analysis thread
 GET  /api/analysis/status/<user>    → poll analysis progress
 POST /api/session/start             → create Thompson-Sampling bandit for user
-GET  /api/session/puzzle            → adaptive puzzle (bandit-selected, rating-matched, skips solved)
+GET  /api/session/puzzle            → adaptive puzzle (bandit-selected, rating-matched, never repeats)
 GET  /api/eval                      → Stockfish evaluation for a FEN position (eval bar)
-POST /api/session/result            → record solve/fail, update bandit, persist to disk
+POST /api/session/result            → record solve/fail/skip, update bandit, persist to disk
+GET  /api/session/seen              → puzzle IDs already finished by this user
+DEL  /api/session/seen              → forget played puzzles so the pool can be replayed
 GET  /api/session/stats             → session accuracy, streak, weakness map
+GET  /api/session/model/<user>      → per-category skill ratings ± RD (IRT learner)
 GET  /api/user/stats/<user>         → all-time stats from persisted history (auth required)
 POST /api/auth/challenge            → issue Chess.com ownership verification code
 POST /api/auth/verify-chess         → check Chess.com location field contains code
@@ -24,6 +27,7 @@ GET  /api/auth/check                → validate a stored token (for auto-login)
 """
 from __future__ import annotations
 
+import atexit
 import hashlib
 import json
 import os
@@ -39,6 +43,7 @@ from pathlib import Path
 
 import pandas as pd
 from flask import Flask, jsonify, request, send_from_directory
+from flask.json.provider import DefaultJSONProvider
 from flask_cors import CORS
 
 try:
@@ -51,16 +56,75 @@ except ImportError:
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
-from src.data.puzzle_loader import WEAKNESS_CATEGORIES
+from src.data.puzzle_loader import (
+    LOW_QUALITY_THEMES,
+    WEAKNESS_CATEGORIES,
+    resolve_primary_category,
+)
 from src.recommender.bandit import ThompsonBandit
+from src.recommender.irt_model import (
+    DEFAULT_PUZZLE_RD,
+    MINED_PUZZLE_RD,
+    IRTLearner,
+)
 
 FRONTEND_DIR      = ROOT / "web" / "frontend"
 PROCESSED_PARQUET = ROOT / "data" / "processed" / "puzzles_full.parquet"
 RAW_CSV           = ROOT / "DataSets" / "lichess_db_puzzle.csv"
 SESSIONS_DIR      = ROOT / "data" / "sessions"
 
+# Which weakness-scoring model analysis_start() should try first when Stockfish
+# analysis succeeds. "rule-based" (default) = player_profiler.build_profile(),
+# the hand-tuned-but-Stockfish-verified scorer. "ml" = ml_weakness_model's
+# trained RandomForest classifier -- opt-in, since it is currently trained and
+# cross-validated on simulated players (see dissertation_documentation.md §7.2),
+# not yet on enough real players to trust as the default for every user. Either
+# way, _heuristic_profile() remains the last-resort fallback if Stockfish can't
+# be found at all or the chosen model errors out.
+WEAKNESS_MODEL = os.environ.get("WEAKNESS_MODEL", "rule-based").strip().lower()
+
+# Which policy chooses the next category and difficulty.
+#   "irt"  — difficulty-aware IRT learner (src/recommender/irt_model.py):
+#            Thompson Sampling on per-category ability offsets, and puzzle
+#            difficulty pitched so the predicted solve rate is ~65 %.
+#   "beta" — the original Beta-Bernoulli Thompson bandit with the player's
+#            Elo ± 300 band. Kept for A/B comparison.
+# Both models are updated on every attempt regardless of which one serves,
+# so either can be switched on at any time with a warm posterior.
+RECOMMENDER = os.environ.get("RECOMMENDER", "irt").strip().lower()
+# Discount for the Beta bandit (1.0 = stationary, the original behaviour).
+BANDIT_DISCOUNT = float(os.environ.get("BANDIT_DISCOUNT", "1.0"))
+# Half-width of the rating window around the IRT target difficulty.
+IRT_WINDOW = 150
+# Game-analysis threads: the node-limited MultiPV analysis is heavier per
+# position than the old 50 ms search, so use more of the machine.
+ANALYSIS_WORKERS = max(2, min(8, (os.cpu_count() or 4) // 2))
+
 app = Flask(__name__, static_folder=str(FRONTEND_DIR), static_url_path="")
 CORS(app)
+
+
+# ── JSON safety net ───────────────────────────────────────────────────────────
+# Python's json module happily writes bare `NaN` / `Infinity` literals, which
+# JavaScript's JSON.parse rejects.  Any NaN leaking out of pandas therefore made
+# an entire response unparseable in the browser.  Convert them to null instead.
+
+def _json_safe(obj):
+    if isinstance(obj, float):
+        return None if (obj != obj or obj in (float("inf"), float("-inf"))) else obj
+    if isinstance(obj, dict):
+        return {k: _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
+class _SafeJSONProvider(DefaultJSONProvider):
+    def dumps(self, obj, **kwargs):
+        return super().dumps(_json_safe(obj), **kwargs)
+
+
+app.json = _SafeJSONProvider(app)
 
 # ── Data pools ────────────────────────────────────────────────────────────────
 PUZZLE_POOL:   list[dict] = []
@@ -73,69 +137,86 @@ ANALYSIS_STORE: dict[str, dict] = {}
 GENERATE_STORE: dict[str, dict] = {}
 # username (lowercase) → ThompsonBandit
 SESSION_STORE: dict[str, ThompsonBandit] = {}
+# username (lowercase) → IRTLearner
+IRT_STORE: dict[str, IRTLearner] = {}
+# username → {puzzleId: {policy, propensity, predicted, source}} for the puzzles
+# currently on screen, so /api/session/result can log how each was chosen.
+LAST_SERVED: dict[str, dict[str, dict]] = defaultdict(dict)
+_LAST_SERVED_CAP = 50
+# Guests have no state file, so their "already seen" set lives here for the
+# lifetime of the process.  Capped so a long-running server cannot grow it
+# without bound.
+GUEST_SEEN: set[str] = set()
+_GUEST_SEEN_CAP = 2_000
+# Upper bound on how many puzzle IDs we persist per user.  ~5k covers years of
+# daily training while keeping the state file small.
+_SEEN_HISTORY_CAP = 5_000
 
 # ── Demo fallback puzzles ─────────────────────────────────────────────────────
 DEMO_PUZZLES = [
-    {"PuzzleId": "00008", "FEN": "r6k/pp2r2p/4Rp1Q/3p4/8/1N1P2R1/PqP2bPP/7K b - - 0 1",
-     "Moves": "f2g3 e6e7 b2b1 b3c1 b1c1 h6c1", "Rating": 1862, "RatingDeviation": 76,
-     "Popularity": 95, "NbPlays": 9697, "Themes": "crushing hangingPiece long middlegame",
-     "GameUrl": "https://lichess.org/787zsVup/black#48", "OpeningTags": None,
-     "DifficultyTier": "Hard", "PrimaryCategory": "Hanging Piece", "Categories": ["Hanging Piece"]},
-    {"PuzzleId": "0000D", "FEN": "5rk1/1p3ppp/pq3b2/8/8/1P1Q1N2/P4PPP/3R2K1 w - - 1 26",
-     "Moves": "d3d6 f8d8 d6d8 f6d8", "Rating": 1579, "RatingDeviation": 73,
-     "Popularity": 96, "NbPlays": 36672, "Themes": "advantage endgame short",
-     "GameUrl": "https://lichess.org/F8M8OS71#53", "OpeningTags": None,
-     "DifficultyTier": "Advanced", "PrimaryCategory": "Endgame", "Categories": ["Endgame"]},
-    {"PuzzleId": "000Pw", "FEN": "6k1/5p1p/4p3/4q3/3nN3/2Q3P1/PP3P1P/6K1 w - - 2 37",
-     "Moves": "e4d2 d4e2 g1f1 e2c3", "Rating": 1550, "RatingDeviation": 75,
-     "Popularity": 92, "NbPlays": 626, "Themes": "crushing endgame fork short",
-     "GameUrl": "https://lichess.org/au2lCK5o#73", "OpeningTags": None,
-     "DifficultyTier": "Advanced", "PrimaryCategory": "Fork", "Categories": ["Fork", "Endgame"]},
-    {"PuzzleId": "001aB", "FEN": "2rq1rk1/pb1nbppp/1p2p3/3pP3/3P1P2/Q1PB1N2/P4PPP/R1B1R1K1 b - - 0 1",
-     "Moves": "d7c5 d3h7 g8h7 q3h3 h7g8 h3h8", "Rating": 1900, "RatingDeviation": 80,
-     "Popularity": 88, "NbPlays": 1200, "Themes": "crushing sacrifice middlegame long",
-     "GameUrl": "https://lichess.org/example1#40", "OpeningTags": None,
-     "DifficultyTier": "Hard", "PrimaryCategory": "Sacrifice", "Categories": ["Sacrifice"]},
-    {"PuzzleId": "002mP", "FEN": "r1bqkb1r/pppp1ppp/2n2n2/4p3/2B1P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 4 4",
-     "Moves": "f3e5 f6e4 d1f3 e4f2 f3f7", "Rating": 1320, "RatingDeviation": 72,
-     "Popularity": 93, "NbPlays": 15000, "Themes": "mateIn2 middlegame short",
-     "GameUrl": "https://lichess.org/example2#8", "OpeningTags": "Italian_Game",
-     "DifficultyTier": "Intermediate", "PrimaryCategory": "Mating Pattern", "Categories": ["Mating Pattern"]},
-    {"PuzzleId": "003xY", "FEN": "6k1/pp3p1p/2p3p1/2b5/2Bn4/1P4P1/P4P1P/3R2K1 b - - 0 25",
-     "Moves": "d4f3 g1f1 c5e3 d1d8", "Rating": 1450, "RatingDeviation": 78,
-     "Popularity": 85, "NbPlays": 3400, "Themes": "crushing fork endgame short",
-     "GameUrl": "https://lichess.org/example3#50", "OpeningTags": None,
-     "DifficultyTier": "Intermediate", "PrimaryCategory": "Fork", "Categories": ["Fork", "Endgame"]},
-    {"PuzzleId": "004rZ", "FEN": "r4rk1/1pp2ppp/p1np1n2/2b1p1B1/2B1P1b1/P1NP1N2/1PP2PPP/R2QR1K1 w - - 0 10",
-     "Moves": "g5f6 g7f6 c4f7 g8h8 d1d3", "Rating": 1700, "RatingDeviation": 82,
-     "Popularity": 90, "NbPlays": 5600, "Themes": "crushing sacrifice middlegame long",
-     "GameUrl": "https://lichess.org/example4#20", "OpeningTags": None,
-     "DifficultyTier": "Hard", "PrimaryCategory": "Sacrifice", "Categories": ["Sacrifice"]},
-    {"PuzzleId": "007hK", "FEN": "8/8/8/8/3k4/8/4R1K1/8 w - - 0 1",
-     "Moves": "e2e4 d4d3 e4e3", "Rating": 950, "RatingDeviation": 80,
-     "Popularity": 85, "NbPlays": 2100, "Themes": "rookEndgame endgame",
-     "GameUrl": "", "OpeningTags": None,
-     "DifficultyTier": "Easy", "PrimaryCategory": "Rook Endgame", "Categories": ["Rook Endgame"]},
-    {"PuzzleId": "008aB", "FEN": "r2qkb1r/pp3ppp/2n1pn2/2pp4/3P1B2/2PBPN2/PP3PPP/RN1QK2R b KQkq - 0 8",
-     "Moves": "c5d4 c3d4 f6e4 d4e5 d8a5", "Rating": 1620, "RatingDeviation": 76,
-     "Popularity": 89, "NbPlays": 5300, "Themes": "hangingPiece middlegame",
-     "GameUrl": "", "OpeningTags": None,
-     "DifficultyTier": "Advanced", "PrimaryCategory": "Hanging Piece", "Categories": ["Hanging Piece"]},
-    {"PuzzleId": "009kT", "FEN": "r1b2rk1/pp2ppbp/2np1np1/q7/3NP3/2N1BP2/PPPQ2PP/R3KB1R w KQ - 3 10",
-     "Moves": "d4c6 b7c6 d2a5 d8a5", "Rating": 1250, "RatingDeviation": 74,
-     "Popularity": 88, "NbPlays": 7200, "Themes": "hangingPiece middlegame",
-     "GameUrl": "", "OpeningTags": None,
-     "DifficultyTier": "Intermediate", "PrimaryCategory": "Hanging Piece", "Categories": ["Hanging Piece"]},
-    {"PuzzleId": "010vR", "FEN": "r2q1rk1/pp1bppbp/3p1np1/3P4/2P1PP2/2N5/PP1QB1PP/R3K2R b KQ - 0 13",
-     "Moves": "f6d5 c3d5 g7d4 d2d4", "Rating": 1680, "RatingDeviation": 79,
-     "Popularity": 86, "NbPlays": 3900, "Themes": "fork middlegame",
-     "GameUrl": "", "OpeningTags": None,
-     "DifficultyTier": "Advanced", "PrimaryCategory": "Fork", "Categories": ["Fork"]},
-    {"PuzzleId": "011pK", "FEN": "r3k2r/ppp2ppp/2n1bn2/3qp3/3P4/2N1PN2/PPP1BPPP/R2QK2R b KQkq - 0 9",
-     "Moves": "d5d4 c3b5 d4b2 b5c7 e8d8 c7a8", "Rating": 1780, "RatingDeviation": 77,
-     "Popularity": 87, "NbPlays": 4200, "Themes": "pin middlegame long",
-     "GameUrl": "", "OpeningTags": None,
-     "DifficultyTier": "Hard", "PrimaryCategory": "Pin", "Categories": ["Pin"]},
+    # Verified fallback set — every FEN parses and every move in every
+    # sequence is legal (checked against python-chess).  Used only when no
+    # dataset is present.  Do not hand-edit without re-validating.
+    {"PuzzleId": "5NS8U", "FEN": "3r4/1k3p2/1p2p3/1PP2p2/2K2P2/R4RP1/8/7r b - - 2 42",
+     "Moves": "d8c8 c5c6 c8c6 b5c6", "Rating": 906, "RatingDeviation": 76,
+     "Popularity": 98, "NbPlays": 18815, "Themes": "advantage endgame rookEndgame short",
+     "GameUrl": "https://lichess.org/KMFX0yYa/black#84", "OpeningTags": None,
+     "DifficultyTier": "Beginner", "PrimaryCategory": "Rook Endgame", "Categories": ['Rook Endgame']},
+    {"PuzzleId": "7K7yL", "FEN": "r3rn1k/pp4R1/2pq3p/4p2Q/2BP4/2P1P2P/PP4P1/R5K1 b - - 0 21",
+     "Moves": "h8g7 h5f7 g7h8 f7g8", "Rating": 908, "RatingDeviation": 77,
+     "Popularity": 98, "NbPlays": 18352, "Themes": "mate mateIn2 middlegame short",
+     "GameUrl": "https://lichess.org/kwUM6zSi/black#42", "OpeningTags": None,
+     "DifficultyTier": "Beginner", "PrimaryCategory": "Mating Pattern", "Categories": ['Mating Pattern']},
+    {"PuzzleId": "7wpkn", "FEN": "1k6/pp2bp2/2p3rp/1q1p1Q2/3P1P2/1P2P1P1/P4K1P/R1N1n3 b - - 1 31",
+     "Moves": "g6f6 f5e5 b8c8 e5e7", "Rating": 1169, "RatingDeviation": 78,
+     "Popularity": 95, "NbPlays": 32206, "Themes": "advantage fork middlegame short",
+     "GameUrl": "https://lichess.org/hNwDfB33/black#62", "OpeningTags": None,
+     "DifficultyTier": "Easy", "PrimaryCategory": "Fork", "Categories": ['Fork']},
+    {"PuzzleId": "ALDCT", "FEN": "r1b1k1nr/pp3ppp/2n5/q1bQ4/4N3/6P1/PP2PP1P/R1B1KBNR w KQkq - 3 9",
+     "Moves": "c1d2 c5f2 e4f2 a5d5", "Rating": 1154, "RatingDeviation": 77,
+     "Popularity": 95, "NbPlays": 32058, "Themes": "attackingF2F7 crushing discoveredAttack opening short",
+     "GameUrl": "https://lichess.org/JEeJ9pO0#17", "OpeningTags": None,
+     "DifficultyTier": "Easy", "PrimaryCategory": "Discovered Attack", "Categories": ['Discovered Attack']},
+    {"PuzzleId": "83wOc", "FEN": "r1b2k2/pp3PR1/2p2n1P/3p4/3P4/1PN5/P1PK4/8 b - - 2 28",
+     "Moves": "b7b5 h6h7 f6h7 g7h7", "Rating": 1404, "RatingDeviation": 79,
+     "Popularity": 95, "NbPlays": 47594, "Themes": "advancedPawn advantage endgame short",
+     "GameUrl": "https://lichess.org/2umPGLGl/black#56", "OpeningTags": None,
+     "DifficultyTier": "Intermediate", "PrimaryCategory": "Endgame", "Categories": ['Endgame']},
+    {"PuzzleId": "1C0l6", "FEN": "2k2r1r/pppq2p1/1bn1p3/4p1Bp/Q7/3P2P1/PP2PPBP/2R2RK1 b - - 5 16",
+     "Moves": "c6d4 g2b7 c8b7 a4d7", "Rating": 1488, "RatingDeviation": 75,
+     "Popularity": 96, "NbPlays": 47039, "Themes": "crushing deflection middlegame queensideAttack short",
+     "GameUrl": "https://lichess.org/Fxp9fbmG/black#32", "OpeningTags": None,
+     "DifficultyTier": "Intermediate", "PrimaryCategory": "Deflection", "Categories": ['Deflection']},
+    {"PuzzleId": "98cVb", "FEN": "4k2r/1q2ppb1/2bp2p1/p1p5/1rPnP3/1P1QBPPp/P4R1P/1RN2NK1 w k - 1 24",
+     "Moves": "c1e2 d4f3 f2f3 c6e4", "Rating": 1543, "RatingDeviation": 75,
+     "Popularity": 95, "NbPlays": 45508, "Themes": "crushing kingsideAttack middlegame short",
+     "GameUrl": "https://lichess.org/2OxvKBTv#47", "OpeningTags": None,
+     "DifficultyTier": "Advanced", "PrimaryCategory": "King Safety", "Categories": ['King Safety']},
+    {"PuzzleId": "79NI0", "FEN": "r3k2r/p1qp1pp1/1pn1p3/1Bb1P2p/5B2/2N2P2/PPPQ3P/2KR4 b kq - 4 15",
+     "Moves": "e8c8 b5a6 c8b8 c3b5 d7d6 b5c7", "Rating": 1557, "RatingDeviation": 77,
+     "Popularity": 94, "NbPlays": 45492, "Themes": "crushing long middlegame queensideAttack trappedPiece",
+     "GameUrl": "https://lichess.org/NRu3IZPv/black#30", "OpeningTags": None,
+     "DifficultyTier": "Advanced", "PrimaryCategory": "Hanging Piece", "Categories": ['Hanging Piece']},
+    {"PuzzleId": "5uDSr", "FEN": "4r3/pR6/6pk/3P4/1P4R1/5p2/r2P1P2/3K4 w - - 1 34",
+     "Moves": "g4f4 e8e1 d1e1 a2a1", "Rating": 1892, "RatingDeviation": 79,
+     "Popularity": 93, "NbPlays": 154083, "Themes": "attraction endgame mate mateIn2 rookEndgame sacrifice short",
+     "GameUrl": "https://lichess.org/lHnU7Ldg#67", "OpeningTags": None,
+     "DifficultyTier": "Hard", "PrimaryCategory": "Mating Pattern", "Categories": ['Mating Pattern']},
+    {"PuzzleId": "2vVE7", "FEN": "5r1k/1pp3p1/pb1p1q1p/5r2/3PQn1N/6BP/PP3PP1/2R1R1K1 b - - 9 25",
+     "Moves": "f5h5 e4f4 f6f4 h4g6 h8h7 g6f4", "Rating": 1941, "RatingDeviation": 75,
+     "Popularity": 92, "NbPlays": 148713, "Themes": "attraction crushing fork long middlegame sacrifice",
+     "GameUrl": "https://lichess.org/JqItJ6B1/black#50", "OpeningTags": None,
+     "DifficultyTier": "Hard", "PrimaryCategory": "Fork", "Categories": ['Fork']},
+    {"PuzzleId": "6Sz3s", "FEN": "4k2r/p5pp/3bp3/4n3/1r5q/4Q3/PP2B1PP/R1B2R1K w k - 3 21",
+     "Moves": "e3a7 h4h2 h1h2 e5f3 h2h3 b4h4", "Rating": 2078, "RatingDeviation": 78,
+     "Popularity": 93, "NbPlays": 195444, "Themes": "attraction discoveredCheck doubleCheck long mate mateIn3 middlegame pillsburysMate sacrifice",
+     "GameUrl": "https://lichess.org/zgBwsXLr#41", "OpeningTags": None,
+     "DifficultyTier": "Expert", "PrimaryCategory": "Mating Pattern", "Categories": ['Mating Pattern']},
+    {"PuzzleId": "9nPpJ", "FEN": "2Q5/8/1p1k4/2p3P1/2K2P2/r7/2P5/r7 w - - 0 50",
+     "Moves": "g5g6 b6b5 c4b5 a1b1 b5c4 b1b4", "Rating": 2035, "RatingDeviation": 73,
+     "Popularity": 94, "NbPlays": 177645, "Themes": "attraction endgame long mate mateIn3 queenRookEndgame",
+     "GameUrl": "https://lichess.org/uynEluFS#99", "OpeningTags": None,
+     "DifficultyTier": "Expert", "PrimaryCategory": "Mating Pattern", "Categories": ['Mating Pattern']},
 ]
 
 
@@ -148,6 +229,55 @@ _PARQUET_COLS = [
 ]
 _POOL_CAP = 200_000   # puzzles kept in RAM
 
+# ── Pool quality gate ─────────────────────────────────────────────────────────
+# The Lichess dump contains a lot of material that is technically a valid puzzle
+# but reads as nonsense in a tactics trainer.  Every threshold below removes a
+# specific failure mode users reported as "this puzzle makes no sense":
+#
+#   MIN_POPULARITY   Lichess community up/down-vote ratio.  Below ~85 the
+#                    community itself flags the puzzle as poor.
+#   MIN_NB_PLAYS     Rating is meaningless on a puzzle nobody has solved.
+#   MAX_RATING_DEV   High deviation = the difficulty label is a guess.
+#   MIN_HALF_MOVES   3 = opponent setup move + player move + a reply.  Two-move
+#                    puzzles are single recaptures with nothing to find.
+#   General category The puzzle carries no recognisable motif (`advantage
+#                    middlegame short`) — nothing to learn, no honest label.
+#   LOW_QUALITY_THEMES  `equality` (hold the draw) and `defensiveMove` (retreat)
+#                    — correct answers that feel wrong when drilling tactics.
+MIN_POPULARITY = 85
+MIN_NB_PLAYS   = 250
+MAX_RATING_DEV = 90
+MIN_HALF_MOVES = 3
+MIN_RATING     = 600
+MAX_RATING     = 2400
+
+
+def _apply_quality_gate(df: pd.DataFrame) -> pd.DataFrame:
+    """Filter a raw puzzle frame down to the pool we are willing to serve.
+
+    Also recomputes PrimaryCategory with the priority-ordered resolver so a
+    stale parquet (built with the old tag-order rule) is corrected in memory —
+    no dataset rebuild required.
+    """
+    themes = df["Themes"].fillna("")
+    n_moves = df["Moves"].fillna("").str.split().str.len()
+    rating_dev = (
+        df["RatingDeviation"] if "RatingDeviation" in df.columns
+        else pd.Series(0, index=df.index)
+    )
+
+    mask = (
+        df["Rating"].between(MIN_RATING, MAX_RATING)
+        & (df["Popularity"] >= MIN_POPULARITY)
+        & (df["NbPlays"] >= MIN_NB_PLAYS)
+        & (rating_dev <= MAX_RATING_DEV)
+        & (n_moves >= MIN_HALF_MOVES)
+        & ~themes.apply(lambda t: bool(set(t.split()) & LOW_QUALITY_THEMES))
+    )
+    out = df[mask].copy()
+    out["PrimaryCategory"] = out["Themes"].fillna("").apply(resolve_primary_category)
+    return out[out["PrimaryCategory"] != "General"]
+
 
 def _load_puzzles() -> None:
     global PUZZLE_POOL
@@ -159,19 +289,18 @@ def _load_puzzles() -> None:
         import pyarrow.parquet as _pq
         pf   = _pq.ParquetFile(str(PROCESSED_PARQUET))
         n_rg = pf.metadata.num_row_groups
-        # Guess target_fraction conservatively (upper-bound after filter ≈ 80 %)
         target_per_rg = max(1, _POOL_CAP // n_rg)
         avail_cols = pf.schema_arrow.names
         cols = [c for c in _PARQUET_COLS if c in avail_cols]
 
         chunks: list[pd.DataFrame] = []
+        kept = dropped = 0
         for i in range(n_rg):
             rg = pf.read_row_group(i, columns=cols).to_pandas()
-            rg = rg[
-                rg["Rating"].between(600, 2400)
-                & (rg["Popularity"] >= 60)
-                & (rg["NbPlays"] >= 100)
-            ]
+            raw_n = len(rg)
+            rg = _apply_quality_gate(rg)
+            kept    += len(rg)
+            dropped += raw_n - len(rg)
             if len(rg) > target_per_rg:
                 rg = rg.sample(target_per_rg, random_state=42 + i)
             chunks.append(rg)
@@ -180,15 +309,12 @@ def _load_puzzles() -> None:
         if len(df) > _POOL_CAP:
             df = df.sample(_POOL_CAP, random_state=42)
         PUZZLE_POOL = df.to_dict("records")
+        print(f"Quality gate: kept {kept:,} / {kept + dropped:,} "
+              f"({kept / max(1, kept + dropped) * 100:.1f}%)")
     elif RAW_CSV.exists():
         print(f"Loading sample from CSV: {RAW_CSV}")
-        df = pd.read_csv(RAW_CSV, nrows=100_000)
-        df = df[
-            (df["Rating"].between(600, 2400))
-            & (df["Popularity"] >= 60)
-            & (df["NbPlays"] >= 100)
-        ].copy()
-        PUZZLE_POOL = df.to_dict("records")
+        df = pd.read_csv(RAW_CSV, nrows=400_000)
+        PUZZLE_POOL = _apply_quality_gate(df).to_dict("records")
     else:
         print("WARNING: No data found — demo mode (12 puzzles).")
         PUZZLE_POOL = DEMO_PUZZLES
@@ -235,6 +361,26 @@ def _pick_valid(pool: list, tries: int = 20):
     return None
 
 
+def _is_missing(v) -> bool:
+    """True for None and for pandas' float('nan') placeholder."""
+    return v is None or (isinstance(v, float) and v != v)
+
+
+def _text(v) -> str:
+    """Coerce a possibly-NaN dataframe cell to a JSON-safe string.
+
+    Empty CSV cells arrive from pandas as float('nan'), which is *truthy*, so
+    `value or ""` let it through — and Flask serialises it as a bare `NaN`
+    literal.  That is not valid JSON, so `response.json()` threw in the browser
+    and every affected puzzle silently fell back to the built-in demo set.
+    """
+    return "" if _is_missing(v) else str(v)
+
+
+def _num(v, default: int = 0) -> int:
+    return default if _is_missing(v) else int(v)
+
+
 def _serialise(puzzle: dict) -> dict:
     themes_raw = puzzle.get("Themes", "") or ""
     themes = themes_raw.split() if isinstance(themes_raw, str) else []
@@ -251,20 +397,24 @@ def _serialise(puzzle: dict) -> dict:
         except Exception:
             categories = []
 
+    game_url = _text(puzzle.get("GameUrl"))
+    if not game_url.startswith("http"):
+        game_url = ""   # some generated rows stored the literal "Chess.com"
+
     return {
-        "id":             puzzle["PuzzleId"],
-        "fen":            puzzle["FEN"],
+        "id":             _text(puzzle["PuzzleId"]),
+        "fen":            _text(puzzle["FEN"]),
         "moves":          puzzle["Moves"].split() if isinstance(puzzle["Moves"], str) else list(puzzle["Moves"]),
-        "rating":         int(puzzle["Rating"]),
-        "ratingDeviation": int(puzzle.get("RatingDeviation", 80)),
-        "popularity":     int(puzzle.get("Popularity", 80)),
-        "nbPlays":        int(puzzle.get("NbPlays", 0)),
+        "rating":         _num(puzzle.get("Rating"), 1200),
+        "ratingDeviation": _num(puzzle.get("RatingDeviation"), 80),
+        "popularity":     _num(puzzle.get("Popularity"), 80),
+        "nbPlays":        _num(puzzle.get("NbPlays"), 0),
         "themes":         display_themes,
-        "categories":     categories,
-        "primaryCategory": puzzle.get("PrimaryCategory", "General"),
-        "difficultyTier": puzzle.get("DifficultyTier", ""),
-        "gameUrl":        puzzle.get("GameUrl", ""),
-        "openingTags":    puzzle.get("OpeningTags") or "",
+        "categories":     [_text(c) for c in categories],
+        "primaryCategory": _text(puzzle.get("PrimaryCategory")) or "General",
+        "difficultyTier": _text(puzzle.get("DifficultyTier")),
+        "gameUrl":        game_url,
+        "openingTags":    _text(puzzle.get("OpeningTags")),
     }
 
 
@@ -354,6 +504,14 @@ def _heuristic_profile(parsed_games: list[dict], username: str):
 
 
 def _serialise_profile(profile) -> dict:
+    # Prefer evidence-based scores (misses / opportunities) when the analysis
+    # produced enough critical positions; the ML path keeps its own scores.
+    scores, source = profile.weakness_scores, "rules"
+    if getattr(profile, "has_opportunity_data", False) and WEAKNESS_MODEL != "ml":
+        scores, source = profile.empirical_weakness_scores(), "opportunities"
+    elif WEAKNESS_MODEL == "ml":
+        source = "ml"
+    opp_stats = getattr(profile, "opportunity_stats", {}) or {}
     return {
         "username":       profile.username,
         "estimatedElo":   profile.estimated_elo,
@@ -362,7 +520,11 @@ def _serialise_profile(profile) -> dict:
         "gamesLost":      profile.games_lost,
         "gamesDrawn":     profile.games_drawn,
         "winRate":        round(profile.win_rate * 100, 1),
-        "weaknessScores": {k: round(v, 3) for k, v in profile.weakness_scores.items()},
+        "accuracy":       round(getattr(profile, "accuracy_estimate", 0.0), 1),
+        "weaknessScores": {k: round(v, 3) for k, v in scores.items()},
+        "weaknessSource": source,
+        "opportunities":  {k: {"n": v["raw_n"], "hitRate": v["rate"]} for k, v in opp_stats.items()},
+        "overallHitRate": getattr(profile, "overall_hit_rate", None),
         "topOpeningsWhite": [
             {"family": o.family, "games": o.games_played,
              "winRate": round(o.win_rate * 100, 1)}
@@ -398,6 +560,40 @@ def _save_user_state(username: str, state: dict) -> None:
     SESSIONS_DIR.mkdir(parents=True, exist_ok=True)
     path = SESSIONS_DIR / f"{username}.json"
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2), encoding="utf-8")
+
+
+# ── "Already seen" tracking ───────────────────────────────────────────────────
+# A puzzle is *seen* once the player has finished with it — solved, failed, or
+# revealed the solution.  Seen puzzles are never served again while unseen ones
+# remain, so a finished puzzle cannot come back the next time you press Next.
+
+def _seen_ids(username: str) -> set[str]:
+    """Every puzzle ID this user has already finished (solved or not)."""
+    if username == "guest":
+        return set(GUEST_SEEN)
+    saved = _load_user_state(username)
+    if not saved:
+        return set()
+    return set(saved.get("attemptedPuzzleIds", [])) | set(saved.get("solvedPuzzleIds", []))
+
+
+def _mark_seen(state: dict, puzzle_id: str, solved: bool) -> None:
+    """Record a finished puzzle on a user-state dict (caller persists it)."""
+    if not puzzle_id:
+        return
+    attempted = list(dict.fromkeys(state.get("attemptedPuzzleIds", []) + [puzzle_id]))
+    state["attemptedPuzzleIds"] = attempted[-_SEEN_HISTORY_CAP:]
+    if solved:
+        solved_ids = list(dict.fromkeys(state.get("solvedPuzzleIds", []) + [puzzle_id]))
+        state["solvedPuzzleIds"] = solved_ids[-_SEEN_HISTORY_CAP:]
+
+
+def _mark_guest_seen(puzzle_id: str) -> None:
+    if not puzzle_id:
+        return
+    if len(GUEST_SEEN) >= _GUEST_SEEN_CAP:
+        GUEST_SEEN.clear()
+    GUEST_SEEN.add(puzzle_id)
 
 
 # ── Auth helpers ─────────────────────────────────────────────────────────────
@@ -757,10 +953,12 @@ def analysis_start():
 
     def _run():
         try:
-            import shutil
             from src.api.chess_com_fetcher import get_player_profile, get_recent_games, get_best_rating
+            from src.classifier.stockfish_analyzer import find_stockfish
             from src.data.pgn_parser import parse_games_bulk
-            from src.classifier.player_profiler import build_profile, profile_to_bandit_priors
+            from src.classifier.player_profiler import (
+                build_profile, profile_to_bandit_priors, profile_to_irt_prior,
+            )
 
             ANALYSIS_STORE[username]["message"] = "Fetching profile from Chess.com…"
             ch_profile = get_player_profile(username)
@@ -771,18 +969,41 @@ def analysis_start():
             pgns = get_recent_games(username, n=50)
             ANALYSIS_STORE[username]["progress"] = 35
 
-            profile = None
-            sf_path = shutil.which("stockfish")  # None if not in PATH
+            profile     = None
+            model_used  = None
+            # Was shutil.which("stockfish") -- only matched a binary literally
+            # named "stockfish" on PATH, so it never found the bundled engine at
+            # stockfish/stockfish-windows-x86-64-avx2.exe and this analysis path
+            # silently fell back to the heuristic scorer below on every run.
+            # find_stockfish() checks that bundled path too (see §6.1 of
+            # dissertation_documentation.md for how this was found).
+            sf_path = find_stockfish()
 
             if sf_path:
                 try:
                     from src.classifier.stockfish_analyzer import analyze_games_parallel
                     ANALYSIS_STORE[username]["message"] = f"Running Stockfish on {len(pgns)} games…"
-                    analyses = analyze_games_parallel(pgns, username, sf_path, workers=2)
+                    analyses = analyze_games_parallel(
+                        pgns, username, sf_path, workers=ANALYSIS_WORKERS,
+                        progress_callback=lambda done, total: ANALYSIS_STORE[username].update(
+                            progress=35 + int(50 * done / max(1, total))),
+                    )
                     ANALYSIS_STORE[username]["progress"] = 85
                     successful = [a for a in analyses if not getattr(a, "failed", True)]
                     if successful:
-                        profile = build_profile(analyses, username, estimated_elo=elo)
+                        if WEAKNESS_MODEL == "ml":
+                            try:
+                                from src.classifier.ml_weakness_model import (
+                                    build_profile_ml, DEFAULT_MODEL_PATH,
+                                )
+                                if DEFAULT_MODEL_PATH.exists():
+                                    profile = build_profile_ml(analyses, username, estimated_elo=elo)
+                                    model_used = "ml (RandomForest, trained on simulated players)"
+                            except Exception:
+                                profile = None  # fall through to the rule-based scorer below
+                        if profile is None:
+                            profile    = build_profile(analyses, username, estimated_elo=elo)
+                            model_used = model_used or "rule-based (Stockfish-verified)"
                 except Exception:
                     pass  # fall through to heuristic
 
@@ -790,17 +1011,23 @@ def analysis_start():
                 ANALYSIS_STORE[username]["message"] = "Building weakness profile (heuristic)…"
                 parsed = [g for g in parse_games_bulk(pgns, username) if g]
                 ANALYSIS_STORE[username]["progress"] = 60
-                profile = _heuristic_profile(parsed, username)
+                profile    = _heuristic_profile(parsed, username)
+                model_used = "heuristic (no Stockfish found, or analysis failed)"
 
             ANALYSIS_STORE[username]["progress"] = 95
             priors = profile_to_bandit_priors(profile)
+            irt_prior = profile_to_irt_prior(profile)
             serialised = _serialise_profile(profile)
             ANALYSIS_STORE[username].update({
-                "status":   "done",
-                "progress": 100,
-                "message":  "Analysis complete!",
-                "priors":   {k: list(v) for k, v in priors.items()},
-                "profile":  serialised,
+                "status":    "done",
+                "progress":  100,
+                "message":   "Analysis complete!",
+                "priors":    {k: list(v) for k, v in priors.items()},
+                "irtPrior":  {k: list(v) for k, v in irt_prior.items()},
+                "profile":   serialised,
+                "modelUsed": model_used,
+                "evidence":  "opportunities" if getattr(profile, "has_opportunity_data", False)
+                             else "weakness-scores",
             })
             # Persist profile + ELO so the dashboard reloads on next visit
             if username != "guest":
@@ -809,6 +1036,7 @@ def analysis_start():
                 }
                 _ustate["profile"]      = serialised
                 _ustate["estimatedElo"] = profile.estimated_elo
+                _ustate["irtPrior"]     = {k: list(v) for k, v in irt_prior.items()}
                 _ustate["lastUpdated"]  = _now_iso()
                 _save_user_state(username, _ustate)
 
@@ -835,8 +1063,9 @@ def analysis_status(username: str):
 
 @app.route("/api/generate/puzzles", methods=["POST"])
 def generate_puzzles():
-    data     = request.get_json(force=True) or {}
-    username = (data.get("username") or "").strip().lower()
+    data              = request.get_json(force=True) or {}
+    username          = (data.get("username") or "").strip().lower()
+    target_categories = data.get("targetCategories") or []
     if not username:
         return jsonify({"error": "username required"}), 400
 
@@ -852,15 +1081,22 @@ def generate_puzzles():
             "status": "error",
         }), 503
 
-    GENERATE_STORE[username] = {"status": "running", "progress": 0, "message": "Starting…", "count": 0}
+    GENERATE_STORE[username] = {
+        "status": "running", "progress": 0, "message": "Starting…",
+        "count": 0, "targetCategories": target_categories,
+    }
 
     def _run():
         try:
             from src.api.chess_com_fetcher import get_recent_games
             from src.puzzles.generator import generate_from_games, save_user_puzzles
 
-            GENERATE_STORE[username]["message"] = "Fetching recent games from Chess.com…"
-            pgns = get_recent_games(username, n=40)
+            target_label = (
+                f" (targeting: {', '.join(target_categories)})"
+                if target_categories else ""
+            )
+            GENERATE_STORE[username]["message"] = f"Fetching recent games from Chess.com{target_label}…"
+            pgns = get_recent_games(username, n=60)
             if not pgns:
                 GENERATE_STORE[username].update({
                     "status": "error",
@@ -870,7 +1106,7 @@ def generate_puzzles():
                 return
             GENERATE_STORE[username]["progress"] = 10
             GENERATE_STORE[username]["message"] = (
-                f"Analysing {len(pgns)} games with Stockfish (quality mode)…"
+                f"Analysing {len(pgns)} games with Stockfish{target_label}…"
             )
 
             def _cb(done, total, found=0):
@@ -878,11 +1114,12 @@ def generate_puzzles():
                 GENERATE_STORE[username]["progress"] = pct
                 found_str = f" — {found} found" if found else ""
                 GENERATE_STORE[username]["message"] = (
-                    f"Game {done}/{total}{found_str}…"
+                    f"Game {done}/{total}{found_str}{target_label}…"
                 )
 
             puzzles = generate_from_games(pgns, username, sf_path,
-                                          max_total=30, progress_callback=_cb)
+                                          max_total=30, progress_callback=_cb,
+                                          target_categories=target_categories or None)
 
             if puzzles:
                 save_user_puzzles(username, puzzles)
@@ -1009,6 +1246,7 @@ def generate_quality(username: str):
         "categories":   categories,
         "perPuzzle":    per_puzzle,
         "solvedIds":    list((_load_user_state(username) or {}).get("solvedPuzzleIds", [])),
+        "seenIds":      sorted(_seen_ids(username)),
     })
 
 
@@ -1104,27 +1342,129 @@ def session_start():
     else:
         priors = None
         if priors_raw:
-            priors = {cat: (int(v[0]), int(v[1])) for cat, v in priors_raw.items()
+            # Floats, not int(): evidence-scaled priors are fractional, and
+            # truncating them threw information away.
+            priors = {cat: (float(v[0]), float(v[1])) for cat, v in priors_raw.items()
                       if isinstance(v, (list, tuple)) and len(v) == 2}
-        bandit = ThompsonBandit(priors=priors)
+        bandit = ThompsonBandit(priors=priors, discount=BANDIT_DISCOUNT)
 
     SESSION_STORE[username] = bandit
+    learner = _init_learner(username, saved, data.get("irtPrior"), estimated_elo)
 
     # Persist ELO and initialise state file for first-time users
-    if username != "guest" and estimated_elo:
+    if username != "guest" and (estimated_elo or saved):
         _s = saved or {"username": username, "history": [], "bestStreak": 0}
-        _s["estimatedElo"] = int(estimated_elo)
+        if estimated_elo:
+            _s["estimatedElo"] = int(estimated_elo)
         _s["lastUpdated"]  = _now_iso()
         if not returning:
             _s["bandit"] = bandit.to_dict()
+        _s["irt"] = learner.to_dict()
         _save_user_state(username, _s)
 
     return jsonify({
         "status":        "ok",
         "returning":     returning,
-        "weaknessMap":   bandit.weakness_map(),
-        "topWeaknesses": bandit.top_weaknesses(5),
+        "policy":        RECOMMENDER,
+        "weaknessMap":   _active_weakness_map(username),
+        "topWeaknesses": _active_top_weaknesses(username),
+        "categoryRatings": _category_ratings(learner),
     })
+
+
+def _init_learner(username: str, saved: dict | None, irt_prior_raw, elo) -> IRTLearner:
+    """Load, rebuild, or create the player's IRT learner, and cache it."""
+    prior = None
+    raw = irt_prior_raw or (saved or {}).get("irtPrior")
+    if raw:
+        prior = {c: (float(v[0]), float(v[1])) for c, v in raw.items()
+                 if isinstance(v, (list, tuple)) and len(v) == 2}
+    elo = elo or (saved or {}).get("estimatedElo")
+    if saved and saved.get("irt"):
+        learner = IRTLearner.from_dict(saved["irt"])
+    elif saved and saved.get("history"):
+        # A player who trained before this model existed: replay their real
+        # attempts so the posterior starts from evidence, not from scratch.
+        learner = IRTLearner.from_history(saved["history"], elo=elo, delta_prior=prior)
+    else:
+        learner = IRTLearner.new(elo=elo, delta_prior=prior)
+    IRT_STORE[username] = learner
+    return learner
+
+
+def _learner(username: str) -> IRTLearner:
+    learner = IRT_STORE.get(username)
+    if learner is None:
+        saved = _load_user_state(username) if username != "guest" else None
+        learner = _init_learner(username, saved, None, None)
+    return learner
+
+
+def _bandit(username: str) -> ThompsonBandit:
+    bandit = SESSION_STORE.get(username)
+    if bandit is None:
+        bandit = ThompsonBandit(discount=BANDIT_DISCOUNT)
+        SESSION_STORE[username] = bandit
+    return bandit
+
+
+def _active_weakness_map(username: str) -> dict[str, float]:
+    if RECOMMENDER == "irt":
+        return _learner(username).weakness_map()
+    return _bandit(username).weakness_map()
+
+
+def _active_top_weaknesses(username: str, n: int = 5) -> list[dict]:
+    if RECOMMENDER == "irt":
+        return _learner(username).top_weaknesses(n)
+    return _bandit(username).top_weaknesses(n)
+
+
+def _category_ratings(learner: IRTLearner) -> dict[str, dict]:
+    out = {}
+    for cat in WEAKNESS_CATEGORIES:
+        r, rd = learner.category_rating(cat)
+        out[cat] = {"rating": round(r), "rd": round(rd)}
+    return out
+
+
+# ── Eval-bar engine ───────────────────────────────────────────────────────────
+# The eval bar fires on every move of every puzzle.  Spawning a fresh Stockfish
+# process per request exhausted process handles as soon as the player clicked
+# through puzzles quickly — dozens of engines racing at depth 14, and the
+# endpoint started returning 500s.  One long-lived engine behind a lock costs a
+# few megabytes and removes both the spawn latency and the failure mode.
+
+_EVAL_ENGINE = None
+_EVAL_LOCK   = threading.Lock()
+_EVAL_DEPTH  = 12
+
+
+def _eval_engine():
+    """Return the shared analysis engine, starting it on first use."""
+    global _EVAL_ENGINE
+    if _EVAL_ENGINE is None:
+        from src.classifier.stockfish_analyzer import find_stockfish
+        sf_path = find_stockfish()
+        if not sf_path:
+            return None
+        import chess.engine
+        _EVAL_ENGINE = chess.engine.SimpleEngine.popen_uci(sf_path)
+        _EVAL_ENGINE.configure({"Threads": 1, "Hash": 32})
+    return _EVAL_ENGINE
+
+
+def _close_eval_engine() -> None:
+    global _EVAL_ENGINE
+    if _EVAL_ENGINE is not None:
+        try:
+            _EVAL_ENGINE.quit()
+        except Exception:
+            pass
+        _EVAL_ENGINE = None
+
+
+atexit.register(_close_eval_engine)
 
 
 @app.route("/api/eval")
@@ -1134,27 +1474,39 @@ def position_eval():
     if not fen:
         return jsonify({"error": "Missing fen"}), 400
 
-    from src.classifier.stockfish_analyzer import find_stockfish
-    sf_path = find_stockfish()
-    if not sf_path:
-        return jsonify({"error": "Stockfish not available"}), 503
+    import chess
+    import chess.engine
 
     try:
-        import chess
-        import chess.engine
         board = chess.Board(fen)
-        with chess.engine.SimpleEngine.popen_uci(sf_path) as engine:
-            info = engine.analyse(board, chess.engine.Limit(depth=14))
-        score = info["score"].white()
-        if score.is_mate():
-            m = score.mate()
-            return jsonify({"mate": m, "cp": None,
-                            "advantage": "white" if (m or 0) > 0 else "black"})
-        cp = score.score()
-        return jsonify({"cp": cp, "mate": None,
-                        "advantage": "white" if (cp or 0) > 0 else "black" if (cp or 0) < 0 else "equal"})
-    except Exception as exc:
-        return jsonify({"error": str(exc)}), 500
+    except ValueError:
+        return jsonify({"error": "Invalid FEN"}), 400
+
+    with _EVAL_LOCK:
+        for attempt in (1, 2):
+            engine = _eval_engine()
+            if engine is None:
+                return jsonify({"error": "Stockfish not available"}), 503
+            try:
+                info = engine.analyse(board, chess.engine.Limit(depth=_EVAL_DEPTH))
+                break
+            except chess.engine.EngineError:
+                return jsonify({"error": "Position could not be analysed"}), 422
+            except Exception:
+                # Engine died (crash, broken pipe).  Drop it and let the next
+                # attempt start a fresh one; give up if that also fails.
+                _close_eval_engine()
+                if attempt == 2:
+                    return jsonify({"error": "Engine unavailable"}), 503
+
+    score = info["score"].white()
+    if score.is_mate():
+        m = score.mate()
+        return jsonify({"mate": m, "cp": None,
+                        "advantage": "white" if (m or 0) > 0 else "black"})
+    cp = score.score()
+    return jsonify({"cp": cp, "mate": None,
+                    "advantage": "white" if (cp or 0) > 0 else "black" if (cp or 0) < 0 else "equal"})
 
 
 @app.route("/api/session/puzzle")
@@ -1164,67 +1516,129 @@ def session_puzzle():
     rating_max = request.args.get("ratingMax", 2400, type=int)
     elo        = request.args.get("elo", type=int)
 
-    # Narrow the rating window around the player's known ELO (±300)
-    if elo:
-        rating_min = max(rating_min, elo - 300)
-        rating_max = min(rating_max, elo + 300)
+    bandit = _bandit(username)
+    learner = _learner(username)
+    target_rating = None
 
-    bandit = SESSION_STORE.get(username)
-    if bandit is None:
-        bandit = ThompsonBandit()
-        SESSION_STORE[username] = bandit
-
-    target = bandit.select_one()
+    if RECOMMENDER == "irt":
+        # Category: Thompson Sampling on difficulty-adjusted ability offsets,
+        # restricted to categories that actually have puzzles to serve.
+        allowed = [c for c in WEAKNESS_CATEGORIES if PUZZLE_BY_CAT.get(c)]
+        target = learner.select_category(allowed=allowed or None)
+        propensity = learner.selection_probabilities(n_samples=1000).get(target, 0.0)
+        # Difficulty: pitched so the predicted solve rate is p_target (~65 %),
+        # inside any band the player explicitly chose.
+        target_rating = learner.target_rating(target)
+        lo = max(rating_min, int(target_rating - IRT_WINDOW))
+        hi = min(rating_max, int(target_rating + IRT_WINDOW))
+        if lo <= hi:
+            rating_min, rating_max = lo, hi
+    else:
+        # Original policy: the player's known ELO ± 300, Beta-bandit category.
+        if elo:
+            rating_min = max(rating_min, elo - 300)
+            rating_max = min(rating_max, elo + 300)
+        target = bandit.select_one()
+        propensity = bandit.selection_probabilities(n_samples=1000).get(target, 0.0)
+    selected = target
     solve_rate = bandit.solve_rate(target)
 
-    # Load solved puzzle IDs so we never repeat a solved puzzle
-    saved = _load_user_state(username) if username != "guest" else None
-    solved_ids = set((saved or {}).get("solvedPuzzleIds", []))
+    # Everything this player has already finished — solved *or* failed.  A
+    # puzzle you have seen the answer to teaches nothing the second time.
+    seen_ids = _seen_ids(username)
+    # The client may also pass IDs it served locally (generated-puzzle mode),
+    # which the server never observed.
+    for extra in request.args.getlist("exclude"):
+        seen_ids.update(i for i in extra.split(",") if i)
+
+    def _unseen(p):
+        return p.get("PuzzleId") not in seen_ids
+
+    def _in_range(p, lo, hi):
+        return lo <= p.get("Rating", 1200) <= hi
 
     # Blend user-generated puzzles (priority) with Lichess pool
     from src.puzzles.generator import load_user_puzzles
     user_puzzles = load_user_puzzles(username) if username != "guest" else []
 
-    def _in_range(p):
-        return rating_min <= p.get("Rating", 1200) <= rating_max
-
-    def _not_solved(p):
-        return p.get("PuzzleId") not in solved_ids
-
     chosen = None
+    exhausted = False
 
     if user_puzzles:
         user_cat = [p for p in user_puzzles
-                    if p.get("PrimaryCategory") == target and _in_range(p) and _not_solved(p)]
+                    if p.get("PrimaryCategory") == target
+                    and _in_range(p, rating_min, rating_max) and _unseen(p)]
         if user_cat:
-            chosen = _pick_valid(user_cat) or random.choice(user_cat)
-            chosen = dict(chosen, source="generated")
+            chosen = dict(_pick_valid(user_cat) or random.choice(user_cat), source="generated")
         elif random.random() < 0.4:
-            user_range = [p for p in user_puzzles if _in_range(p) and _not_solved(p)]
+            user_range = [p for p in user_puzzles
+                          if _in_range(p, rating_min, rating_max) and _unseen(p)]
             if user_range:
-                chosen = _pick_valid(user_range) or random.choice(user_range)
-                chosen = dict(chosen, source="generated")
+                chosen = dict(_pick_valid(user_range) or random.choice(user_range),
+                              source="generated")
                 target = chosen.get("PrimaryCategory", target)
 
-    # Fall back to Lichess pool
+    # Fall back to the Lichess pool, relaxing one constraint at a time.  Order
+    # matters: we would rather widen the rating band than abandon the category
+    # the bandit asked for, and we would rather change category than repeat a
+    # puzzle the player has already finished.
     if chosen is None:
-        cat_pool = [p for p in PUZZLE_BY_CAT.get(target, [])
-                    if _in_range(p) and _not_solved(p)]
-        if not cat_pool:
-            fallback_pool = [p for p in PUZZLE_POOL if _in_range(p) and _not_solved(p)]
-            if not fallback_pool:
-                # All puzzles in range solved — broaden and allow repeats
-                fallback_pool = [p for p in PUZZLE_POOL if rating_min <= p["Rating"] <= rating_max]
-            if not fallback_pool:
+        wide_min, wide_max = max(MIN_RATING, rating_min - 200), min(MAX_RATING, rating_max + 200)
+        attempts = [
+            # (pool, lo, hi, keeps_target)
+            (PUZZLE_BY_CAT.get(target, []), rating_min, rating_max, True),
+            (PUZZLE_BY_CAT.get(target, []), wide_min,   wide_max,   True),
+            (PUZZLE_POOL,                   rating_min, rating_max, False),
+            (PUZZLE_POOL,                   MIN_RATING, MAX_RATING, False),
+        ]
+        for pool, lo, hi, keeps_target in attempts:
+            candidates = [p for p in pool if _in_range(p, lo, hi) and _unseen(p)]
+            if candidates:
+                chosen = _pick_valid(candidates) or random.choice(candidates)
+                if not keeps_target:
+                    target = chosen.get("PrimaryCategory", target)
+                break
+
+        if chosen is None:
+            # Genuinely nothing left unseen — allow repeats and say so, rather
+            # than silently serving a puzzle the player already solved.
+            repeat_pool = [p for p in PUZZLE_POOL if _in_range(p, rating_min, rating_max)]
+            if not repeat_pool:
                 return jsonify({"error": "No puzzles found in this rating range"}), 404
-            chosen = _pick_valid(fallback_pool) or random.choice(fallback_pool)
-            target = chosen.get("PrimaryCategory", "General")
-        else:
-            chosen = _pick_valid(cat_pool) or random.choice(cat_pool)
+            chosen = _pick_valid(repeat_pool) or random.choice(repeat_pool)
+            target = chosen.get("PrimaryCategory", target)
+            exhausted = True
 
     result = _serialise(chosen)
-    result["targetCategory"] = target
-    result["targetSolveRate"] = round(solve_rate, 3)
+    source = chosen.get("source", "lichess")
+    puzzle_rd = MINED_PUZZLE_RD if source == "generated" else DEFAULT_PUZZLE_RD
+    predicted = learner.predict(target, chosen.get("Rating", 1500), puzzle_rd)
+    cat_rating, cat_rd = learner.category_rating(target)
+
+    result["targetCategory"]  = target
+    # Under the IRT policy this is the model's prediction for THIS puzzle
+    # (difficulty-aware); under the Beta policy, the category's solve rate.
+    result["targetSolveRate"] = round(predicted if RECOMMENDER == "irt" else solve_rate, 3)
+    result["predictedSolveProb"] = round(predicted, 3)
+    result["policy"]          = RECOMMENDER
+    result["targetRating"]    = round(target_rating) if target_rating else None
+    result["categoryRating"]  = round(cat_rating)
+    result["categoryRd"]      = round(cat_rd)
+    result["source"]          = source
+    result["poolExhausted"]   = exhausted
+
+    served = LAST_SERVED[username]
+    served[str(chosen.get("PuzzleId", ""))] = {
+        "policy": RECOMMENDER,
+        "selected": selected,
+        "relabelled": target != selected,
+        "propensity": round(propensity, 4),
+        "predicted": round(predicted, 4),
+        "source": source,
+        "rd": puzzle_rd,
+    }
+    while len(served) > _LAST_SERVED_CAP:
+        served.pop(next(iter(served)))
     return jsonify(result)
 
 
@@ -1237,33 +1651,58 @@ def session_result():
     puzzle_id = data.get("puzzleId", "")
     rating    = int(data.get("rating", 0)) if data.get("rating") else 0
 
-    bandit = SESSION_STORE.get(username)
-    if bandit is None:
-        bandit = ThompsonBandit()
-        SESSION_STORE[username] = bandit
+    # A skipped puzzle counts as seen but must not move the bandit or the
+    # accuracy stats — the player never claimed to have tried it.
+    skipped = bool(data.get("skipped", False))
 
-    if category:
+    bandit = _bandit(username)
+    learner = _learner(username)
+    served = LAST_SERVED[username].pop(str(puzzle_id), {})
+
+    predicted = None
+    if category and not skipped:
         bandit.update(category, solved)
+        if rating:
+            # Both models learn from every attempt, whichever one served it.
+            predicted = learner.update(category, rating, solved,
+                                       served.get("rd", DEFAULT_PUZZLE_RD))
 
-    # Persist after every result (skip guests)
-    if username != "guest":
+    if username == "guest":
+        if not skipped:
+            _mark_guest_seen(puzzle_id)
+    else:
         _s = _load_user_state(username) or {
             "username": username, "history": [], "bestStreak": 0,
         }
         _s["lastUpdated"] = _now_iso()
         _s["bandit"]      = bandit.to_dict()
+        _s["irt"]         = learner.to_dict()
         _s["bestStreak"]  = max(_s.get("bestStreak", 0), bandit.best_streak)
-        _s.setdefault("history", []).append({
-            "ts":       _now_iso(),
-            "puzzleId": puzzle_id,
-            "category": category,
-            "rating":   rating,
-            "solved":   solved,
-        })
-        if solved and puzzle_id:
-            ids = set(_s.get("solvedPuzzleIds", []))
-            ids.add(puzzle_id)
-            _s["solvedPuzzleIds"] = list(ids)
+        if not skipped:
+            entry = {
+                "ts":       _now_iso(),
+                "puzzleId": puzzle_id,
+                "category": category,
+                "rating":   rating,
+                "solved":   solved,
+            }
+            # How this puzzle was chosen, and what the model predicted before
+            # seeing the outcome: enables calibration checks on real data and
+            # off-policy (inverse-propensity) evaluation of other policies.
+            if served:
+                entry.update({
+                    "policy":     served.get("policy"),
+                    "selected":   served.get("selected"),
+                    "relabelled": served.get("relabelled"),
+                    "propensity": served.get("propensity"),
+                    "source":     served.get("source"),
+                })
+            if predicted is not None:
+                entry["predicted"] = round(predicted, 4)
+            _s.setdefault("history", []).append(entry)
+            # Only a genuine attempt burns the puzzle.  A skip leaves it in the
+            # pool so the player can meet it again another day.
+            _mark_seen(_s, puzzle_id, solved)
         _save_user_state(username, _s)
 
     return jsonify({
@@ -1271,9 +1710,56 @@ def session_result():
         "bestStreak":    bandit.best_streak,
         "accuracy":      round(bandit.session_accuracy() * 100, 1),
         "puzzlesPlayed": bandit.puzzles_played(),
-        "weaknessMap":   bandit.weakness_map(),
-        "topWeaknesses": bandit.top_weaknesses(5),
+        "weaknessMap":   _active_weakness_map(username),
+        "topWeaknesses": _active_top_weaknesses(username),
+        "categoryRatings": _category_ratings(learner),
     })
+
+
+@app.route("/api/session/model/<username>")
+def session_model(username: str):
+    """Per-category skill estimates (rating ± RD) from the IRT learner."""
+    username = username.lower()
+    learner = _learner(username)
+    return jsonify({
+        "policy":          RECOMMENDER,
+        "attempts":        learner.n_updates,
+        "overallRating":   round(learner.category_rating("")[0]),
+        "categoryRatings": _category_ratings(learner),
+        "weaknessMap":     learner.weakness_map(),
+        "topWeaknesses":   learner.top_weaknesses(5),
+    })
+
+
+@app.route("/api/session/seen")
+def session_seen():
+    """IDs the player has already finished — lets the client dedupe locally."""
+    username = (request.args.get("username") or "guest").strip().lower()
+    if username != "guest" and not _check_token(username):
+        return jsonify({"error": "Unauthorized"}), 401
+    ids = sorted(_seen_ids(username))
+    return jsonify({"count": len(ids), "seenIds": ids})
+
+
+@app.route("/api/session/seen", methods=["DELETE"])
+def session_seen_reset():
+    """Forget which puzzles have been played so the pool can be replayed."""
+    username = (request.args.get("username") or "guest").strip().lower()
+    if username == "guest":
+        GUEST_SEEN.clear()
+        return jsonify({"ok": True, "cleared": True})
+
+    if not _check_token(username):
+        return jsonify({"error": "Unauthorized"}), 401
+
+    state = _load_user_state(username)
+    if not state:
+        return jsonify({"ok": True, "cleared": False})
+    state["attemptedPuzzleIds"] = []
+    state["solvedPuzzleIds"]    = []
+    state["lastUpdated"]        = _now_iso()
+    _save_user_state(username, state)
+    return jsonify({"ok": True, "cleared": True})
 
 
 @app.route("/api/session/stats")
@@ -1288,8 +1774,9 @@ def session_stats():
         "bestStreak":    bandit.best_streak,
         "accuracy":      round(bandit.session_accuracy() * 100, 1),
         "puzzlesPlayed": bandit.puzzles_played(),
-        "weaknessMap":   bandit.weakness_map(),
-        "topWeaknesses": bandit.top_weaknesses(5),
+        "weaknessMap":   _active_weakness_map(username),
+        "topWeaknesses": _active_top_weaknesses(username),
+        "categoryRatings": _category_ratings(_learner(username)),
     })
 
 

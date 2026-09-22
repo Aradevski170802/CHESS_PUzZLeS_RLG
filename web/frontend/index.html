@@ -438,6 +438,8 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
 .solved-badge{background:rgba(16,185,129,.15);border:1px solid rgba(16,185,129,.3);
   color:#10b981;border-radius:4px;font-size:.65rem;font-weight:700;
   padding:1px 5px;margin-left:4px;flex-shrink:0}
+.solved-badge.attempted{background:rgba(251,191,36,.13);border-color:rgba(251,191,36,.3);
+  color:var(--gold)}
 
 /* ── Game panel ────────────────────────────────────────────────────── */
 .game-panel{width:300px;flex-shrink:0;display:flex;flex-direction:column;
@@ -460,6 +462,25 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
   background:linear-gradient(90deg,var(--accent),var(--accent-h));
   transition:width .7s cubic-bezier(.4,0,.2,1)}
 .targeting-rate{font-size:.75rem;color:var(--text-muted)}
+
+/* Pool-exhausted notice */
+.exhausted-card{background:linear-gradient(135deg,rgba(251,191,36,.1) 0%,var(--surface) 100%);
+  border-color:rgba(251,191,36,.3)}
+.exhausted-note{font-size:.78rem;color:var(--gold);line-height:1.6}
+
+/* Where the current puzzle came from */
+.source-badge{font-size:.6rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+  padding:2px 8px;border-radius:20px;flex-shrink:0}
+.source-badge.lichess{background:var(--surface2);color:var(--text-muted);border:1px solid var(--border)}
+.source-badge.generated{background:var(--green-dim);color:var(--green);
+  border:1px solid rgba(16,185,129,.3)}
+
+/* Keyboard-shortcut legend under the controls */
+.kbd-hints{display:flex;gap:10px;flex-wrap:wrap;justify-content:center;
+  font-size:.66rem;color:var(--text-dim);margin-top:2px}
+.kbd-hints kbd{background:var(--surface2);border:1px solid var(--border);
+  border-bottom-width:2px;border-radius:4px;padding:1px 5px;
+  font-family:'SF Mono',monospace;font-size:.62rem;color:var(--text-muted)}
 
 /* Puzzle info */
 .puzzle-top-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
@@ -1042,6 +1063,9 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
         We analyse your recent Chess.com games with Stockfish and extract tactical moments
         you missed — turning your own blunders into personalised training puzzles.
       </div>
+      <div id="genTargetInfo" style="display:none;padding:8px 12px;background:rgba(99,102,241,.1);border:1px solid rgba(99,102,241,.25);border-radius:6px;font-size:.82rem;color:var(--text-muted);margin-bottom:10px">
+        Targeting your top weaknesses: <span id="genTargetCats" style="color:var(--accent);font-weight:600"></span>
+      </div>
       <div id="genStatus" style="display:none;margin-bottom:10px">
         <div class="gen-progress-track"><div class="gen-progress-bar" id="genBar"></div></div>
         <div id="genMsg" style="font-size:.82rem;color:var(--text-muted);margin-top:5px"></div>
@@ -1181,6 +1205,7 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
       <button class="btn-sm-ghost" id="btnToDashboard">← Dashboard</button>
       <button class="btn-sm-ghost" id="btnOpenStats">◉ My Stats</button>
       <select id="ratingFilter" class="header-select">
+        <option value="adaptive">Adaptive — matched to you</option>
         <option value="all">All levels</option>
         <option value="600-999">Beginner (600–999)</option>
         <option value="1000-1199">Easy (1000–1199)</option>
@@ -1232,11 +1257,21 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
         <div class="targeting-rate" id="targetingRate"></div>
       </div>
 
+      <!-- Shown when every puzzle in the current band has already been played -->
+      <div class="panel-card exhausted-card" id="exhaustedCard" style="display:none">
+        <div id="exhaustedNote" class="exhausted-note"></div>
+        <button class="btn btn-ghost" id="btnResetSeen"
+                style="width:100%;justify-content:center;font-size:.78rem;margin-top:8px">
+          ↺ Reset played history
+        </button>
+      </div>
+
       <!-- Puzzle info -->
       <div class="panel-card">
         <div class="puzzle-top-row">
           <span id="diffBadge" class="diff-badge">—</span>
           <span id="ratingValue" class="rating-num">—</span>
+          <span id="sourceBadge" class="source-badge lichess">Lichess</span>
           <span id="playsLabel" class="plays-label"></span>
         </div>
         <div id="themesRow" class="themes-row"></div>
@@ -1300,6 +1335,12 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
         <button class="btn btn-ghost" id="btnSeeSolution" style="display:none;color:var(--gold)">👁 Solution</button>
         <button class="btn btn-primary flex-1" id="btnNextBottom">Next puzzle →</button>
       </div>
+      <div class="kbd-hints">
+        <span><kbd>N</kbd> next</span>
+        <span><kbd>H</kbd> hint</span>
+        <span><kbd>S</kbd> solution</span>
+        <span><kbd>F</kbd> flip</span>
+      </div>
 
       <!-- Solved overlay -->
       <div class="solved-overlay" id="solvedCard">
@@ -1324,44 +1365,61 @@ html,body{background:var(--bg);color:var(--text);min-height:100vh;
 'use strict';
 
 /* ── Constants ──────────────────────────────────────────────────────── */
-const API = 'http://localhost:5000';
+/* Same-origin by default: Flask serves this page, so the API lives on the same
+   host and port.  Hard-coding "http://localhost:5000" cost ~2 s per request on
+   machines where `localhost` resolves to ::1 first and has to fall back to
+   IPv4, and broke whenever the server ran on another port.  The literal is
+   kept only as a fallback for opening index.html straight off disk. */
+const API = (location.protocol === 'http:' || location.protocol === 'https:')
+  ? location.origin
+  : 'http://127.0.0.1:5000';
 
 const GLYPHS = {
   wK:'♔',wQ:'♕',wR:'♖',wB:'♗',wN:'♘',wP:'♙',
   bK:'♚',bQ:'♛',bR:'♜',bB:'♝',bN:'♞',bP:'♟'
 };
 
+/* Offline fallback set, used only when the API is unreachable.  Every entry
+   is a real Lichess puzzle whose move sequence has been verified legal — the
+   previous hand-written list contained illegal moves that rendered as
+   nonsense positions. */
 const DEMO = [
-  {id:'000Pw',fen:'6k1/5p1p/4p3/4q3/3nN3/2Q3P1/PP3P1P/6K1 w - - 2 37',
-   moves:['e4d2','d4e2','g1f1','e2c3'],rating:1550,ratingDeviation:75,popularity:92,nbPlays:626,
-   themes:['fork','endgame'],primaryCategory:'Fork',difficultyTier:'Advanced',gameUrl:'https://lichess.org/au2lCK5o#73'},
-  {id:'0000D',fen:'5rk1/1p3ppp/pq3b2/8/8/1P1Q1N2/P4PPP/3R2K1 w - - 1 26',
-   moves:['d3d6','f8d8','d6d8','f6d8'],rating:1579,ratingDeviation:73,popularity:96,nbPlays:36672,
-   themes:['endgame'],primaryCategory:'Endgame',difficultyTier:'Advanced',gameUrl:'https://lichess.org/F8M8OS71#53'},
-  {id:'003xY',fen:'6k1/pp3p1p/2p3p1/2b5/2Bn4/1P4P1/P4P1P/3R2K1 b - - 0 25',
-   moves:['d4f3','g1f1','c5e3','d1d8'],rating:1450,ratingDeviation:78,popularity:85,nbPlays:3400,
-   themes:['fork','endgame'],primaryCategory:'Fork',difficultyTier:'Intermediate',gameUrl:''},
-  {id:'004rZ',fen:'r1b1kb1r/ppqn1ppp/2p1pn2/3p4/2PP4/2NBPN2/PP3PPP/R1BQK2R w KQkq - 2 7',
-   moves:['d4d5','c6d5','c4d5','e6d5','c3d5','f6d5','d1d5'],rating:1720,
-   themes:['discoveredAttack','middlegame'],primaryCategory:'Discovered Attack',difficultyTier:'Hard',gameUrl:''},
-  {id:'005pN',fen:'r4rk1/1b2ppbp/pq1p1np1/1p6/3BP3/1BN2P2/PPP1Q1PP/R4RK1 b - - 0 15',
-   moves:['b6e3','e2e3','f6e4','c3e4','g7b2'],rating:1830,
-   themes:['pin','sacrifice'],primaryCategory:'Pin',difficultyTier:'Hard',gameUrl:''},
-  {id:'006mQ',fen:'r1bqkb1r/pppp1ppp/2n2n2/4p3/4P3/5N2/PPPP1PPP/RNBQKB1R w KQkq - 4 3',
-   moves:['f1c4','f6e4','c4f7','e8f7'],rating:1380,
-   themes:['fork','middlegame'],primaryCategory:'Fork',difficultyTier:'Intermediate',gameUrl:''},
-  {id:'007hK',fen:'8/8/8/8/3k4/8/4R1K1/8 w - - 0 1',
-   moves:['e2e4','d4d3','e4e3'],rating:950,
-   themes:['rookEndgame','endgame'],primaryCategory:'Rook Endgame',difficultyTier:'Easy',gameUrl:''},
-  {id:'008aB',fen:'r2qkb1r/pp3ppp/2n1pn2/2pp4/3P1B2/2PBPN2/PP3PPP/RN1QK2R b KQkq - 0 8',
-   moves:['c5d4','c3d4','f6e4','d4e5','d8a5'],rating:1620,
-   themes:['hangingPiece','middlegame'],primaryCategory:'Hanging Piece',difficultyTier:'Advanced',gameUrl:''},
-  {id:'009kT',fen:'r1b2rk1/pp2ppbp/2np1np1/q7/3NP3/2N1BP2/PPPQ2PP/R3KB1R w KQ - 3 10',
-   moves:['d4c6','b7c6','d2a5','d8a5'],rating:1250,
-   themes:['hangingPiece','middlegame'],primaryCategory:'Hanging Piece',difficultyTier:'Intermediate',gameUrl:''},
-  {id:'010vR',fen:'r2q1rk1/pp1bppbp/3p1np1/3P4/2P1PP2/2N5/PP1QB1PP/R3K2R b KQ - 0 13',
-   moves:['f6d5','c3d5','g7d4','d2d4'],rating:1680,
-   themes:['fork','middlegame'],primaryCategory:'Fork',difficultyTier:'Advanced',gameUrl:''},
+  {id:'5NS8U',fen:'3r4/1k3p2/1p2p3/1PP2p2/2K2P2/R4RP1/8/7r b - - 2 42',
+   moves:['d8c8','c5c6','c8c6','b5c6'],rating:906,ratingDeviation:76,popularity:98,nbPlays:18815,
+   themes:["endgame", "rookEndgame"],primaryCategory:'Rook Endgame',difficultyTier:'Beginner',gameUrl:'https://lichess.org/KMFX0yYa/black#84'},
+  {id:'7K7yL',fen:'r3rn1k/pp4R1/2pq3p/4p2Q/2BP4/2P1P2P/PP4P1/R5K1 b - - 0 21',
+   moves:['h8g7','h5f7','g7h8','f7g8'],rating:908,ratingDeviation:77,popularity:98,nbPlays:18352,
+   themes:["mateIn2", "middlegame"],primaryCategory:'Mating Pattern',difficultyTier:'Beginner',gameUrl:'https://lichess.org/kwUM6zSi/black#42'},
+  {id:'7wpkn',fen:'1k6/pp2bp2/2p3rp/1q1p1Q2/3P1P2/1P2P1P1/P4K1P/R1N1n3 b - - 1 31',
+   moves:['g6f6','f5e5','b8c8','e5e7'],rating:1169,ratingDeviation:78,popularity:95,nbPlays:32206,
+   themes:["fork", "middlegame"],primaryCategory:'Fork',difficultyTier:'Easy',gameUrl:'https://lichess.org/hNwDfB33/black#62'},
+  {id:'ALDCT',fen:'r1b1k1nr/pp3ppp/2n5/q1bQ4/4N3/6P1/PP2PP1P/R1B1KBNR w KQkq - 3 9',
+   moves:['c1d2','c5f2','e4f2','a5d5'],rating:1154,ratingDeviation:77,popularity:95,nbPlays:32058,
+   themes:["attackingF2F7", "discoveredAttack", "opening"],primaryCategory:'Discovered Attack',difficultyTier:'Easy',gameUrl:'https://lichess.org/JEeJ9pO0#17'},
+  {id:'83wOc',fen:'r1b2k2/pp3PR1/2p2n1P/3p4/3P4/1PN5/P1PK4/8 b - - 2 28',
+   moves:['b7b5','h6h7','f6h7','g7h7'],rating:1404,ratingDeviation:79,popularity:95,nbPlays:47594,
+   themes:["advancedPawn", "endgame"],primaryCategory:'Endgame',difficultyTier:'Intermediate',gameUrl:'https://lichess.org/2umPGLGl/black#56'},
+  {id:'1C0l6',fen:'2k2r1r/pppq2p1/1bn1p3/4p1Bp/Q7/3P2P1/PP2PPBP/2R2RK1 b - - 5 16',
+   moves:['c6d4','g2b7','c8b7','a4d7'],rating:1488,ratingDeviation:75,popularity:96,nbPlays:47039,
+   themes:["deflection", "middlegame", "queensideAttack"],primaryCategory:'Deflection',difficultyTier:'Intermediate',gameUrl:'https://lichess.org/Fxp9fbmG/black#32'},
+  {id:'98cVb',fen:'4k2r/1q2ppb1/2bp2p1/p1p5/1rPnP3/1P1QBPPp/P4R1P/1RN2NK1 w k - 1 24',
+   moves:['c1e2','d4f3','f2f3','c6e4'],rating:1543,ratingDeviation:75,popularity:95,nbPlays:45508,
+   themes:["kingsideAttack", "middlegame"],primaryCategory:'King Safety',difficultyTier:'Advanced',gameUrl:'https://lichess.org/2OxvKBTv#47'},
+  {id:'79NI0',fen:'r3k2r/p1qp1pp1/1pn1p3/1Bb1P2p/5B2/2N2P2/PPPQ3P/2KR4 b kq - 4 15',
+   moves:['e8c8','b5a6','c8b8','c3b5','d7d6','b5c7'],rating:1557,ratingDeviation:77,popularity:94,nbPlays:45492,
+   themes:["middlegame", "queensideAttack", "trappedPiece"],primaryCategory:'Hanging Piece',difficultyTier:'Advanced',gameUrl:'https://lichess.org/NRu3IZPv/black#30'},
+  {id:'5uDSr',fen:'4r3/pR6/6pk/3P4/1P4R1/5p2/r2P1P2/3K4 w - - 1 34',
+   moves:['g4f4','e8e1','d1e1','a2a1'],rating:1892,ratingDeviation:79,popularity:93,nbPlays:154083,
+   themes:["attraction", "endgame", "mateIn2", "rookEndgame", "sacrifice"],primaryCategory:'Mating Pattern',difficultyTier:'Hard',gameUrl:'https://lichess.org/lHnU7Ldg#67'},
+  {id:'2vVE7',fen:'5r1k/1pp3p1/pb1p1q1p/5r2/3PQn1N/6BP/PP3PP1/2R1R1K1 b - - 9 25',
+   moves:['f5h5','e4f4','f6f4','h4g6','h8h7','g6f4'],rating:1941,ratingDeviation:75,popularity:92,nbPlays:148713,
+   themes:["attraction", "fork", "middlegame", "sacrifice"],primaryCategory:'Fork',difficultyTier:'Hard',gameUrl:'https://lichess.org/JqItJ6B1/black#50'},
+  {id:'6Sz3s',fen:'4k2r/p5pp/3bp3/4n3/1r5q/4Q3/PP2B1PP/R1B2R1K w k - 3 21',
+   moves:['e3a7','h4h2','h1h2','e5f3','h2h3','b4h4'],rating:2078,ratingDeviation:78,popularity:93,nbPlays:195444,
+   themes:["attraction", "discoveredCheck", "doubleCheck", "mateIn3", "middlegame", "pillsburysMate", "sacrifice"],primaryCategory:'Mating Pattern',difficultyTier:'Expert',gameUrl:'https://lichess.org/zgBwsXLr#41'},
+  {id:'9nPpJ',fen:'2Q5/8/1p1k4/2p3P1/2K2P2/r7/2P5/r7 w - - 0 50',
+   moves:['g5g6','b6b5','c4b5','a1b1','b5c4','b1b4'],rating:2035,ratingDeviation:73,popularity:94,nbPlays:177645,
+   themes:["attraction", "endgame", "mateIn3", "queenRookEndgame"],primaryCategory:'Mating Pattern',difficultyTier:'Expert',gameUrl:'https://lichess.org/uynEluFS#99'},
 ];
 
 /* ── Session state ──────────────────────────────────────────────────── */
@@ -1371,22 +1429,42 @@ var sessionActive = false;
 var profileCache        = null;   // Chess.com profile (avatar, ratings)
 var analysisProfileCache = null;  // analysis profile (weaknesses, openings, ELO)
 var priorsCache  = null;
+var irtPriorCache = null;
+var sessionPolicy = 'beta';
 var targetCategory = '';
 var targetSolveRate = 0.5;
+var targetCategoryRating = null;   /* {rating, rd} from the IRT learner */
 var sessionStreak = 0, sessionAcc = 0, sessionCount = 0;
 var puzzleCompleted = false;
 var pollTimer = null;
 
 /* ── Generated puzzle practice mode ─────────────────────────────────── */
-var _myPuzzles = [];        // fetched from /api/generate/list
-var _myPuzzleMode = false;  // true = serve only from _myPuzzles
-var _myPuzzleIdx  = 0;      // current position in queue
+var _myPuzzles = [];        // full library, fetched from /api/generate/list
+var _myPuzzleMode = false;  // true = serve only from the generated queue
+var _myQueue      = [];     // ordered play queue for this practice run
+var _myQueuePos   = 0;      // index of the NEXT puzzle to serve from _myQueue
+var _myQueueDone  = 0;      // puzzles actually played this run
 var $modeBadge    = null;   // set after DOM ready
+
+/* Puzzle IDs this player has already finished (solved, failed or revealed).
+   Seeded from the server on session start and kept up to date locally so the
+   generated-puzzle queue can dedupe without a round-trip.  Persistent. */
+var _seenIds = new Set();
+
+/* Everything put on the board this session, including puzzles that were merely
+   skipped.  A skip should not burn a puzzle forever — but it should not come
+   back two minutes later either, which is very possible in the smaller motif
+   categories (En Passant, X-Ray Attack) where the pool is only a few hundred
+   deep.  This set is not persisted, so skipped puzzles return in a later
+   session. */
+var _shownIds = new Set();
 
 /* ── Game state ─────────────────────────────────────────────────────── */
 var chess = null, puzzle = null, moveIndex = 0;
 var _puzzleGen    = 0;   // incremented each loadPuzzle; guards stale autoMove timers
 var _wrongAttempts = 0;  // wrong moves in current puzzle
+var _playerTried  = false; // did the player actually attempt this puzzle?
+var _loadingPuzzle = false; // guards double-clicks on Next
 var playerColor = 'w', orientation = 'white';
 var hintUsed = false, selected = null;
 var highlights = {}, dragFromSq = null;
@@ -1713,6 +1791,7 @@ async function startAnalysis() {
         clearInterval(pollTimer); pollTimer = null;
         for (var i = 0; i < 4; i++) setStepState(i, 'done');
         priorsCache = data.priors || null;
+        irtPriorCache = data.irtPrior || null;
         setTimeout(function(){ showDashboard(data.profile || null); }, 800);
       } else if (data.status === 'error' || data.status === 'not_started') {
         clearInterval(pollTimer); pollTimer = null;
@@ -1863,6 +1942,17 @@ function _renderDashboard(profile) {
     document.getElementById('dashFocusNote').innerHTML = top3.length
       ? 'The bandit will target: <span class="dash-focus-cats">' + top3.join(', ') + '</span>'
       : 'The adaptive system will focus on your weakest areas first.';
+    // Populate generate-card target banner
+    var genTargetInfo = document.getElementById('genTargetInfo');
+    var genTargetCats = document.getElementById('genTargetCats');
+    if (genTargetInfo && genTargetCats) {
+      if (top3.length) {
+        genTargetCats.textContent = top3.join(', ');
+        genTargetInfo.style.display = '';
+      } else {
+        genTargetInfo.style.display = 'none';
+      }
+    }
   } else {
     document.getElementById('dashHeroName').textContent  = currentUser || 'Guest';
     document.getElementById('dashHeroElo').textContent   = 'No game analysis — adaptive mode';
@@ -2207,16 +2297,25 @@ async function startSession(priors, estimatedElo) {
     if (tierVal) document.getElementById('ratingFilter').value = tierVal;
   }
 
+  /* Learn what this player has already finished before serving anything. */
+  await _loadSeenIds();
+
   try {
-    await fetch(API + '/api/session/start', {
+    var startRes = await fetch(API + '/api/session/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         username:     currentUser || 'guest',
         priors:       priors || null,
+        irtPrior:     irtPriorCache || null,
         estimatedElo: estimatedElo || null,
       })
     });
+    var startData = await startRes.json();
+    sessionPolicy = startData.policy || 'beta';
+    /* The difficulty-aware policy chooses each puzzle's rating itself, so
+       default to Adaptive instead of pinning a fixed Elo tier. */
+    if (sessionPolicy === 'irt') document.getElementById('ratingFilter').value = 'adaptive';
     sessionActive = true;
   } catch(_) {
     sessionActive = false;   /* server down — will use demo fallback */
@@ -2230,7 +2329,13 @@ async function startSession(priors, estimatedElo) {
   loadPuzzle();
 }
 
-async function reportResult(category, solved) {
+async function reportResult(category, solved, skipped) {
+  /* Mark the puzzle as finished locally even if the request fails, so the
+     queue never serves it again.  A skip is not "finished" — the player never
+     engaged with it, so it stays eligible for a future session. */
+  var pid = puzzle ? (puzzle.id || '') : '';
+  if (pid && !skipped) _seenIds.add(pid);
+
   if (!sessionActive || !category) return;
   try {
     var res = await fetch(API + '/api/session/result', {
@@ -2240,11 +2345,13 @@ async function reportResult(category, solved) {
         username:  currentUser || 'guest',
         category:  category,
         solved:    solved,
-        puzzleId:  puzzle ? (puzzle.id || '') : '',
+        skipped:   !!skipped,
+        puzzleId:  pid,
         rating:    puzzle ? (puzzle.rating || 0) : 0,
       })
     });
     var stats = await res.json();
+    if (skipped) return;               // skips do not move session counters
     sessionStreak = stats.streak || 0;
     sessionAcc    = stats.accuracy || 0;
     sessionCount  = stats.puzzlesPlayed || 0;
@@ -2368,6 +2475,7 @@ function tryMove(from, to) {
   var result = chess.move({ from: from, to: to, promotion: promo });
   if (!result) { clrHL(); render(); return; }
 
+  _playerTried = true;   // a real attempt — Next now counts as a fail, not a skip
   var correct = (from === exp.slice(0,2) && to === exp.slice(2,4));
   clrHL(); setHL(from, 'hl-from'); setHL(to, 'hl-to');
 
@@ -2423,8 +2531,12 @@ async function finish(ok) {
   await reportResult(cat, ok);
 
   if (ok) {
+    _resetSolvedCard();
     var streakStr = sessionStreak > 1 ? ' · 🔥 ' + sessionStreak + ' streak' : '';
-    $solvedSub.textContent = 'Rating ' + puzzle.rating + ' · ' + (puzzle.primaryCategory || '?') + streakStr;
+    var left = _myPuzzleMode
+      ? ' · ' + Math.max(0, _myQueue.length - _myQueuePos) + ' left in queue' : '';
+    $solvedSub.textContent =
+      'Rating ' + puzzle.rating + ' · ' + (puzzle.primaryCategory || '?') + streakStr + left;
     $solved.classList.add('active');
   }
 }
@@ -2434,7 +2546,9 @@ async function finish(ok) {
 ═══════════════════════════════════════════════════════════════════ */
 function getFilter() {
   var val = document.getElementById('ratingFilter').value;
-  if (val === 'all') return { lo: 600, hi: 2400 };
+  /* Adaptive: the server picks the difficulty per puzzle from the player's
+     per-category skill estimate, so send the full range as outer bounds. */
+  if (val === 'all' || val === 'adaptive') return { lo: 600, hi: 2400 };
   var parts = val.split('-').map(Number);
   return { lo: parts[0], hi: parts[1] };
 }
@@ -2445,103 +2559,286 @@ function fallbackPuzzle(lo, hi) {
   return src[Math.floor(Math.random() * src.length)];
 }
 
-async function loadPuzzle() {
-  /* report abandoned puzzle as failed */
-  if (puzzle && !puzzleCompleted && moveIndex > 0 && moveIndex < puzzle.moves.length) {
-    var cat = targetCategory || (puzzle.primaryCategory) || '';
-    reportResult(cat, false);
-  }
+/* ── Generated-puzzle queue ──────────────────────────────────────────
+   The queue is built once per practice run.  Puzzles already finished are
+   dropped up front, so pressing Next always advances to something new and the
+   run ends with a "queue complete" card instead of silently looping. */
+function _normaliseRaw(raw) {
+  return {
+    id:              raw.PuzzleId || raw.id || '',
+    fen:             raw.FEN      || raw.fen || '',
+    moves:           typeof raw.Moves === 'string' ? raw.Moves.split(' ')
+                                                   : (raw.Moves || raw.moves || []),
+    rating:          raw.Rating   || raw.rating || 1200,
+    primaryCategory: raw.PrimaryCategory || raw.primaryCategory || 'General',
+    difficultyTier:  raw.DifficultyTier  || raw.difficultyTier  || 'Intermediate',
+    themes:          typeof raw.Themes === 'string' ? raw.Themes.split(' ')
+                                                    : (raw.themes || []),
+    gameUrl:         raw.GameUrl  || raw.gameUrl || '',
+    source:          'generated',
+  };
+}
 
-  _puzzleGen++;
-  var _myGen = _puzzleGen;   // captured for this load cycle
-
-  loading(true);
-  $solved.classList.remove('active');
-  $moveLog.innerHTML = '';
-  clrHL();
-  puzzleCompleted  = false;
-  _wrongAttempts   = 0;
-  document.getElementById('btnSeeSolution').style.display = 'none';
-
-  var f  = getFilter();
-  var un = currentUser || 'guest';
-
-  // ── My Puzzles mode: serve from local queue ───────────────────────
-  if (_myPuzzleMode && _myPuzzles.length) {
-    var raw = _myPuzzles[_myPuzzleIdx % _myPuzzles.length];
-    _myPuzzleIdx++;
-    puzzle = {
-      id:              raw.PuzzleId || raw.id || ('gen-' + _myPuzzleIdx),
-      fen:             raw.FEN      || raw.fen,
-      moves:           typeof raw.Moves === 'string' ? raw.Moves.split(' ') : (raw.Moves || raw.moves || []),
-      rating:          raw.Rating   || raw.rating || 1200,
-      primaryCategory: raw.PrimaryCategory || raw.primaryCategory || 'General',
-      difficultyTier:  raw.DifficultyTier  || raw.difficultyTier  || 'Intermediate',
-      themes:          raw.Themes   ? raw.Themes.split(' ') : (raw.themes || []),
-      gameUrl:         raw.GameUrl  || raw.gameUrl || '',
-      source:          'generated',
-    };
-    targetCategory  = puzzle.primaryCategory;
-    targetSolveRate = 0.5;
-    // Show wrapping message when we cycle back to start
-    if (_myPuzzleIdx > 0 && _myPuzzleIdx % _myPuzzles.length === 0) {
-      showFeedback('All ' + _myPuzzles.length + ' puzzles done — looping!', 'ok');
-    }
-  } else {
-  // ── Normal mode: fetch from API ───────────────────────────────────
+/* A puzzle is playable only if the FEN parses and every move in the solution
+   is legal from it.  A single malformed entry used to throw inside loadPuzzle
+   and leave the loading overlay up, which looked exactly like "Next is dead". */
+function _isPlayable(p) {
+  if (!p || !p.fen || !p.moves || p.moves.length < 2) return false;
   try {
-    var ctrl = new AbortController();
-    setTimeout(function(){ ctrl.abort(); }, 3000);
-    var playerElo = (profileCache && profileCache.estimatedElo) || null;
-    var eloParam  = (sessionActive && playerElo) ? '&elo=' + playerElo : '';
-    var url = sessionActive
-      ? API + '/api/session/puzzle?username=' + encodeURIComponent(un) + '&ratingMin=' + f.lo + '&ratingMax=' + f.hi + eloParam
-      : API + '/api/puzzle/random?ratingMin=' + f.lo + '&ratingMax=' + f.hi;
-    var res = await fetch(url, { signal: ctrl.signal });
-    if (!res.ok) throw new Error();
-    puzzle = await res.json();
-    if (typeof puzzle.moves === 'string') puzzle.moves = puzzle.moves.split(' ');
-    targetCategory  = puzzle.targetCategory  || puzzle.primaryCategory || '';
-    targetSolveRate = puzzle.targetSolveRate !== undefined ? puzzle.targetSolveRate : 0.5;
-  } catch(_) {
-    puzzle = fallbackPuzzle(f.lo, f.hi);
-    targetCategory  = puzzle.primaryCategory || '';
-    targetSolveRate = 0.5;
+    var c = new Chess(p.fen);
+    if (!c || typeof c.turn !== 'function') return false;
+    /* This build of chess.js does not throw on a malformed FEN — it quietly
+       leaves the board empty — so compare the placement field to be sure the
+       position actually loaded. */
+    if (c.fen().split(' ')[0] !== p.fen.split(' ')[0]) return false;
+    for (var i = 0; i < p.moves.length; i++) {
+      var u = p.moves[i];
+      if (!u || u.length < 4) return false;
+      var mv = c.move({ from: u.slice(0,2), to: u.slice(2,4),
+                        promotion: u.length > 4 ? u[4] : 'q' });
+      if (!mv) return false;
+    }
+    return true;
+  } catch(_) { return false; }
+}
+
+function _buildMyQueue(startId) {
+  var fresh = _myPuzzles.filter(function(p){
+    var id = p.PuzzleId || p.id || '';
+    return id !== startId && !_seenIds.has(id) && !_shownIds.has(id);
+  });
+  /* Everything already played?  Replay the whole set rather than dead-ending. */
+  var replaying = false;
+  if (!fresh.length && _myPuzzles.length) { fresh = _myPuzzles.slice(); replaying = true; }
+
+  for (var i = fresh.length - 1; i > 0; i--) {          // Fisher–Yates
+    var j = Math.floor(Math.random() * (i + 1));
+    var t = fresh[i]; fresh[i] = fresh[j]; fresh[j] = t;
   }
-  } // end normal mode
-
-  chess       = new Chess(puzzle.fen);
-  moveIndex   = 0; hintUsed = false;
-  var startTurn = chess.turn();
-  playerColor  = startTurn === 'w' ? 'b' : 'w';
-  orientation  = playerColor === 'w' ? 'white' : 'black';
-
-  // Player name strips
-  var uName = (currentUser && currentUser !== 'guest') ? currentUser : 'You';
-  if (playerColor === 'w') {
-    $botIcon.textContent = '♙'; $botName.textContent = uName;
-    $topIcon.textContent = '♟'; $topName.textContent = 'Opponent';
-  } else {
-    $botIcon.textContent = '♟'; $botName.textContent = uName;
-    $topIcon.textContent = '♙'; $topName.textContent = 'Opponent';
+  if (startId) {                                        // requested puzzle first
+    var at = fresh.findIndex(function(p){ return (p.PuzzleId || p.id) === startId; });
+    if (at > 0) fresh.unshift(fresh.splice(at, 1)[0]);
+    else if (at < 0) {
+      var match = _myPuzzles.filter(function(p){ return (p.PuzzleId || p.id) === startId; });
+      if (match.length) fresh.unshift(match[0]);
+    }
   }
-  $topStrip.classList.remove('active');
-  $botStrip.classList.add('active');
-  $turnCard.classList.remove('player-turn');
+  _myQueue     = fresh;
+  _myQueuePos  = 0;
+  _myQueueDone = 0;
+  return replaying;
+}
 
-  buildBoard(); render(); populateInfo(puzzle);
-  buildDots(puzzle.moves); progress();
+/* Pull the next playable puzzle out of the queue, skipping broken entries. */
+function _nextFromQueue() {
+  while (_myQueuePos < _myQueue.length) {
+    var p = _normaliseRaw(_myQueue[_myQueuePos++]);
+    if (_isPlayable(p)) return p;
+    console.warn('Skipping unplayable generated puzzle', p.id);
+  }
+  return null;
+}
 
-  /* Reset eval bar to neutral at puzzle start */
-  _updateEvalBar({ cp: 0, mate: null });
-  _fetchEval(puzzle.fen);
-
-  $turnDot.className = 'turn-dot ' + (startTurn === 'w' ? 'white' : 'black');
-  $turnText.textContent = (startTurn === 'w' ? 'White' : 'Black') + ' plays first…';
-
-  updateTargetingCard();
+function _showQueueComplete() {
   loading(false);
-  autoMove(500);
+  var played = _myQueueDone;
+  $solvedSub.innerHTML =
+    'You finished all <strong>' + played + '</strong> puzzle' + (played === 1 ? '' : 's') +
+    ' in this run.<br>Generate more from your latest games, or switch to adaptive training.';
+  document.querySelector('#solvedCard .solved-title').textContent = 'Queue complete 🎉';
+  document.getElementById('btnSolvedNext').textContent = 'Back to dashboard';
+  document.getElementById('btnSolvedNext').dataset.action = 'dashboard';
+  $solved.classList.add('active');
+}
+
+/* Report whatever the player was in the middle of before we move on. */
+function _reportAbandoned() {
+  if (!puzzle || puzzleCompleted) return;
+  if (moveIndex <= 0 || moveIndex >= puzzle.moves.length) return;
+  var cat = targetCategory || puzzle.primaryCategory || '';
+  /* Pressing Next without trying anything is a skip, not a failure — it should
+     not dent the player's accuracy or teach the bandit anything. */
+  reportResult(cat, false, !_playerTried);
+}
+
+async function loadPuzzle() {
+  if (_loadingPuzzle) return;            // ignore double-clicks on Next
+  _loadingPuzzle = true;
+  _setNextEnabled(false);
+
+  try {
+    _reportAbandoned();
+
+    _puzzleGen++;
+    loading(true);
+    $solved.classList.remove('active');
+    _resetSolvedCard();
+    $moveLog.innerHTML = '';
+    clrHL();
+    puzzleCompleted  = false;
+    _wrongAttempts   = 0;
+    _playerTried     = false;
+    document.getElementById('btnSeeSolution').style.display = 'none';
+    _setExhaustedNote('');
+
+    var f  = getFilter();
+    var un = currentUser || 'guest';
+    var next = null;
+
+    // ── My Puzzles mode: serve from the local queue ─────────────────
+    if (_myPuzzleMode) {
+      next = _nextFromQueue();
+      if (!next) { _showQueueComplete(); return; }
+      _myQueueDone++;
+      targetCategory  = next.primaryCategory;
+      targetSolveRate = 0.5;
+      targetCategoryRating = null;
+    } else {
+    // ── Normal mode: fetch from the API ─────────────────────────────
+      try {
+        var ctrl = new AbortController();
+        var killer = setTimeout(function(){ ctrl.abort(); }, 8000);
+        var playerElo = (profileCache && profileCache.estimatedElo) || null;
+        var eloParam  = (sessionActive && playerElo) ? '&elo=' + playerElo : '';
+        var url = sessionActive
+          ? API + '/api/session/puzzle?username=' + encodeURIComponent(un) +
+            '&ratingMin=' + f.lo + '&ratingMax=' + f.hi + eloParam + _excludeParam()
+          : API + '/api/puzzle/random?ratingMin=' + f.lo + '&ratingMax=' + f.hi;
+        var res = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(killer);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        next = await res.json();
+        if (typeof next.moves === 'string') next.moves = next.moves.split(' ');
+        targetCategory  = next.targetCategory  || next.primaryCategory || '';
+        targetSolveRate = next.targetSolveRate !== undefined ? next.targetSolveRate : 0.5;
+        targetCategoryRating = (next.policy === 'irt' && next.categoryRating)
+          ? { rating: next.categoryRating, rd: next.categoryRd } : null;
+        if (next.poolExhausted) {
+          _setExhaustedNote('You have played every puzzle in this rating band — ' +
+                            'repeats from here. Widen the level filter or reset progress.');
+        }
+      } catch(_) {
+        next = fallbackPuzzle(f.lo, f.hi);
+        targetCategory  = next.primaryCategory || '';
+        targetSolveRate = 0.5;
+        targetCategoryRating = null;
+      }
+    }
+
+    if (!_isPlayable(next)) {
+      /* Should be unreachable for API puzzles (the server validates too), but
+         never leave the board in a half-built state if it happens. */
+      showFeedback('⚠ That puzzle was malformed — loading another', 'bad');
+      next = fallbackPuzzle(f.lo, f.hi);
+      targetCategory = next.primaryCategory || '';
+    }
+
+    puzzle      = next;
+    if (puzzle.id) _shownIds.add(puzzle.id);
+    chess       = new Chess(puzzle.fen);
+    moveIndex   = 0; hintUsed = false;
+    var startTurn = chess.turn();
+    playerColor  = startTurn === 'w' ? 'b' : 'w';
+    orientation  = playerColor === 'w' ? 'white' : 'black';
+
+    // Player name strips
+    var uName = (currentUser && currentUser !== 'guest') ? currentUser : 'You';
+    if (playerColor === 'w') {
+      $botIcon.textContent = '♙'; $botName.textContent = uName;
+      $topIcon.textContent = '♟'; $topName.textContent = 'Opponent';
+    } else {
+      $botIcon.textContent = '♟'; $botName.textContent = uName;
+      $topIcon.textContent = '♙'; $topName.textContent = 'Opponent';
+    }
+    $topStrip.classList.remove('active');
+    $botStrip.classList.add('active');
+    $turnCard.classList.remove('player-turn');
+
+    buildBoard(); render(); populateInfo(puzzle);
+    buildDots(puzzle.moves); progress();
+
+    /* Reset eval bar to neutral at puzzle start */
+    _updateEvalBar({ cp: 0, mate: null });
+    _fetchEval(puzzle.fen);
+
+    $turnDot.className = 'turn-dot ' + (startTurn === 'w' ? 'white' : 'black');
+    $turnText.textContent = (startTurn === 'w' ? 'White' : 'Black') + ' plays first…';
+
+    updateTargetingCard();
+    autoMove(500);
+  } catch (err) {
+    console.error('loadPuzzle failed', err);
+    showFeedback('⚠ Could not load a puzzle — check the server', 'bad');
+  } finally {
+    /* Always tear the overlay down.  An exception used to leave it up forever,
+       which is what made Next look broken on generated puzzles. */
+    loading(false);
+    _loadingPuzzle = false;
+    _setNextEnabled(true);
+  }
+}
+
+/* Up to 250 recently-used IDs, so the server can exclude puzzles it did not
+   serve itself (guest sessions, locally-queued generated puzzles) as well as
+   ones only shown-and-skipped this session. */
+function _excludeParam() {
+  var ids = Array.from(new Set([].concat(Array.from(_seenIds), Array.from(_shownIds))));
+  if (!ids.length) return '';
+  return '&exclude=' + encodeURIComponent(ids.slice(-250).join(','));
+}
+
+function _setNextEnabled(on) {
+  ['btnNext','btnNextBottom','btnSolvedNext'].forEach(function(id){
+    var el = document.getElementById(id);
+    if (el) el.disabled = !on;
+  });
+}
+
+function _resetSolvedCard() {
+  document.querySelector('#solvedCard .solved-title').textContent = 'Puzzle solved!';
+  var btn = document.getElementById('btnSolvedNext');
+  btn.textContent = 'Next →';
+  delete btn.dataset.action;
+}
+
+function _setExhaustedNote(text) {
+  var note = document.getElementById('exhaustedNote');
+  var card = document.getElementById('exhaustedCard');
+  if (!note || !card) return;
+  note.textContent   = text;
+  card.style.display = text ? '' : 'none';
+}
+
+/* Clear the server's record of played puzzles so the pool opens up again. */
+async function _resetSeenHistory() {
+  var un = currentUser || 'guest';
+  if (!confirm('Forget which puzzles you have already played?\n\n' +
+               'Your accuracy and streak history are kept — only the ' +
+               '"already seen" list is cleared, so puzzles can appear again.')) return;
+  try {
+    var res = await fetch(API + '/api/session/seen?username=' + encodeURIComponent(un),
+                          { method: 'DELETE', headers: _authHeaders() });
+    if (!res.ok) throw new Error();
+    _seenIds.clear();
+    _shownIds.clear();
+    _setExhaustedNote('');
+    showFeedback('↺ Played history cleared', 'ok');
+    loadPuzzle();
+  } catch(_) {
+    showFeedback('⚠ Could not reset — is the server running?', 'bad');
+  }
+}
+
+/* Pull the server's record of finished puzzles into the local set. */
+async function _loadSeenIds() {
+  var un = currentUser || 'guest';
+  try {
+    var res = await fetch(API + '/api/session/seen?username=' + encodeURIComponent(un),
+                          { headers: _authHeaders() });
+    if (!res.ok) return;
+    var d = await res.json();
+    (d.seenIds || []).forEach(function(id){ _seenIds.add(id); });
+  } catch(_) {}
 }
 
 /* ════════════════════════════════════════════════════════════════════
@@ -2656,6 +2953,15 @@ function populateInfo(p) {
   $rating.textContent    = p.rating || '—';
   $plays.textContent     = p.nbPlays ? p.nbPlays.toLocaleString() + ' plays' : '';
 
+  /* Where this puzzle came from — the two sources behave differently enough
+     (community rating vs. engine-derived) that it is worth stating. */
+  var $src = document.getElementById('sourceBadge');
+  if ($src) {
+    var fromGames = isGenerated || p.source === 'generated';
+    $src.textContent = fromGames ? 'Your Games' : 'Lichess';
+    $src.className   = 'source-badge ' + (fromGames ? 'generated' : 'lichess');
+  }
+
   $themes.innerHTML = '';
   (p.themes || []).slice(0, 8).forEach(function(t) {
     var tag = document.createElement('span');
@@ -2694,15 +3000,24 @@ function _updateEvalBar(data) {
   label.textContent  = txt;
 }
 
+var _evalAbort = null;   // in-flight eval request, cancelled when superseded
+
 async function _fetchEval(fen) {
   var gen = ++_evalBarGen;
+  /* Clicking Next quickly used to leave a trail of eval requests queued behind
+     the engine. Cancel the previous one — its answer is already irrelevant. */
+  if (_evalAbort) { try { _evalAbort.abort(); } catch(_) {} }
+  var ctrl = new AbortController();
+  _evalAbort = ctrl;
   try {
-    var res  = await fetch(API + '/api/eval?fen=' + encodeURIComponent(fen));
+    var res = await fetch(API + '/api/eval?fen=' + encodeURIComponent(fen),
+                          { signal: ctrl.signal });
     if (!res.ok || _evalBarGen !== gen) return;
     var data = await res.json();
     if (_evalBarGen !== gen) return;
     _updateEvalBar(data);
-  } catch(_) { /* eval bar optional — no error shown to user */ }
+  } catch(_) { /* aborted or offline — the eval bar is optional */ }
+  finally { if (_evalAbort === ctrl) _evalAbort = null; }
 }
 
 function updateTargetingCard() {
@@ -2714,13 +3029,15 @@ function updateTargetingCard() {
 
   // My Puzzles mode
   if (_myPuzzleMode) {
+    var total = _myQueue.length || 1;
+    var pos   = Math.min(_myQueuePos, total);
     badge.style.display = '';
-    badge.textContent   = 'Your Games — ' + (_myPuzzleIdx) + ' / ' + _myPuzzles.length;
+    badge.textContent   = 'Your Games — ' + pos + ' / ' + total;
     card.classList.add('my-puzzles-mode');
     name.textContent    = targetCategory || 'Your Puzzle';
-    bar.style.width     = '100%';
+    bar.style.width     = Math.round(pos / total * 100) + '%';
     bar.style.background = 'var(--green)';
-    rate.textContent    = 'Puzzles extracted from your Chess.com games';
+    rate.textContent    = (total - pos) + ' left · extracted from your Chess.com games';
     return;
   }
 
@@ -2740,7 +3057,14 @@ function updateTargetingCard() {
   bar.style.width   = pct + '%';
   /* Color: red when weak (<40%), yellow mid, green when strong (>70%) */
   bar.style.background = pct < 40 ? 'var(--red)' : pct < 70 ? 'var(--gold)' : 'var(--green)';
-  rate.textContent  = pct + '% estimated solve rate';
+  if (targetCategoryRating) {
+    /* Difficulty-aware policy: the prediction is for THIS puzzle, and the
+       rating is the player's estimated skill in this tactic specifically. */
+    rate.textContent = pct + '% expected for this puzzle · your ' + targetCategory +
+      ' rating ≈ ' + targetCategoryRating.rating + ' ± ' + targetCategoryRating.rd;
+  } else {
+    rate.textContent = pct + '% estimated solve rate';
+  }
 }
 
 function showHint() {
@@ -2748,12 +3072,14 @@ function showHint() {
   var uci = puzzle.moves[moveIndex];
   clrHL(); setHL(uci.slice(0,2), 'hl-hint'); render();
   hintUsed = true;
+  _playerTried = true;   // asking for a hint counts as engaging with the puzzle
   showFeedback('💡 Move the highlighted piece', 'ok');
 }
 
 function _revealSolution() {
   if (!puzzle || puzzleCompleted) return;
   puzzleCompleted = true;
+  _playerTried    = true;
   document.getElementById('btnSeeSolution').style.display = 'none';
 
   var cat = targetCategory || (puzzle && puzzle.primaryCategory) || '';
@@ -3072,13 +3398,38 @@ document.getElementById('btnSkipAnalysis').addEventListener('click', function(){
 /* Game */
 document.getElementById('btnNext').addEventListener('click', loadPuzzle);
 document.getElementById('btnNextBottom').addEventListener('click', loadPuzzle);
-document.getElementById('btnSolvedNext').addEventListener('click', loadPuzzle);
+document.getElementById('btnSolvedNext').addEventListener('click', function(){
+  /* After the last queued puzzle this button becomes "Back to dashboard". */
+  if (this.dataset.action === 'dashboard') { _exitToDashboard(); return; }
+  loadPuzzle();
+});
 document.getElementById('btnHint').addEventListener('click', showHint);
+document.getElementById('btnResetSeen').addEventListener('click', _resetSeenHistory);
 document.getElementById('btnFlip').addEventListener('click', function(){
   orientation = orientation === 'white' ? 'black' : 'white';
   buildBoard(); render();
 });
 document.getElementById('ratingFilter').addEventListener('change', loadPuzzle);
+
+/* Keyboard shortcuts — only while the game view is on screen and the user is
+   not typing into a field. */
+document.addEventListener('keydown', function(e){
+  if (!document.getElementById('v-game').classList.contains('active')) return;
+  var tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea' || tag === 'select') return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+
+  switch (e.key.toLowerCase()) {
+    case 'n': case 'arrowright': e.preventDefault(); loadPuzzle();      break;
+    case 'h':                    e.preventDefault(); showHint();        break;
+    case 's':                    e.preventDefault(); _revealSolution(); break;
+    case 'f':
+      e.preventDefault();
+      orientation = orientation === 'white' ? 'black' : 'white';
+      buildBoard(); render();
+      break;
+  }
+});
 
 /* Dashboard */
 function _startFromDashboard() {
@@ -3135,10 +3486,17 @@ document.getElementById('btnStartTraining2').addEventListener('click', _startFro
     msg.textContent = 'Starting…';
     statusEl.style.display = 'block';
 
+    var targetCats = [];
+    if (analysisProfileCache && analysisProfileCache.weaknessScores) {
+      targetCats = Object.entries(analysisProfileCache.weaknessScores)
+        .sort(function(a, b){ return b[1] - a[1]; })
+        .slice(0, 3).map(function(x){ return x[0]; });
+    }
+
     fetch(API + '/api/generate/puzzles', {
       method: 'POST',
       headers: {'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (sessionToken || '')},
-      body: JSON.stringify({ username: currentUser }),
+      body: JSON.stringify({ username: currentUser, targetCategories: targetCats }),
     })
     .then(function(r){ return r.json(); })
     .then(function(d){
@@ -3173,8 +3531,9 @@ function _loadGenBreakdown(username) {
   })
   .then(function(r){ return r.ok ? r.json() : null; })
   .then(function(d){
-    if (!d || !d.count) return;
-    _myPuzzles = d.puzzles || [];
+    /* Always overwrite — an empty response after "delete all" must clear the
+       practice queue too, otherwise stale puzzles keep being served. */
+    _myPuzzles = (d && d.puzzles) ? d.puzzles : [];
     _renderGenBreakdown(_myPuzzles);
   })
   .catch(function(){});
@@ -3221,16 +3580,23 @@ function _renderGenBreakdown(puzzles) {
   if (libBtn)      libBtn.style.display      = '';
 }
 
-document.getElementById('btnPracticeOwn').addEventListener('click', function() {
+async function _startPracticeRun(startId) {
   if (!_myPuzzles.length) return;
-  _myPuzzleMode = true;
-  _myPuzzleIdx  = 0;
-  // Shuffle for variety each session
-  for (var i = _myPuzzles.length - 1; i > 0; i--) {
-    var j = Math.floor(Math.random() * (i + 1));
-    var t = _myPuzzles[i]; _myPuzzles[i] = _myPuzzles[j]; _myPuzzles[j] = t;
+  await _loadSeenIds();               // so finished puzzles drop out of the queue
+  var replaying = _buildMyQueue(startId);
+  if (!_myQueue.length) {
+    alert('No generated puzzles available. Generate some from your games first.');
+    return;
   }
-  startSession(priorsCache, null);
+  _myPuzzleMode = true;
+  await startSession(priorsCache, null);
+  if (replaying) {
+    showFeedback('You have solved all of these before — replaying the set', 'ok');
+  }
+}
+
+document.getElementById('btnPracticeOwn').addEventListener('click', function() {
+  _startPracticeRun(null);
 });
 
 /* ══════════════════════════════════════════════════════════════════════
@@ -3333,8 +3699,11 @@ function _libLoad() {
     var listData    = results[0];
     var qualityData = results[1];
     _libAllPuzzles  = (listData&&listData.puzzles) ? listData.puzzles : [];
+    _myPuzzles      = _libAllPuzzles.slice();
     _libQuality     = qualityData || null;
     _libSolvedIds   = new Set((qualityData && qualityData.solvedIds) ? qualityData.solvedIds : []);
+    /* Keep the global seen-set in step so the practice queue skips played ones. */
+    ((qualityData && qualityData.seenIds) || []).forEach(function(id){ _seenIds.add(id); });
     _libBuildCatFilter();
     _libRenderQuality();
     _libRender();
@@ -3524,7 +3893,9 @@ function _libCardHTML(p) {
   var fbBadge  = fb ? '<div class="pc-feedback-badge '+fb+'">'+(fb==='liked'?'♥ Liked':'✕ Disliked')+'</div>' : '';
   var likeCls  = 'pc-btn pc-like'+(fb==='liked'?' fb-active':'');
   var diskCls  = 'pc-btn pc-dislike'+(fb==='disliked'?' fb-active':'');
-  var solvedBadge = isSolved ? '<span class="solved-badge">✓ Solved</span>' : '';
+  var solvedBadge = isSolved
+    ? '<span class="solved-badge">✓ Solved</span>'
+    : (_seenIds.has(id) ? '<span class="solved-badge attempted">↻ Attempted</span>' : '');
 
   var qualityRow = '<div class="pc-meta" style="display:flex;align-items:center;gap:5px;margin-top:4px">'
     +'<span class="pc-quality-dot '+dotCls+'" title="'+_esc(dotTitle)+'"></span>'
@@ -3623,17 +3994,12 @@ function _libDeleteAll() {
   .catch(function(){});
 }
 
+/* Play one puzzle from the library.  The queue is still the WHOLE library with
+   the chosen puzzle moved to the front — a single-entry queue is what made
+   Next reload the same position forever. */
 function _libPlayOne(puzzleId) {
-  for (var i=0;i<_libAllPuzzles.length;i++){
-    if ((_libAllPuzzles[i].PuzzleId||_libAllPuzzles[i].id)===puzzleId){
-      _myPuzzles    = [_libAllPuzzles[i]];
-      _myPuzzleIdx  = 0;
-      _myPuzzleMode = true;
-      showView('v-game');
-      loadPuzzle();
-      return;
-    }
-  }
+  _myPuzzles = _libAllPuzzles.slice();
+  _startPracticeRun(puzzleId);
 }
 
 /* ── Library event listeners ─────────────────────────────────────────── */
@@ -3651,8 +4017,12 @@ document.getElementById('btnOpenLibrary').addEventListener('click', function(){
 /* ── Stats panel ── */
 document.getElementById('btnOpenStats').addEventListener('click', function(){ openStatsPanel('session'); });
 document.getElementById('btnDashOpenStats').addEventListener('click', function(){ openStatsPanel('alltime'); });
-document.getElementById('btnToDashboard').addEventListener('click', function(){
-  _myPuzzleMode = false;  // exit "my puzzles" mode on dashboard return
+function _exitToDashboard() {
+  _reportAbandoned();
+  _myPuzzleMode = false;   // leave "my puzzles" mode on dashboard return
+  _myQueue = []; _myQueuePos = 0;
+  $solved.classList.remove('active');
+  _resetSolvedCard();
   showView('v-dashboard');
   if (currentUser && sessionToken) {
     fetch(API + '/api/user/stats/' + encodeURIComponent(currentUser),
@@ -3660,8 +4030,10 @@ document.getElementById('btnToDashboard').addEventListener('click', function(){
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){ if (d) _updateHistoryBanner(d); })
       .catch(function(){});
+    _loadGenBreakdown(currentUser);
   }
-});
+}
+document.getElementById('btnToDashboard').addEventListener('click', _exitToDashboard);
 
 </script>
 
