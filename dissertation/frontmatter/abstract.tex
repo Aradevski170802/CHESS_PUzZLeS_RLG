@@ -1,0 +1,44 @@
+\chapter*{Abstract}
+\addcontentsline{toc}{chapter}{Abstract}
+
+Chess players improve fastest when practice targets what they actually get wrong, yet most
+puzzle platforms select puzzles by rating alone. This dissertation builds and evaluates the
+\emph{Adaptive Chess Puzzle Advisor}, an end-to-end system that analyses a player's Chess.com games
+with Stockfish, estimates tactical weaknesses across 23 motif categories, and serves puzzles from a
+5.9-million-puzzle Lichess corpus and from positions mined from the player's own games. The
+recommendation core is an online Bayesian item-response model, $P(\text{solve}) =
+\sigma(\theta + \delta_k - b)$, which reduces exactly to the Glicko update in one dimension. It
+uses Thompson Sampling on the category offsets $\delta_k$ to choose what to practise, and sets
+puzzle difficulty so that the predicted solve probability is 0.65.
+
+Tactic labelling, which every weakness estimate depends on, is done by \emph{PuzzleNet}: a multi-task
+neural network trained here on 5.5 million Lichess puzzles, which reads a position and the line that
+follows it and predicts the tactical category, the theme tags, and the difficulty together with an
+uncertainty. Its rating likelihood treats each puzzle's own Lichess rating deviation as known
+measurement noise, so the learned variance is the uncertainty the content leaves, which is the quantity
+the Bayesian recommender needs for a puzzle nobody has played.
+
+The evaluation is deliberately adversarial to the system's own assumptions. On a held-out sample, the
+hand-written tagger agrees with Lichess theme labels on 58.4\% of puzzles (Cohen's $\kappa = 0.52$),
+against 31.2\% ($\kappa = 0.23$) for the original single-move labeller; PuzzleNet, scored on exactly the
+same puzzles, reaches 92.6\% ($\kappa = 0.91$), and $\kappa = 0.78$ in the harder condition the
+application actually runs in, labelling engine lines rather than puzzle solutions. In a pre-registered replication, the original
+bandit clearly beats random selection ($d = 5.4$) but fails two of its three pre-registered
+criteria. Across 200 paired simulation runs the new policy cuts puzzles the player has less than a
+30\% chance of solving from 44\% to 3\%. Whether this helps learning depends on the assumed learning
+mechanism. On 300 real players stratified by rating, a player's rating band is predicted from how
+they play with 59.1\% accuracy (five classes, chance 20\%, permutation $p = 0.002$). However, the
+tactical categories a player will miss in future games are only marginally more predictable than
+population base rates, and per-category weakness shows near-zero split-half reliability --- a result
+that survives relabelling every one of those players' 40{,}067 critical positions with the neural
+labeller, so it is not an artefact of crude labels.
+
+The central conclusion is that the robust contribution is \emph{adaptive difficulty}, and that
+personal tactical weaknesses are too subtle to diagnose from typical game histories and must be
+learned online from targeted puzzle attempts. The generative-RL puzzle creation and human
+evaluation envisaged in the project plan were not carried out. Both are discussed, with a
+pre-registered study protocol for the latter.
+
+\vspace{4mm}
+\noindent\textbf{Keywords:} Thompson Sampling, item response theory, Glicko-2, adaptive learning,
+chess tactics, player modelling, multi-task neural networks, heteroscedastic regression, simulation study.

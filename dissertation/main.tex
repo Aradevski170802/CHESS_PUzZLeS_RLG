@@ -1,0 +1,84 @@
+% =====================================================================
+%  Adaptive Chess Puzzle Advisor -- MSc Dissertation (DRAFT)
+%  Structure follows the dissertation plan in the June 2026 portfolio.
+%  Compile with pdfLaTeX + BibTeX (Overleaf: default settings).
+% =====================================================================
+\documentclass[12pt,a4paper,oneside]{report}
+
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage[margin=25mm]{geometry}
+\usepackage{setspace}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{array}
+\usepackage{amsmath,amssymb}
+\usepackage[table]{xcolor}
+\usepackage{enumitem}
+\usepackage{caption}
+\usepackage{float}
+\usepackage{url}
+\usepackage[most]{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,fit}
+\usepackage[colorlinks=true,linkcolor=blue!50!black,citecolor=green!40!black,urlcolor=blue!60!black]{hyperref}
+
+\onehalfspacing
+\setlength{\parskip}{0.4em}
+\setlist{itemsep=0.2em,topsep=0.3em}
+\captionsetup{font=small,labelfont=bf}
+\renewcommand{\arraystretch}{1.2}
+\newcolumntype{Y}{>{\raggedright\arraybackslash}X}
+
+% ---- Draft helpers -----------------------------------------------------
+% Places only the author can complete (personal reflection, supervisor
+% details, ethics reference, ...). Search for "AUTHOR:" before submitting.
+\newcommand{\authornote}[1]{\textcolor{red!70!black}{\textbf{[AUTHOR: #1]}}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+% Headline PuzzleNet numbers (eval/neural/puzzlenet_evaluation.json),
+% defined once so every chapter quotes the same value.
+\newcommand{\KAPPANN}{0.91}
+\newcommand{\AGREENN}{92.6\%}
+
+
+% "Honest status" boxes: where the implemented work deviates from the plan.
+\newtcolorbox{honest}[1][Honest status]{colback=orange!4,colframe=orange!55!black,
+  fonttitle=\bfseries\small,title=#1,breakable,left=2mm,right=2mm,top=1mm,bottom=1mm}
+% Key findings.
+\newtcolorbox{finding}[1][Key finding]{colback=blue!3,colframe=blue!45!black,
+  fonttitle=\bfseries\small,title=#1,breakable,left=2mm,right=2mm,top=1mm,bottom=1mm}
+
+\begin{document}
+
+\input{frontmatter/title}
+\pagenumbering{roman}
+\input{frontmatter/abstract}
+\input{frontmatter/declaration}
+\input{frontmatter/acknowledgements}
+
+\tableofcontents
+\listoffigures
+\listoftables
+\clearpage
+\pagenumbering{arabic}
+
+\input{chapters/01_introduction}
+\input{chapters/02_literature}
+\input{chapters/03_problem}
+\input{chapters/04_methodology}
+\input{chapters/05_implementation}
+\input{chapters/06_results}
+\input{chapters/07_discussion}
+\input{chapters/08_conclusion}
+
+\bibliographystyle{IEEEtran}
+\bibliography{references}
+
+\appendix
+\input{appendices/A_reproduction}
+\input{appendices/B_constants}
+
+\end{document}

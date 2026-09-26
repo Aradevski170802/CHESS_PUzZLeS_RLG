@@ -1,0 +1,126 @@
+\chapter{Discussion}\label{ch:discussion}
+
+\section{Interpretation of Key Findings}
+
+\paragraph{Adaptive difficulty is the robust result.} Across every simulated world, including one with
+no category weaknesses at all, the difficulty-aware policy almost eliminates puzzles the player has
+little chance of solving (from 28--45\% down to 1--3\%). It keeps most practice in the productive zone.
+On the real logs, the assumption that difficulty could be pitched from the player's Chess.com rating
+proved badly wrong (a predicted 45\% solve rate against 84.6\% observed). A model that learns the
+player's puzzle ability online fixes this. These two facts support each other. Pitching difficulty
+correctly is both the most reliable benefit and the one most directly checked against real data.
+
+\paragraph{Weakness targeting is real, but small and fragile.} Adaptive category selection beats random
+selection in every simulation. The advantage shrinks by about two-thirds when weaknesses are as subtle
+as the real cohort suggests. The new policy's \emph{extra} targeting edge over the original bandit does
+not survive realistic effect sizes. The pre-registered replication tells the same story: the original
+bandit clearly beats random, but falls short of the targeting threshold it was held to.
+
+\paragraph{Game histories reveal level, not weaknesses.} This is the most consequential finding. From
+how a player plays, their rating band can be predicted at almost three times chance, and their rating
+within about 200 points. Yet which tactical categories they will miss in future games is barely more
+predictable than population base rates. Per-category reliability is near zero. Two explanations fit.
+Either category-specific differences between players are genuinely small, compared with overall
+strength and with how hard each motif is for everyone. Or the measurement is too noisy to reveal them:
+about 80 critical positions per player, spread over many categories, labelled by a tagger with $\kappa
+\approx 0.5$. Both lead to the same design conclusion. A player's games can supply only a weak prior on
+\emph{which} motif to train. Personal weaknesses have to be learned online, from targeted puzzles, and
+that is what the IRT learner does.
+
+\paragraph{What the negative results mean for the original plan.} The portfolio's gap was puzzle
+\emph{generation} conditioned on the learner's weaknesses. The cohort result bears directly on it. If
+per-category weakness cannot be reliably measured from typical game histories, a generator conditioned
+on a diagnosed weakness would largely be conditioned on noise. The change of direction towards
+difficulty-aware selection, with weakness learned online, is therefore supported by evidence, and was
+not only a response to limited compute.
+
+\section{Relation to Prior Work}
+
+The finding that level is detectable from play is consistent with behavioural stylometry, which
+identifies individuals from their games~\cite{mcilroyyoung2021detecting}. It is also consistent with
+Maia's finding that play varies systematically with rating~\cite{mcilroyyoung2020aligning}. Those
+models use hundreds of games and deep sequence encoders; with only 18 hand-made features and 60 games
+per player, level is still recoverable. By contrast, the weak per-category signal agrees with Hristova
+et al.~\cite{hristova2014assessing}, who found that difficulty comes mainly from the depth of
+calculation rather than recognising the motif. A taxonomy by motif may simply not be where players
+differ most. The case for learning online rather than profiling up front matches the tutoring-bandit
+literature~\cite{clement2015multi} and Elo-based adaptive systems~\cite{pelanek2016applications}, which
+estimate learner and item parameters jointly from interactions. Nie et al.~\cite{nie2026discovering}
+point the same way at a much larger scale: they learn puzzle value from 1.5 billion interactions, not
+from game analysis. Feng et al.~\cite{feng2025generating} remain the reference for puzzle
+\emph{creation}, which this work did not attempt.
+
+\section{Limitations of the Current Approach}\label{sec:limitations}
+
+\subsection{How sophisticated is the AI in this system? An honest assessment}
+
+\begin{table}[H]
+\centering
+\small
+\caption{The AI components, how they work, and how much they contribute.}\label{tab:ai-honest}
+\begin{tabularx}{\linewidth}{p{0.24\linewidth}p{0.22\linewidth}p{0.1\linewidth}Y}
+\toprule
+\textbf{Component} & \textbf{Technique} & \textbf{Learned?} & \textbf{Honest assessment} \\
+\midrule
+IRT learner with Thompson Sampling & Online Bayesian logistic model, full-covariance Laplace update & Online, from every attempt & The most sophisticated component and the core contribution. Mathematically careful (reduces to Glicko; tested), but a known family of models (Elo, IRT, extended Kalman) applied to a new problem. \\
+PuzzleNet & Multi-task neural network (3{,}329 features, 512--256 trunk, three heads), written and differentiated by hand in NumPy & Offline, from 5.5M Lichess puzzles & The only deep-learning component, and the largest single jump in measured quality: tactic labelling improves from $\kappa=0.52$ to \KAPPANN{} on the same held-out puzzles, and mined-puzzle difficulty acquires a calibrated estimate with an uncertainty attached. It is still a feed-forward network over an engineered representation, not a convolutional or attention model over raw boards, and its labels imitate another automatic tagger rather than human judgement. \\
+Beta--Bernoulli bandit & Thompson Sampling & Online & Textbook; a few lines of code. \\
+Rating-band classifier & Logistic regression, random forest & From 300 real players & Standard supervised learning. Solid result, simple models. \\
+Weakness models & Empirical Bayes; random forest & From 300 real players & Classical statistics. Shows only a small advantage over base rates (Chapter~\ref{ch:results}). \\
+Glicko-2 fitter & Bayesian rating system & From logs & A faithful re-implementation of a published algorithm. \\
+Tactic tagger, miner gates & Hand-written rules over engine output & No & Symbolic AI. Measured and much improved, but engineered, not learned. \\
+Stockfish & Alpha-beta search with an NNUE evaluator & Pre-trained (third party) & By far the strongest AI in the system, and not a contribution of this project. \\
+Generative model / deep RL & --- & --- & \textbf{Still none.} No puzzle generator was trained and no policy was learned by reinforcement learning; the bandit and the IRT learner are Bayesian, not deep. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+In summary, the AI here is \textbf{mostly classical and statistically principled, with one trained
+neural component}. PuzzleNet is a genuine supervised deep-learning model: 1.86M parameters, a
+hand-derived backward pass, a noise-aware heteroscedastic likelihood, and calibration fitted on
+held-out data. It is also, honestly, a multilayer perceptron over a carefully built representation:
+a 1990s architecture with modern training practice, not the convolutional or attention models that
+the published entries for this very task used~\cite{schutt2024estimating,milosz2024transformers}.
+The remaining sophistication lies in three places: the formulation (a joint Bayesian model of ability,
+category offset and difficulty, used for decisions under uncertainty), the engineering of reliable
+measurement (deterministic analysis, win-probability grading, a validated tagger), and above all the
+evaluation. That includes a pre-registered replication reported with its failures, paired and
+Holm-corrected simulations, held-out validation, prequential scoring, and a 300-player real-data test
+that challenges the system's own premise. Model capacity is still not where most of the value lies: the network was built
+because two \emph{measured} failures pointed at it, and its worth is argued in the same currency as
+everything else, on held-out data and downstream. An examiner comparing this with the portfolio will
+see that its most ambitious element, generative reinforcement learning, is absent; this chapter argues
+that the evidence justifies the change of direction.
+
+\subsection{Other limitations}
+
+\begin{itemize}
+  \item \textbf{No human evaluation.} All evidence of learning benefit comes from simulation. Five real
+        users give 14\% power to detect a medium effect; 34 paired participants are needed.
+  \item \textbf{Labels are agreement, not truth.} PuzzleNet raises agreement with Lichess themes
+        to \KAPPANN{}, but it is trained to imitate Lichess's own automatic tagger. Neither tagger has
+        been validated against a human expert, so a blind spot shared by both would be invisible here.
+  \item \textbf{Difficulty is population difficulty.} PuzzleNet predicts how hard a puzzle is for the
+        Lichess population, not for this player, and it was calibrated on Lichess puzzles rather than
+        on puzzles mined from a player's own games, where no ground truth exists.
+  \item \textbf{A non-contextual bandit.} Selection ignores context such as session fatigue, time of day
+        and the recent sequence of outcomes.
+  \item \textbf{Simple persistence.} JSON files are adequate for a prototype but not for many users.
+\end{itemize}
+
+\section{Implications for AI-Assisted Chess Training}
+
+\begin{enumerate}
+  \item \textbf{Calibrate difficulty from puzzle outcomes, not from game rating.} Game and puzzle
+        rating scales differ substantially, and a few attempts are enough to correct the offset.
+  \item \textbf{Be sceptical of ``your weaknesses from your games'' claims.} At typical history
+        lengths, per-motif diagnosis is mostly noise. Products that present a precise weakness
+        breakdown after a few dozen games are likely presenting sampling noise with confidence.
+        Honest interfaces should show uncertainty; this system shows a rating $\pm$ RD per category.
+  \item \textbf{Use population norms.} ``Sacrifices are hard for everyone'' is a large and reliable
+        effect, while ``you are bad at sacrifices'' is small and unreliable. Personal feedback should be
+        relative to the norm.
+  \item \textbf{Log what you need to evaluate yourself.} Recording each decision's propensity and the
+        pre-outcome prediction turns every future user into evidence for off-policy
+        evaluation~\cite{nie2026discovering}.
+\end{enumerate}

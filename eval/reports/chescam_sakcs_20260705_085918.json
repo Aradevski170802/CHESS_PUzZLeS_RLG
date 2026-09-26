@@ -1,0 +1,487 @@
+{
+  "username": "chescam_sakcs",
+  "player_elo": 1050,
+  "engine_depth": 18,
+  "generated_at": "2026-07-05T08:59:18.654320",
+  "threshold": 0.6,
+  "summary": {
+    "total": 30,
+    "engine_run": 30,
+    "engine_agrees": 30,
+    "clarity_ok": 11,
+    "deep": 30,
+    "no_dual": 27,
+    "trivial": 0,
+    "tactical": 11,
+    "difficulty_fit": 25,
+    "avg_score": 0.869,
+    "avg_depth": 5.0,
+    "avg_clarity_cp": 156
+  },
+  "evaluations": [
+    {
+      "puzzle_id": "gen_f8af8f3d",
+      "category": "General",
+      "rating": 1078,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 85,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 28,
+      "overall_score": 0.87,
+      "issues": [
+        "low clarity 85cp (want \u2265150)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_579315b9",
+      "category": "Fork",
+      "rating": 1231,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 104,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": true,
+      "difficulty_gap": 181,
+      "overall_score": 0.87,
+      "issues": [
+        "low clarity 104cp (want \u2265150)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_a17522e0",
+      "category": "Hanging Piece",
+      "rating": 1320,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 396,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": true,
+      "difficulty_gap": 270,
+      "overall_score": 1.0,
+      "issues": []
+    },
+    {
+      "puzzle_id": "gen_573aba97",
+      "category": "King Safety",
+      "rating": 1360,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 272,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": true,
+      "difficulty_gap": 310,
+      "overall_score": 0.9,
+      "issues": [
+        "difficulty mismatch: puzzle 1360 vs player 1050 (gap 310)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_427d37d5",
+      "category": "Hanging Piece",
+      "rating": 1210,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 125,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": true,
+      "difficulty_gap": 160,
+      "overall_score": 0.87,
+      "issues": [
+        "low clarity 125cp (want \u2265150)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_b7420803",
+      "category": "General",
+      "rating": 1205,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 443,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 155,
+      "overall_score": 1.0,
+      "issues": []
+    },
+    {
+      "puzzle_id": "gen_fe2bfcaa",
+      "category": "Fork",
+      "rating": 1090,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 64,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": true,
+      "difficulty_gap": 40,
+      "overall_score": 0.75,
+      "issues": [
+        "very low clarity 64cp \u2014 dual solution risk"
+      ]
+    },
+    {
+      "puzzle_id": "gen_1139f5d4",
+      "category": "General",
+      "rating": 1110,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 79,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 60,
+      "overall_score": 0.75,
+      "issues": [
+        "very low clarity 79cp \u2014 dual solution risk"
+      ]
+    },
+    {
+      "puzzle_id": "gen_392b89df",
+      "category": "General",
+      "rating": 1104,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 137,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 54,
+      "overall_score": 0.87,
+      "issues": [
+        "low clarity 137cp (want \u2265150)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_954e9984",
+      "category": "General",
+      "rating": 1110,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 190,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 60,
+      "overall_score": 1.0,
+      "issues": []
+    },
+    {
+      "puzzle_id": "gen_df7834c0",
+      "category": "Fork",
+      "rating": 1096,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 204,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": true,
+      "difficulty_gap": 46,
+      "overall_score": 1.0,
+      "issues": []
+    },
+    {
+      "puzzle_id": "gen_bf2cdfd1",
+      "category": "General",
+      "rating": 1098,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 148,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": true,
+      "difficulty_gap": 48,
+      "overall_score": 0.87,
+      "issues": [
+        "low clarity 148cp (want \u2265150)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_7cdc0c37",
+      "category": "General",
+      "rating": 1083,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 236,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 33,
+      "overall_score": 1.0,
+      "issues": []
+    },
+    {
+      "puzzle_id": "gen_25d1c87d",
+      "category": "General",
+      "rating": 1076,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 132,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 26,
+      "overall_score": 0.87,
+      "issues": [
+        "low clarity 132cp (want \u2265150)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_dd2eacc5",
+      "category": "General",
+      "rating": 1360,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 54,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 310,
+      "overall_score": 0.65,
+      "issues": [
+        "very low clarity 54cp \u2014 dual solution risk",
+        "difficulty mismatch: puzzle 1360 vs player 1050 (gap 310)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_4b64dd08",
+      "category": "General",
+      "rating": 1148,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 252,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 98,
+      "overall_score": 1.0,
+      "issues": []
+    },
+    {
+      "puzzle_id": "gen_41f060d0",
+      "category": "General",
+      "rating": 1360,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 27,
+      "has_dual": true,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 310,
+      "overall_score": 0.65,
+      "issues": [
+        "very low clarity 27cp \u2014 dual solution risk",
+        "difficulty mismatch: puzzle 1360 vs player 1050 (gap 310)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_afa772f0",
+      "category": "Pin",
+      "rating": 1119,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 137,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": true,
+      "difficulty_gap": 69,
+      "overall_score": 0.87,
+      "issues": [
+        "low clarity 137cp (want \u2265150)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_42db4294",
+      "category": "Fork",
+      "rating": 1119,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 123,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": true,
+      "difficulty_gap": 69,
+      "overall_score": 0.87,
+      "issues": [
+        "low clarity 123cp (want \u2265150)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_db1aaa52",
+      "category": "General",
+      "rating": 1360,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 97,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 310,
+      "overall_score": 0.77,
+      "issues": [
+        "low clarity 97cp (want \u2265150)",
+        "difficulty mismatch: puzzle 1360 vs player 1050 (gap 310)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_a8db3a2d",
+      "category": "Fork",
+      "rating": 1258,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 272,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": true,
+      "difficulty_gap": 208,
+      "overall_score": 1.0,
+      "issues": []
+    },
+    {
+      "puzzle_id": "gen_c445b10a",
+      "category": "General",
+      "rating": 1250,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 76,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 200,
+      "overall_score": 0.75,
+      "issues": [
+        "very low clarity 76cp \u2014 dual solution risk"
+      ]
+    },
+    {
+      "puzzle_id": "gen_6da0dbea",
+      "category": "General",
+      "rating": 1181,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 320,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 131,
+      "overall_score": 1.0,
+      "issues": []
+    },
+    {
+      "puzzle_id": "gen_67f7bcc0",
+      "category": "Fork",
+      "rating": 1069,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 138,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 19,
+      "overall_score": 0.87,
+      "issues": [
+        "low clarity 138cp (want \u2265150)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_8c1d4755",
+      "category": "General",
+      "rating": 1073,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 62,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 23,
+      "overall_score": 0.75,
+      "issues": [
+        "very low clarity 62cp \u2014 dual solution risk"
+      ]
+    },
+    {
+      "puzzle_id": "gen_1e021c55",
+      "category": "General",
+      "rating": 1112,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 32,
+      "has_dual": true,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 62,
+      "overall_score": 0.75,
+      "issues": [
+        "very low clarity 32cp \u2014 dual solution risk"
+      ]
+    },
+    {
+      "puzzle_id": "gen_b3fbd1ad",
+      "category": "General",
+      "rating": 1177,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 100,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": true,
+      "difficulty_gap": 127,
+      "overall_score": 0.87,
+      "issues": [
+        "low clarity 100cp (want \u2265150)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_e35a9687",
+      "category": "General",
+      "rating": 1061,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 170,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 11,
+      "overall_score": 1.0,
+      "issues": []
+    },
+    {
+      "puzzle_id": "gen_b463c0ed",
+      "category": "General",
+      "rating": 1360,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 15,
+      "has_dual": true,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 310,
+      "overall_score": 0.65,
+      "issues": [
+        "very low clarity 15cp \u2014 dual solution risk",
+        "difficulty mismatch: puzzle 1360 vs player 1050 (gap 310)"
+      ]
+    },
+    {
+      "puzzle_id": "gen_f1162980",
+      "category": "General",
+      "rating": 1268,
+      "solution_depth": 5,
+      "engine_agrees": true,
+      "clarity_cp": 195,
+      "has_dual": false,
+      "is_trivial": false,
+      "is_tactical": false,
+      "difficulty_gap": 218,
+      "overall_score": 1.0,
+      "issues": []
+    }
+  ]
+}

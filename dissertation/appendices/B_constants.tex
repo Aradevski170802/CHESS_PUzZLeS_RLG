@@ -1,0 +1,38 @@
+\chapter{Categories and Key Constants}\label{app:constants}
+
+\section{The 23 tactical categories}
+
+Fork, Pin, Skewer, Discovered Attack, Hanging Piece, Sacrifice, Deflection, Attraction, Interference,
+Clearance, Quiet Move, Zugzwang, X-Ray Attack, King Safety, Mating Pattern, Endgame, Rook Endgame,
+Queen Endgame, Pawn Endgame, Bishop Endgame, Knight Endgame, Promotion, En Passant.
+
+\section{Constants}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Key constants, as they appear in the source code.}\label{tab:constants}
+\begin{tabularx}{\linewidth}{p{0.36\linewidth}p{0.16\linewidth}Y}
+\toprule
+\textbf{Constant} & \textbf{Value} & \textbf{Meaning} \\
+\midrule
+\code{ANALYSIS\_NODES} & 75,000 & Stockfish nodes per position (deterministic) \\
+\code{INACCURACY/MISTAKE/BLUNDER\_WP} & 5 / 10 / 15 & Win-\% loss thresholds \\
+\code{CRITICAL\_WP\_GAP} & 10 & Best beats runner-up by this: an opportunity \\
+\code{HIT\_WP\_TOL} & 5 & Player within this of best: a hit \\
+\code{SKIP\_PLIES} & 8 & Opening half-moves ignored \\
+\code{RECENCY\_HALF\_LIFE\_GAMES} & 25 & Recency weighting \\
+Shrinkage strength $S$ & 256 & Cross-validated on the cohort (\code{category\_norms.json}) \\
+\code{GAME\_EVIDENCE\_WEIGHT} & 0.5 & One game opportunity counts as half a puzzle attempt \\
+\code{DEFAULT\_DELTA\_SD} & 0.6 & Prior standard deviation of $\delta_k$ (logits) \\
+Drift ($\theta$ / $\delta$) & $0.02^2$ / $0.04^2$ & Random-walk variance per attempt \\
+$p^\star$ & 0.65 & Target solve probability \\
+Serving window & $\pm 150$ & Rating points around the target \\
+\code{GLICKO2\_SCALE} & 173.7178 & Rating points per logit \\
+\code{PUZZLE\_THRESHOLD} & 150 cp & Miner gate 1 \\
+\code{MIN\_CLARITY\_CP} & 100 cp & Miner gate 2 \\
+\code{FORCED\_OPP\_MARGIN} & 80 cp & Miner gate 3 \\
+\code{VERIFY\_DEPTH} & 18 & Miner gate 4 \\
+\bottomrule
+\end{tabularx}
+\end{table}

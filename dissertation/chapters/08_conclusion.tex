@@ -1,0 +1,103 @@
+\chapter{Conclusion and Future Work}\label{ch:conclusion}
+
+\section{Summary of Contributions}
+
+This dissertation built a working adaptive chess-training system and evaluated it rigorously enough to
+find out where it does not work as intended. The system analyses real games deterministically, grades
+moves by win probability, and measures weakness with a proper denominator (critical positions). It
+labels tactics with PuzzleNet, a multi-task neural network trained here on 5.5 million puzzles, which
+also estimates how hard a puzzle is and how uncertain that estimate is, and it recommends puzzles with
+an online Bayesian IRT learner. The evaluation combined a pre-registered replication, seven paired simulation experiments, a
+prequential real-data calibration, and a 300-player real-data study of player modelling. Several
+engineering defects that had silently disabled parts of the system were found and documented.
+
+\section{Answers to Research Questions}\label{sec:answers}
+
+\begin{description}
+  \item[RQ1 (rating group from play).] \textbf{Yes.} On unseen players, a five-band classifier reaches
+        59.1\% accuracy (chance 20\%), is within one band 93\% of the time, and has permutation
+        $p=0.002$. No rating information is used. Objective O1 is met for rating group; style was not
+        modelled.
+  \item[RQ2 (weakness diagnosis from games).] \textbf{Mostly no, at typical history lengths, and not
+        because of the labels.} Future per-category misses are only marginally more predictable than
+        population base rates, and per-category reliability is near zero. Relabelling all 40{,}067
+        critical positions of the 300-player cohort with the neural labeller changes what the positions
+        are called --- the two labellers agree on only 37\% of them --- but leaves reliability at zero.
+        Shrinking towards population norms remains the best practical approach, and personal weakness has
+        to be learned online from puzzle attempts.
+  \item[RQ3 (tactic labelling).] \textbf{Yes, once it is learned rather than written.} Hand-written
+        rules reach $\kappa = 0.52$ on held-out puzzles, and five of the 24 categories have no rule at
+        all. PuzzleNet reaches $\kappa = 0.91$ on the same puzzles and emits every category, and $\kappa =
+        0.78$ on engine lines, the condition the application runs in. Downstream, its labels close 84\% of
+        the gap between rule-based and perfect labels for early targeting, and what remains is no longer
+        statistically distinguishable from perfect. The caveat is that agreement here is agreement with
+        Lichess's own automatic tagger, not with a human expert.
+  \item[RQ4 (difficulty matching).] \textbf{Yes.} The difficulty-aware learner cuts frustrating puzzles
+        from 28--45\% to 1--3\% in every simulated world. On real logs, rating-based pitching is badly
+        miscalibrated, and online learning corrects it.
+  \item[RQ5 (adaptive vs non-adaptive).] \textbf{Yes, with qualifications.} Adaptive selection beats
+        random and round-robin in every simulation, although the original bandit fails two of its
+        three pre-registered thresholds. The new policy's benefit comes from difficulty targeting.
+        Whether it improves \emph{learning} depends on the learning mechanism, which only a human study
+        can establish.
+\end{description}
+
+\section{Recommendations for Future Research}\label{sec:future}
+
+The recommendations are ordered by expected value against effort. The first four are realistic before
+the submission deadline. The fifth item of the earlier plan, replacing the hand-written tagger with a
+learned one, was carried out during this work and is reported in Section~\ref{sec:nn-results}; what
+follows is what that component still needs.
+
+\begin{enumerate}
+  \item \textbf{Run the human pilot} (1--2 weeks of elapsed time, little effort). Use the pre-registered
+        crossover protocol with the existing users to test feasibility. The application already logs
+        everything needed.
+  \item \textbf{Measure how many games are needed for reliable diagnosis} (hours). The cohort already
+        contains 80 games per player, so the reliability curve can be traced as a function of history
+        length. This answers the practical question the RQ2 result raises.
+  \item \textbf{Discover styles without supervision} (1--2 days). Following
+        Jayasekara~\cite{jayasekara2018classification}, cluster the 300 cohort players with PCA and
+        Gaussian mixtures on the engine-derived features, and report cluster stability. This addresses
+        the style half of Objective O1.
+  \item \textbf{Estimate difficulty with a human-move model} (2--3 days, with Maia). Estimate a mined
+        puzzle's difficulty as the probability that a Maia model~\cite{mcilroyyoung2020aligning} at the
+        player's rating finds the key move, and validate it against Lichess ratings. The same
+        probability gives a principled counter-intuitiveness score, which addresses the missing part of
+        Objective O2.
+  \item \textbf{Give PuzzleNet an architecture that matches the data} (1--2 weeks, needs a GPU). The
+        current network is a multilayer perceptron over a hand-built representation, trained on a laptop
+        CPU. The published entries for the same public task use convolutional and attention models over
+        board tensors~\cite{schutt2024estimating,milosz2024transformers}, which is the obvious next step:
+        the encoding and the evaluation harness built here transfer unchanged, so only the trunk needs
+        replacing, and the data-scaling curve in Section~\ref{sec:nn-ablations} says whether more capacity
+        or more data is the binding constraint.
+  \item \textbf{Validate the labels against human judgement} (days, needs expert time). Both taggers are
+        scored against Lichess's automatic tagger, so agreement is not accuracy. A few hundred positions
+        labelled by a strong player would establish how much of the remaining disagreement is error on
+        either side, and would let the harness measure what it claims to measure.
+  \item \textbf{Predict difficulty for \emph{this} player, not the population} (1--2 weeks). PuzzleNet
+        predicts a Lichess rating, which is a population average. Conditioning the difficulty head on a
+        player's rating, or combining it with a human-move model~\cite{mcilroyyoung2020aligning}, would give
+        the recommender a per-player difficulty, which is what the targeting rule actually wants.
+  \item \textbf{Off-policy evaluation} (once more data exists). With logged propensities,
+        inverse-propensity and doubly-robust estimators can score alternative policies from real
+        traffic, following Nie et al.~\cite{nie2026discovering}.
+  \item \textbf{Reward learning progress, and use context} (weeks). Follow Clement et
+        al.~\cite{clement2015multi} in rewarding measured improvement rather than failure, and condition
+        on session context.
+  \item \textbf{Generative puzzle creation} (beyond an MSc). Either search-based generation (perturb
+        mined positions and re-verify with the engine) or the generative RL approach of Feng et
+        al.~\cite{feng2025generating}, conditioned on a weakness estimate reliable enough to condition on.
+\end{enumerate}
+
+\section{Final Remarks}
+
+The system does what the evidence supports. It adapts difficulty reliably, learns weaknesses online,
+and reports its own uncertainty. It does not claim what the evidence refutes, namely a precise diagnosis
+of tactical weaknesses from a few dozen games. Several of the most important results are negative, and
+some of them are the system's own pre-registered criteria failing. That is not a weakness of the
+dissertation: it is what makes its positive claims credible.
+
+\authornote{Add a short personal reflection on the project process, as required by the assessment
+criteria (the ``processes'' and ``evaluation'' components of the marking form).}

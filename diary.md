@@ -203,22 +203,239 @@ Fork, Pin, Skewer, Discovered Attack, Hanging Piece, Sacrifice, Deflection, Attr
 
 ---
 
+### 2026-07-02 — Adaptive Engine + Complete UI Redesign
+
+Branch: `feature/adaptive-engine` (off `develop`). Two commits:
+- `84646c7 feat: add adaptive recommendation engine`
+- `9b6acce feat: complete UI redesign with login and adaptive session flow`
+
+#### What was built
+
+##### `src/recommender/bandit.py` — Thompson Sampling bandit
+
+- `ArmState` dataclass: `alpha`, `beta` integers with `.mean` and `.sample()` properties
+- `ThompsonBandit`: 23 arms (one per `WEAKNESS_CATEGORY`), Beta(α, β) per arm
+- **Selection rule:** sample θ_i ~ Beta(α_i, β_i) for each arm; pick the arm with the *lowest* θ_i (= most likely weakness = highest training value)
+- `update(category, solved)`: α += 1 on solve; β += 1 on failure; maintains streak + best_streak
+- `weakness_map()`, `top_weaknesses(n)`, `session_accuracy()`, `to_dict()` / `from_dict()` for persistence
+- Priors seeded from `profile_to_bandit_priors()`: weakness_score 0.8 → Beta(2,8); 0.5 → Beta(5,5); 0.2 → Beta(8,2)
+
+##### `src/api/chess_com_fetcher.py` — Chess.com public API client (committed)
+
+(Written in previous session, now committed after `.gitignore` fix)
+- `get_player_profile(username)` → profile dict with ratings per time control
+- `get_recent_games(username, n=50)` → list of PGN strings, newest first
+- Disk-caching at `data/cache/chess_com/`, 0.5s delay between archive requests
+
+##### `src/data/pgn_parser.py` — PGN parser (committed)
+
+- `parse_game(pgn_str, username)` → dict with opening (ECO/family/URL), player colour, result, rating, num_moves
+- `get_game_phase(board)` → "opening" / "middlegame" / "endgame" by piece count
+- Opening family extracted from Chess.com ECOUrl slug
+
+##### `src/classifier/stockfish_analyzer.py` — Stockfish analysis (committed)
+
+- Was invisible due to `.gitignore: stockfish*` accidentally matching the `.py` file
+- Fixed `.gitignore` to use explicit binary names (`stockfish`, `stockfish.exe`, `stockfish-*`)
+- `analyze_games_parallel(pgn_strings, username, stockfish_path, workers=4)` → list[GameAnalysis]
+- 50ms per position; skips first 8 half-moves; inaccuracy/mistake/blunder thresholds
+
+##### `src/classifier/player_profiler.py` — Player profiler (committed)
+
+- `build_profile(analyses, username, estimated_elo)` → PlayerProfile
+- `profile_to_bandit_priors(profile)` → dict[str, (alpha, beta)], α+β=10
+- Heuristic weakness scoring from error phase distribution + blunder rate
+
+##### `web/backend/app.py` — 6 new Flask routes
+
+| Route | Description |
+|-------|-------------|
+| `GET /api/player/lookup` | Fast Chess.com profile fetch (no analysis) |
+| `POST /api/analysis/start` | Launch background analysis thread |
+| `GET /api/analysis/status/<username>` | Poll analysis progress (0–100%) |
+| `POST /api/session/start` | Create ThompsonBandit with optional priors |
+| `GET /api/session/puzzle` | Bandit-selected category → random puzzle in that category |
+| `POST /api/session/result` | Record solve/fail, update bandit, return streak/accuracy |
+| `GET /api/session/stats` | Current session statistics |
+
+Also added `PUZZLE_BY_CAT` index built at startup for O(1) category lookups. Background analysis falls back to heuristic profile if Stockfish is not installed.
+
+##### `web/frontend/index.html` — Complete redesign (4-view SPA)
+
+No external CSS framework. Custom CSS only, ~350 lines. Dark theme: `#0d1117` background, `#6366f1` indigo accent, `#3fb950` green, `#f85149` red. Classic Lichess brown board (64px squares = 512px).
+
+**View 1 — Login:** Chess.com username input with Enter-key support, "Load Profile" button, "Play as Guest" button. Gradient radial background.
+
+**View 2 — Profile:** Avatar + FIDE title badge + display name. Rating grid (Rapid/Blitz/Bullet/Daily). "Analyse my games" (triggers View 3) or "Skip" (flat priors).
+
+**View 3 — Analysis:** Animated progress bar polling `/api/analysis/status` every 2s. Four step indicators (fetch → download → parse → build) that transition pending → active → done. "Skip analysis" abort button.
+
+**View 4 — Game:** Fixed header with session stats (🔥 streak, ✓ accuracy %, # count), rating filter, "Next →" button, "Guest / @username" label. Two-column layout: board left, panel right.
+
+**Training Focus card** (new): Displays the bandit's currently targeted weakness category, a colour-coded solve-rate bar (red <40%, amber <70%, green ≥70%), and the estimated solve rate as text. Shows "Random Mode" when no adaptive session is active.
+
+**All existing game mechanics preserved:** drag-and-drop, click-to-move, auto-move, legal move dots, move history log, progress dots, hint (indigo highlight), flip, solved overlay.
+
+**Adaptive result reporting:** After every puzzle (solved or abandoned via Next), `reportResult(category, solved)` calls `/api/session/result` and updates the header stats.
+
+#### Bug fixed: `.gitignore` over-matching
+
+The rule `stockfish*` was causing `stockfish_analyzer.py` to be silently excluded from `git status`. Replaced with explicit patterns: `stockfish`, `stockfish.exe`, `stockfish-*`.
+
+---
+
+### 2026-07-04 — Player Style Profile, Puzzle Generator, Full UI Overhaul
+
+Branch: `feature/adaptive-engine`. Three commits:
+- `c7f9d2d feat: add player style profile, puzzle generator, and game UI overhaul`
+- `f4f077f fix: resolve style endpoint 500, Stockfish path, and add generated puzzle practice mode`
+- `7c648e7 fix: correct chess board square colors (a1 must be dark)`
+
+#### What was built
+
+##### `src/analysis/style_profile.py` — Player style profiler
+
+`compute_style_profile(username, pgn_strings, *, accuracy_data=None) → dict`
+
+Pure python-chess analysis (no engine needed). Processes all PGN strings and returns 12+ metrics:
+- **win_rate, white_win_rate, black_win_rate**: colour-split win statistics
+- **win_pattern / loss_pattern**: how the player wins/loses (checkmate %, resignation %, timeout %)
+- **aggression_score** (0–100): weighted from checkmate-win frequency + sacrifice rate + early-resignation penalty
+- **time_pressure**: fraction of moves played with < 30 s on clock
+- **sacrifice_rate**: per-game count of captures with a piece ≥400cp more valuable than the target
+- **opening_breadth**: distinct ECO families in the player's repertoire
+- **archetype**: one of "Tactical Attacker", "Time-Trouble Gambler", "Opening Theorist", "Positional Grinder", "Balanced Player"
+
+Five archetype rules in `_classify_archetype()` use threshold logic on the above metrics.
+
+##### `src/puzzles/generator.py` — Own-game puzzle miner
+
+Two extraction modes chosen automatically by `generate_from_games()`:
+
+**Heuristic mode** (no engine): scans every position with python-chess. Detects hanging pieces (net material gain > 50cp), forks (one move attacks 2+ pieces worth ≥300cp), checkmate in one, promotion wins. Assigns ratings based on tactic type and material gain. Runs in milliseconds per game.
+
+**Stockfish mode**: eval-drop analysis — position is a puzzle candidate when the player's actual move loses ≥120cp vs the engine's best move. Generates a continuation line at depth 16 using `CONTINUATION_MOVES=4` extensions.
+
+Output follows the Lichess puzzle schema: `FEN` = position **before** the opponent's last move; `Moves[0]` = opponent's auto-played move; `Moves[1+]` = player's solution. Puzzles are written to `data/user_puzzles/{username}.json` (gitignored).
+
+`_classify_tactic()` maps the engine's best move to one of: Mating Pattern, Fork, Hanging Piece, Pin, Skewer, Discovered Attack, Sacrifice, Promotion, X-Ray Attack, Pawn/Rook Endgame, General.
+
+##### Flask endpoints added to `web/backend/app.py`
+
+| Route | Description |
+|-------|-------------|
+| `GET /api/player/style/<username>` | Returns style profile dict (computation cached per session) |
+| `POST /api/generate/puzzles` | Triggers background puzzle generation (Stockfish or heuristic) |
+| `GET /api/generate/status/<username>` | Polls generation progress |
+| `GET /api/generate/list/<username>` | Returns user's saved puzzles (auth required) |
+
+The `/api/session/puzzle` endpoint was updated to blend user-generated puzzles (served first) with the Lichess pool.
+
+##### UI additions to `web/frontend/index.html`
+
+- **Player strips** on the game board: name + icon, active-turn highlight with indigo glow
+- **Turn card pulse** animation: border glows when it's the player's turn
+- **Style profile card**: aggression score bar, archetype label, sacrifice rate, opening breadth
+- **Insights dashboard**: metrics grid between analysis view and game view
+- **Generated puzzle panel**: category breakdown with pill tags showing count per tactic type; "Practice My Puzzles" button that shuffles and queues the user's own puzzles
+- **`_myPuzzleMode`** JS global: when active, `loadPuzzle()` draws from `_myPuzzles[]` instead of the API; targeting card shows "Your Games" green mode badge
+
+#### Bug fixes
+
+**Style endpoint 500**: `from src.api.chess_com_fetcher import get_recent_games, _cache_path` — `_cache_path` doesn't exist in that module. Removed from import.
+
+**Stockfish `[WinError 2]`**: `find_stockfish()` used `Path(candidate).exists()` — the `stockfish/` directory caused `Path("stockfish").exists()` to return True, so the function returned a directory name instead of the binary path. Fixed by changing `.exists()` → `.is_file()`.
+
+**Chess board colour inversion**: `a1` square was rendered light instead of dark. The parity formula was inverted: `(fileIndex + rank) % 2 !== 0` should be `=== 0` for light squares (a1 = file 0, rank 1: (0+1)%2=1; `1 === 0` is false → dark, correct).
+
+---
+
+### 2026-07-05 — Puzzle Quality Evaluation Framework
+
+Branch: `feature/adaptive-engine`.
+
+#### Motivation
+
+After generating 30 puzzles using the heuristic mode, the average quality was poor:
+- Average Elo ≈ 803 (range 707–891)
+- Majority were "Hanging Piece" trivial free captures — no calculation required
+- Stockfish mode had been broken by the directory/binary path bug until 2026-07-04
+- No systematic way to measure or iterate on generator quality
+
+Goal: build a rigorous evaluation framework so generator constants can be tuned empirically rather than by inspection.
+
+#### What was built
+
+##### `eval/puzzle_evaluator.py` — Per-puzzle quality scoring
+
+`PuzzleEvaluation` dataclass stores all metrics. `evaluate_puzzle(puzzle, engine, *, depth, player_elo, weak_categories)` computes the composite score from five weighted dimensions:
+
+| Dimension | Weight | Criterion |
+|-----------|--------|-----------|
+| `engine_agrees` | 0.30 | Stockfish (depth 18) confirms the intended solution as its best move |
+| `clarity_cp` | 0.25 | Centipawn gap between PV1 and PV2 ≥ 150cp (clear, unambiguous answer) |
+| `solution_depth` | 0.20 | Move sequence has ≥ 3 ply (not a pure 1-move answer) |
+| `not_trivial` | 0.15 | Not a completely undefended free capture with no follow-up |
+| `difficulty_fit` | 0.10 | |puzzle Elo − player Elo| ≤ 300 |
+
+Additional flags: `has_dual_solution` (clarity gap < 50cp), `is_tactical` (capture/check/checkmate), `category_is_weak` (matches bandit-identified weakness).
+
+`evaluate_batch()` processes a list with a shared engine instance. `summarise()` aggregates metrics for reporting.
+
+##### `eval/run_evaluation.py` — CLI test harness
+
+```
+python eval/run_evaluation.py --username chescam_sakcs --elo 1050
+python eval/run_evaluation.py --username chescam_sakcs --no-engine   # structural only
+python eval/run_evaluation.py --username chescam_sakcs --depth 20 --top 10
+```
+
+Outputs:
+1. Per-metric pass rates (engine_agrees, clarity, depth, dual-solution, difficulty fit)
+2. Overall score and grade (GOOD ≥ 0.70, FAIR ≥ 0.50, POOR < 0.50)
+3. Category breakdown table (count, Elo range, avg score)
+4. Actionable recommendations with specific constants to tune
+5. Top-N and bottom-N puzzles with individual metrics
+
+Saves full JSON report to `eval/reports/{username}_{timestamp}.json` for iteration comparison.
+
+##### Generator quality filters added (`src/puzzles/generator.py`)
+
+Two new constants:
+- `MIN_CLARITY_CP = 80` — Stockfish mode: minimum clarity gap to prevent dual solutions
+- `MIN_SOLUTION_DEPTH = 3` — heuristic mode: minimum ply count
+
+Changes:
+- **Heuristic mode**: "Hanging Piece" puzzles with solution depth < 3 are now skipped. This eliminates trivial free captures where the piece is completely undefended and no follow-up calculation is needed. Checkmate and Fork puzzles are exempt (pattern recognition IS the challenge).
+- **Stockfish mode**: added `multipv=2` analysis during extraction. If the gap between PV1 and PV2 is < `MIN_CLARITY_CP`, the position is ambiguous and the puzzle is discarded.
+
+#### Iteration workflow
+
+```
+1. Tweak constants in src/puzzles/generator.py
+2. Regenerate: POST /api/generate/puzzles  (or call generate_from_games() directly)
+3. python eval/run_evaluation.py --username X --elo Y
+4. Compare avg_score across runs (saved in eval/reports/)
+5. Target: avg_score ≥ 0.70, engine_agrees ≥ 75%
+```
+
+---
+
 ## Pending Tasks
 
 ### Immediate
-- [ ] Rebuild the UI with Bulma CSS framework
 - [ ] Start Flask backend before each web app session (`python web/backend/app.py`)
+- [ ] Run `python eval/run_evaluation.py --username chescam_sakcs --elo 1050` after next generation to baseline quality score
 
-### Week 1 (July 1–7)
-- [ ] `src/api/chess_com_fetcher.py` — fetch player game history from Chess.com API
-- [ ] `src/data/pgn_parser.py` — parse PGN game records to extract positions
-- [ ] `src/classifier/feature_extractor.py` — extract weakness signals from game history
+### Short Term
+- [ ] Re-generate puzzles now that Stockfish path is fixed — compare Stockfish vs heuristic quality scores
+- [ ] Tune generator constants (raise PUZZLE_THRESHOLD, DETECT_TIME) based on evaluation report
+- [ ] Persist bandit state to disk between server restarts
+- [ ] Weakness radar chart on profile/analysis view (all 23 category scores)
+- [ ] Merge `feature/adaptive-engine` into `develop`
 
-### Week 2 (July 8–14)
-- [ ] `src/recommender/bandit.py` — Thompson Sampling multi-armed bandit
-- [ ] `src/recommender/session.py` — per-player session state and history
-
-### Later
-- [ ] Stockfish integration for position evaluation
-- [ ] Player ELO → difficulty tier mapping in the API
-- [ ] Evaluation framework (A/B test: random vs adaptive recommendations)
+### Dissertation
+- [ ] Write Methods chapter: Thompson Sampling, Beta distribution priors, puzzle evaluation metrics
+- [ ] Evaluation experiment: run N sessions with adaptive vs random selection, compare solve rates over time
+- [ ] Write Results chapter (use `eval/reports/` JSON output as evidence)
+- [ ] Write Discussion chapter: limitations, generator quality tradeoffs, future improvements

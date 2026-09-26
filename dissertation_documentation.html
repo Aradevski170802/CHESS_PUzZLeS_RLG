@@ -1,0 +1,938 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adaptive Chess Puzzle Advisor — System Documentation</title>
+<style>
+  :root {
+    --ink: #1b1f27;
+    --sub: #55606f;
+    --line: #dfe3e8;
+    --bg-soft: #f6f7f9;
+    --accent: #2f5fd6;
+    --accent-soft: #eef2fd;
+    --warn: #b3541e;
+    --warn-soft: #fdf1e7;
+    --code-bg: #1b1f27;
+    --code-fg: #e8eaf0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
+    color: var(--ink);
+    background: #ffffff;
+    line-height: 1.65;
+    font-size: 16px;
+  }
+  .page {
+    max-width: 880px;
+    margin: 0 auto;
+    padding: 56px 32px 120px;
+  }
+  header.title {
+    border-bottom: 3px solid var(--ink);
+    padding-bottom: 22px;
+    margin-bottom: 36px;
+  }
+  header.title h1 {
+    font-size: 30px;
+    margin: 0 0 8px;
+    letter-spacing: -0.01em;
+  }
+  header.title p {
+    margin: 2px 0;
+    color: var(--sub);
+    font-size: 15px;
+  }
+  header.title .byline {
+    font-weight: 600;
+    color: var(--ink);
+  }
+  .note {
+    background: var(--bg-soft);
+    border-left: 4px solid var(--accent);
+    padding: 14px 18px;
+    margin: 20px 0 0;
+    font-size: 14.5px;
+    color: var(--sub);
+    border-radius: 0 6px 6px 0;
+  }
+  h2 {
+    font-size: 22px;
+    margin: 52px 0 16px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid var(--line);
+    letter-spacing: -0.01em;
+  }
+  h2 .num { color: var(--accent); margin-right: 8px; }
+  h3 {
+    font-size: 17.5px;
+    margin: 34px 0 12px;
+    color: var(--ink);
+  }
+  h4 { font-size: 15.5px; margin: 22px 0 8px; color: var(--sub); }
+  p { margin: 12px 0; }
+  a { color: var(--accent); }
+  strong { font-weight: 650; }
+  code {
+    font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-size: 0.88em;
+  }
+  pre.codeblock {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 16px 18px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-size: 13.5px;
+    line-height: 1.55;
+  }
+  pre.codeblock code {
+    background: none;
+    border: none;
+    padding: 0;
+    color: inherit;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 18px 0;
+    font-size: 14.5px;
+  }
+  th, td {
+    text-align: left;
+    padding: 9px 12px;
+    border-bottom: 1px solid var(--line);
+    vertical-align: top;
+  }
+  th {
+    background: var(--bg-soft);
+    font-weight: 650;
+    border-bottom: 2px solid var(--ink);
+  }
+  tr:hover td { background: #fafbfc; }
+  td.num, th.num { text-align: right; }
+  .diagram-card {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 18px;
+    margin: 18px 0 26px;
+    background: #fdfdfe;
+    overflow-x: auto;
+  }
+  .diagram-card svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+  .node-box { fill: #f6f7f9; stroke: #1b1f27; stroke-width: 1.3; }
+  .node-box.accent { fill: #eef2fd; stroke: #2f5fd6; }
+  .node-box.offline { fill: #eef2fd; stroke: #2f5fd6; stroke-dasharray: 5 3; }
+  .node-box.warn { fill: #fdf1e7; stroke: #b3541e; }
+  .node-title { font: 650 13px -apple-system, "Segoe UI", sans-serif; fill: #1b1f27; text-anchor: middle; }
+  .node-sub { font: 12px Consolas, Menlo, monospace; fill: #55606f; text-anchor: middle; }
+  .edge { fill: none; stroke: #55606f; stroke-width: 1.4; }
+  .edge.dashed { stroke-dasharray: 5 3; stroke: #2f5fd6; }
+  .edge-label { font: 11.5px -apple-system, "Segoe UI", sans-serif; fill: #55606f; text-anchor: middle; }
+  .edge-label.bg { fill: #ffffff; }
+  .group-label { font: 650 11px -apple-system, "Segoe UI", sans-serif; fill: #55606f; letter-spacing: 0.04em; text-transform: uppercase; }
+  .group-box { fill: none; stroke: #dfe3e8; stroke-width: 1; stroke-dasharray: 3 3; }
+  .callout {
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 18px 0;
+    font-size: 14.5px;
+  }
+  .callout.warn {
+    background: var(--warn-soft);
+    border: 1px solid #ecc9a6;
+  }
+  .callout.warn h4 {
+    color: var(--warn);
+    margin: 0 0 6px;
+    font-size: 15px;
+  }
+  .callout.info {
+    background: var(--accent-soft);
+    border: 1px solid #c7d6f7;
+  }
+  ul, ol { padding-left: 22px; }
+  li { margin: 5px 0; }
+  .toc {
+    background: var(--bg-soft);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 20px 26px;
+    margin: 28px 0;
+  }
+  .toc h3 { margin-top: 0; }
+  .toc ol { columns: 2; column-gap: 32px; }
+  .toc li { break-inside: avoid; font-size: 14.5px; }
+  .toc a { text-decoration: none; color: var(--ink); }
+  .toc a:hover { color: var(--accent); }
+  .file-tree {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 18px 22px;
+    border-radius: 8px;
+    font-family: Consolas, Menlo, monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-x: auto;
+    white-space: pre;
+  }
+  .print-btn {
+    position: fixed;
+    top: 20px;
+    right: 28px;
+    background: var(--ink);
+    color: #fff;
+    border: none;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-size: 14px;
+    cursor: pointer;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.18);
+  }
+  .print-btn:hover { background: var(--accent); }
+  @media print {
+    .print-btn { display: none; }
+    .page { padding: 0; max-width: 100%; }
+    h2 { break-after: avoid; }
+    .diagram-card, table, .callout { break-inside: avoid; }
+    body { font-size: 12.5px; }
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#55606f"></path>
+    </marker>
+    <marker id="arrowAccent" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#2f5fd6"></path>
+    </marker>
+  </defs>
+</svg>
+
+<button class="print-btn" onclick="window.print()">Print / Save as PDF</button>
+
+<div class="page">
+
+<header class="title">
+  <h1>Adaptive Chess Puzzle Advisor — System Documentation</h1>
+  <p>MSc AI &amp; Data Science Dissertation — City College, University of York</p>
+  <p class="byline">Aleksandar Radevski · July–October 2026</p>
+  <div class="note">
+    This document is a from-the-source-code technical reference, regenerated in full after the improvement-plan work (test suite, Glicko-2 difficulty fitting, trained weakness classifier, and a <code>MoveError</code> category-classification fix). Every diagram, table, and constant below was read directly out of the current codebase — nothing here is aspirational. Where the code contradicts the README or itself, that is called out explicitly rather than smoothed over.
+  </div>
+</header>
+
+<div class="toc">
+  <h3>Contents</h3>
+  <ol>
+    <li><a href="#s1">Abstract</a></li>
+    <li><a href="#s2">System Overview</a></li>
+    <li><a href="#s3">Pipeline 1 — Player Analysis</a></li>
+    <li><a href="#s4">Pipeline 2 — Puzzle Mining</a></li>
+    <li><a href="#s5">Pipeline 3 — Pool &amp; Recommendation Loop</a></li>
+    <li><a href="#s6">Discovered Contradictions and Bugs</a></li>
+    <li><a href="#s7">Offline Research Components</a></li>
+    <li><a href="#s8">What Is Actually "AI-Driven"</a></li>
+    <li><a href="#s9">Technology Stack</a></li>
+    <li><a href="#s10">File Map</a></li>
+    <li><a href="#s11">Reproduction Guide</a></li>
+    <li><a href="#s12">Talking Points / Q&amp;A</a></li>
+    <li><a href="#s13">Appendix — Slide Diagrams</a></li>
+  </ol>
+</div>
+
+<h2 id="s1"><span class="num">1.</span>Abstract</h2>
+<p>The Adaptive Chess Puzzle Advisor analyses a player's Chess.com game history, estimates which tactical categories they are weak in, and then runs an adaptive puzzle-recommendation session that concentrates practice on those weaknesses using a Thompson Sampling multi-armed bandit. Puzzles come from two sources: a 6-million-row Lichess puzzle database (filtered and re-categorised), and puzzles mined directly from the player's own games via a four-gate Stockfish verification pipeline. Two further components exist as <strong>validated research artefacts, gated on real-player data volume rather than the app's default</strong>: a Glicko-2 difficulty-rating fitter for puzzles and players (still fully offline), and a RandomForest classifier trained to predict a player's per-category weakness profile as an alternative to the hand-tuned rule engine (now reachable in the live app as an opt-in flag).</p>
+
+<h2 id="s2"><span class="num">2.</span>System Overview</h2>
+<div class="diagram-card">
+<svg viewBox="0 0 920 650" xmlns="http://www.w3.org/2000/svg">
+  <text class="group-label" x="40" y="12">Data ingestion</text>
+  <text class="group-label" x="40" y="102">Player analysis</text>
+  <text class="group-label" x="610" y="102">Puzzle mining</text>
+  <text class="group-label" x="270" y="382">Recommendation loop</text>
+  <text class="group-label" x="40" y="562">Offline / not yet deployed</text>
+  <text class="group-label" x="610" y="562">Opt-in via WEAKNESS_MODEL=ml</text>
+
+  <!-- edges (drawn first so nodes sit on top) -->
+  <path class="edge" d="M165,74 L165,110" marker-end="url(#arrow)"/>
+  <path class="edge" d="M165,74 L165,95 L735,95 L735,110" marker-end="url(#arrow)"/>
+  <path class="edge" d="M735,74 L885,74 L885,507 L630,507" marker-end="url(#arrow)"/>
+  <path class="edge" d="M735,164 L860,164 L860,495 L630,495" marker-end="url(#arrow)"/>
+  <path class="edge" d="M165,164 L165,200" marker-end="url(#arrow)"/>
+  <path class="edge" d="M165,254 L165,266 L105,266 L105,290" marker-end="url(#arrow)"/>
+  <path class="edge" d="M165,254 L165,278 L295,278 L295,290" marker-end="url(#arrow)"/>
+  <path class="edge" d="M105,344 L105,365 L350,365 L350,390" marker-end="url(#arrow)"/>
+  <path class="edge" d="M295,344 L295,377 L550,377 L550,390" marker-end="url(#arrow)"/>
+  <path class="edge" d="M450,444 L450,480" marker-end="url(#arrow)"/>
+  <path class="edge" d="M270,507 C170,507 170,417 270,417" marker-end="url(#arrow)"/>
+  <path class="edge dashed" d="M350,534 L350,552 L165,552 L165,570" marker-end="url(#arrowAccent)"/>
+  <path class="edge" d="M550,534 L550,552 L735,552 L735,570" marker-end="url(#arrow)"/>
+
+  <!-- edge labels -->
+  <rect class="edge-label bg" x="78" y="256" width="90" height="14"/>
+  <text class="edge-label" x="123" y="266">stockfish found</text>
+  <rect class="edge-label bg" x="255" y="268" width="150" height="14"/>
+  <text class="edge-label" x="330" y="278">stockfish NOT found (§6.1)</text>
+  <rect class="edge-label bg" x="130" y="455" width="72" height="14"/>
+  <text class="edge-label" x="166" y="465">solve / fail</text>
+  <rect class="edge-label bg" x="188" y="545" width="110" height="14"/>
+  <text class="edge-label" x="243" y="555">writes data/sessions</text>
+  <rect class="edge-label bg" x="565" y="545" width="140" height="14"/>
+  <text class="edge-label" x="635" y="555">writes data/user_puzzles</text>
+
+  <!-- nodes -->
+  <g><rect class="node-box" x="40" y="20" width="250" height="54" rx="8"/>
+     <text class="node-title" x="165" y="51">Chess.com Public API</text></g>
+
+  <g><rect class="node-box" x="610" y="20" width="250" height="54" rx="8"/>
+     <text class="node-title" x="735" y="43">Lichess Puzzle DB</text>
+     <text class="node-sub" x="735" y="60">(~6M rows, CSV)</text></g>
+
+  <g><rect class="node-box" x="40" y="110" width="250" height="54" rx="8"/>
+     <text class="node-title" x="165" y="141">PGN Parser</text></g>
+
+  <g><rect class="node-box" x="610" y="110" width="250" height="54" rx="8"/>
+     <text class="node-title" x="735" y="133">Puzzle Miner</text>
+     <text class="node-sub" x="735" y="150">(4-gate Stockfish)</text></g>
+
+  <g><rect class="node-box" x="40" y="200" width="250" height="54" rx="8"/>
+     <text class="node-title" x="165" y="223">Stockfish Analyzer</text>
+     <text class="node-sub" x="165" y="240">analyze_game()</text></g>
+
+  <g><rect class="node-box accent" x="20" y="290" width="170" height="54" rx="8"/>
+     <text class="node-title" x="105" y="313">Weakness Scorer</text>
+     <text class="node-sub" x="105" y="330">build_profile()</text></g>
+
+  <g><rect class="node-box warn" x="210" y="290" width="170" height="54" rx="8"/>
+     <text class="node-title" x="295" y="313">Heuristic Fallback</text>
+     <text class="node-sub" x="295" y="330">_heuristic_profile()</text></g>
+
+  <g><rect class="node-box accent" x="270" y="390" width="360" height="54" rx="8"/>
+     <text class="node-title" x="450" y="413">Thompson Sampling Bandit</text>
+     <text class="node-sub" x="450" y="430">23 arms · Beta(α, β)</text></g>
+
+  <g><rect class="node-box accent" x="270" y="480" width="360" height="54" rx="8"/>
+     <text class="node-title" x="450" y="503">/api/session/puzzle</text>
+     <text class="node-sub" x="450" y="520">blend + fallback cascade</text></g>
+
+  <g><rect class="node-box offline" x="40" y="570" width="250" height="54" rx="8"/>
+     <text class="node-title" x="165" y="593">Glicko-2 Difficulty Fitter</text>
+     <text class="node-sub" x="165" y="610">(offline, not deployed)</text></g>
+
+  <g><rect class="node-box accent" x="610" y="570" width="250" height="54" rx="8"/>
+     <text class="node-title" x="735" y="593">RandomForest Classifier</text>
+     <text class="node-sub" x="735" y="610">reachable, opt-in, not default</text></g>
+</svg>
+</div>
+<p>Solid arrows are live, wired-up data flow. The dashed arrow (Glicko-2 fitter) is built, tested, and validated, but not currently invoked by <code>web/backend/app.py</code>. As of this pass, both <code>build_profile()</code> (default) and <code>build_profile_ml()</code> (opt-in via <code>WEAKNESS_MODEL=ml</code>) are genuinely reachable — see §6.1 and §6.3, which previously documented these as bugs and now record the fix.</p>
+
+<h2 id="s3"><span class="num">3.</span>Pipeline 1 — Player Analysis (Weakness Profiling)</h2>
+<div class="diagram-card">
+<svg viewBox="0 0 760 670" xmlns="http://www.w3.org/2000/svg">
+  <!-- edges -->
+  <path class="edge" d="M380,70 L380,90" marker-end="url(#arrow)"/>
+  <path class="edge" d="M380,140 L380,160" marker-end="url(#arrow)"/>
+  <path class="edge" d="M380,210 L380,230" marker-end="url(#arrow)"/>
+  <path class="edge" d="M230,270 L200,270 L200,350" marker-end="url(#arrow)"/>
+  <path class="edge" d="M530,270 L560,270 L560,350" marker-end="url(#arrow)"/>
+  <path class="edge" d="M200,420 L200,440" marker-end="url(#arrow)"/>
+  <path class="edge" d="M200,494 L200,512 L340,512 L340,520" marker-end="url(#arrow)"/>
+  <path class="edge" d="M560,420 L560,512 L420,512 L420,520" marker-end="url(#arrow)"/>
+  <path class="edge" d="M380,574 L380,590" marker-end="url(#arrow)"/>
+
+  <rect class="edge-label bg" x="150" y="288" width="50" height="14"/>
+  <text class="edge-label" x="175" y="298">found</text>
+  <rect class="edge-label bg" x="490" y="288" width="150" height="14"/>
+  <text class="edge-label" x="565" y="298">NOT found, or engine fails</text>
+
+  <!-- nodes -->
+  <g><rect class="node-box" x="230" y="20" width="300" height="50" rx="8"/>
+     <text class="node-title" x="380" y="42">Browser: POST /api/analysis/start</text>
+     <text class="node-sub" x="380" y="58">{ username }</text></g>
+
+  <g><rect class="node-box" x="230" y="90" width="300" height="50" rx="8"/>
+     <text class="node-title" x="380" y="112">Flask spawns background thread</text>
+     <text class="node-sub" x="380" y="128">responds {status: started} immediately</text></g>
+
+  <g><rect class="node-box" x="230" y="160" width="300" height="50" rx="8"/>
+     <text class="node-title" x="380" y="182">Fetch Chess.com profile</text>
+     <text class="node-sub" x="380" y="198">+ last 50 games (disk-cached)</text></g>
+
+  <polygon class="node-box" points="380,230 530,270 380,310 230,270"/>
+  <text class="node-sub" x="380" y="266">sf_path =</text>
+  <text class="node-sub" x="380" y="280">find_stockfish()</text>
+
+  <g><rect class="node-box accent" x="40" y="350" width="320" height="70" rx="8"/>
+     <text class="node-title" x="200" y="373">Stockfish: analyze_games_parallel</text>
+     <text class="node-sub" x="200" y="390">(2 worker threads)</text>
+     <text class="node-sub" x="200" y="406">classify missed move via _classify_tactic()</text></g>
+
+  <g><rect class="node-box warn" x="400" y="350" width="320" height="70" rx="8"/>
+     <text class="node-title" x="560" y="378">_heuristic_profile(parsed_games)</text>
+     <text class="node-sub" x="560" y="395">win/loss pattern only, no engine</text></g>
+
+  <g><rect class="node-box accent" x="40" y="440" width="320" height="54" rx="8"/>
+     <text class="node-title" x="200" y="459">build_profile(analyses, elo)</text>
+     <text class="node-sub" x="200" y="474">-&gt; PlayerProfile (default)</text>
+     <text class="node-sub" x="200" y="488">WEAKNESS_MODEL=ml -&gt; build_profile_ml() instead</text></g>
+
+  <g><rect class="node-box" x="230" y="520" width="300" height="54" rx="8"/>
+     <text class="node-title" x="380" y="543">profile_to_bandit_priors()</text>
+     <text class="node-sub" x="380" y="560">-&gt; Beta(α, β) per category</text></g>
+
+  <g><rect class="node-box" x="230" y="590" width="300" height="54" rx="8"/>
+     <text class="node-title" x="380" y="613">Browser polls /api/analysis/status</text>
+     <text class="node-sub" x="380" y="630">-&gt; priors, profile</text></g>
+</svg>
+</div>
+
+<h3>3.1 Chess.com ingestion (<code>src/api/chess_com_fetcher.py</code>)</h3>
+<p>Chess.com's Published Data API is fully public (no OAuth/API key). <code>get_player_profile()</code> and <code>get_recent_games()</code> fetch and disk-cache every response under <code>data/cache/chess_com/</code> so repeated runs never re-hit the network. <code>get_recent_games()</code> walks monthly archives newest-first, respecting a 0.5s delay between calls per Chess.com's rate-limit guidance, and stops once <code>n</code> games are collected (default 50 for analysis, 60 for puzzle mining, 30 for style).</p>
+
+<h3>3.2 PGN parsing (<code>src/data/pgn_parser.py</code>)</h3>
+<p><code>parse_game()</code> extracts player colour, result, ratings, and opening (ECO code + a family name parsed from Chess.com's <code>ECOUrl</code>, e.g. <code>Italian-Game-Classical-Variation</code> → family <code>"Italian Game"</code> via a 30-entry lookup table, falling back to the first two words). <code>get_game_phase(board)</code> classifies any position as opening/middlegame/endgame purely from piece count (≥28 pieces = opening, 14–27 = middlegame, &lt;14 = endgame) — this function is shared by both the analyzer and the puzzle generator, so "phase" always means the same thing everywhere in the codebase.</p>
+
+<h3>3.3 Stockfish game analysis (<code>src/classifier/stockfish_analyzer.py</code>)</h3>
+<p><code>analyze_game()</code> walks every move the <em>player</em> made (skipping the first 8 half-moves as opening theory) and, for each one:</p>
+<ol>
+  <li>Evaluates the position <strong>before</strong> the move at <code>ANALYSIS_TIME=0.05s</code> (depth ≈10–12).</li>
+  <li>Snapshots that pre-move FEN and the engine's principal-variation best move.</li>
+  <li>Pushes the player's actual move, evaluates again, and computes <code>cp_loss = score_before − score_after</code>.</li>
+  <li>If <code>cp_loss ≥ INACCURACY_CP (50)</code>, records a <code>MoveError</code>.</li>
+</ol>
+<pre class="codeblock"><code>INACCURACY_CP = 50
+MISTAKE_CP    = 100
+BLUNDER_CP    = 200</code></pre>
+
+<div class="callout info">
+<strong>New this iteration:</strong> <code>MoveError</code> now carries a <code>category</code> field — the engine's missed best move is classified via <code>generator._classify_tactic()</code>, the exact same function the puzzle miner uses, so "what tactic did I miss" is answered identically whether the position came from a mined puzzle or a raw game-analysis error.
+</div>
+
+<div class="callout warn">
+<h4>Bug fixed this iteration</h4>
+<code>fen_before</code> used to be read via <code>board.fen()</code> <em>after</em> <code>board.push(move)</code> had already mutated the board in place — every stored "before" FEN was silently the post-move position. Fixed by snapshotting the FEN before the push.
+</div>
+
+<p>Parallelism: <code>analyze_games_parallel()</code> runs one Stockfish subprocess per thread (default 2 workers in the live app) — no shared engine state, no locking needed.</p>
+
+<h3>3.4 The rule-based weakness scorer (<code>src/classifier/player_profiler.py</code>)</h3>
+<p><code>build_profile()</code> aggregates a list of <code>GameAnalysis</code> into a <code>PlayerProfile</code>: game record (won/lost/drawn), error counts by severity, <code>errors_by_phase</code>, <code>errors_by_category</code> (new), opening repertoire (top 10 per colour, by games played), and <code>weakness_scores</code> — a <code>{category: float}</code> map in <strong>[0, 1]</strong>, 0 = strong, 1 = weak.</p>
+<p><code>_compute_weakness_scores()</code> is <strong>hand-tuned rules</strong>, not a trained model:</p>
+<table>
+<tr><th>Signal</th><th>Rule</th><th>Effect</th></tr>
+<tr><td>middlegame error rate &gt; 0.5</td><td><code>boost = min(0.25, rate * 0.3)</code></td><td>Fork/Pin/Skewer/Discovered Attack/Sacrifice/Deflection/Hanging Piece/King Safety each <code>+= boost</code></td></tr>
+<tr><td>endgame error rate &gt; 0.25</td><td><code>boost = min(0.30, rate * 0.4)</code></td><td>Endgame/Rook/Queen/Pawn/Knight/Bishop Endgame each <code>+= boost</code></td></tr>
+<tr><td>blunders/game ≥ 2</td><td>fixed <code>+0.25</code></td><td>Hanging Piece, Fork, Pin</td></tr>
+<tr><td>blunders/game ≥ 1</td><td>fixed <code>+0.15</code></td><td>Hanging Piece, Fork</td></tr>
+<tr><td>accuracy estimate &lt; 70</td><td>fixed <code>+0.10</code></td><td>Fork, Pin, Skewer, Discovered Attack</td></tr>
+</table>
+<p>All 23 categories start at 0.5 and are clamped to ≤0.9–0.92 depending on the rule. This is deliberately conservative and coarse — see §7 for why a trained classifier was built to eventually replace it, and why it hasn't been swapped in yet.</p>
+<p><code>profile_to_bandit_priors()</code> converts <code>weakness_scores</code> into <code>Beta(alpha, beta)</code> pairs with <code>alpha + beta = 10</code> (a modest prior — real puzzle-session evidence overrides it quickly): <code>alpha = round((1 - weakness) * 10)</code>, <code>beta = 10 - alpha</code>.</p>
+
+<h3>3.5 The heuristic fallback (<code>web/backend/app.py::_heuristic_profile</code>)</h3>
+<p>A much cruder, engine-free profiler that only looks at <strong>win/loss/game-length patterns</strong> from parsed PGN headers — no board analysis at all. It buckets every category into just two groups (<code>TACTICAL</code> / <code>ENDGAME</code>) and sets both to a single shared score:</p>
+<pre class="codeblock"><code>tactical_w = clamp(0.75 - win_rate*0.50 + short_loss_rate*0.20, 0.30, 0.85)
+endgame_w  = clamp(0.60 - win_rate*0.30 + long_loss_rate*0.30,  0.25, 0.80)</code></pre>
+<p>Every tactical category gets the <em>same</em> <code>tactical_w</code>, every endgame category the <em>same</em> <code>endgame_w</code> — there is no per-category differentiation at all in this path. Until this pass this was, in practice, the path that ran almost all the time, because of the Stockfish-detection bug described (and now fixed) in §6.1; it now serves its originally-intended role as a genuine last resort, used only when Stockfish truly can't be found or the engine call itself errors out.</p>
+
+<h2 id="s4"><span class="num">4.</span>Pipeline 2 — Puzzle Mining from Real Games</h2>
+<p><code>src/puzzles/generator.py</code>'s module docstring is explicit that an earlier heuristic-only mode (no engine, pure python-chess pattern matching) was <strong>removed</strong> after producing roughly 40% false positives — puzzles whose "solution" wasn't actually best. The only mode now is a four-gate Stockfish pipeline:</p>
+<div class="diagram-card">
+<svg viewBox="0 0 650 670" xmlns="http://www.w3.org/2000/svg">
+  <!-- main spine edges -->
+  <path class="edge" d="M300,70 L300,90" marker-end="url(#arrow)"/>
+  <path class="edge" d="M300,180 L300,210" marker-end="url(#arrow)"/>
+  <path class="edge" d="M300,300 L300,330" marker-end="url(#arrow)"/>
+  <path class="edge" d="M300,440 L300,470" marker-end="url(#arrow)"/>
+  <path class="edge" d="M300,560 L300,580" marker-end="url(#arrow)"/>
+  <text class="edge-label" x="316" y="200">yes</text>
+  <text class="edge-label" x="316" y="320">yes</text>
+  <text class="edge-label" x="316" y="460">yes</text>
+  <text class="edge-label" x="316" y="575">yes</text>
+
+  <!-- skip branch edges -->
+  <path class="edge" d="M440,135 L460,135" marker-end="url(#arrow)"/>
+  <path class="edge" d="M440,255 L460,255" marker-end="url(#arrow)"/>
+  <path class="edge" d="M450,385 L470,385" marker-end="url(#arrow)"/>
+  <path class="edge" d="M440,515 L460,515" marker-end="url(#arrow)"/>
+  <text class="edge-label" x="450" y="128">no</text>
+  <text class="edge-label" x="450" y="248">no</text>
+  <text class="edge-label" x="460" y="378">no</text>
+  <text class="edge-label" x="450" y="508">no</text>
+
+  <!-- spine nodes -->
+  <g><rect class="node-box" x="130" y="20" width="340" height="50" rx="8"/>
+     <text class="node-title" x="300" y="50">Player move at ply N</text></g>
+
+  <polygon class="node-box accent" points="300,90 440,135 300,180 160,135"/>
+  <text class="node-sub" x="300" y="130">Gate 1 · Detection</text>
+  <text class="node-sub" x="300" y="144">eval_drop ≥ 150cp?</text>
+
+  <polygon class="node-box accent" points="300,210 440,255 300,300 160,255"/>
+  <text class="node-sub" x="300" y="250">Gate 2 · Clarity</text>
+  <text class="node-sub" x="300" y="264">PV1 − PV2 ≥ 100cp?</text>
+
+  <polygon class="node-box accent" points="300,330 450,385 300,440 150,385"/>
+  <text class="node-sub" x="300" y="376">Gate 3 · Continuation</text>
+  <text class="node-sub" x="300" y="390">≥1 player move,</text>
+  <text class="node-sub" x="300" y="404">opponent forced ≥80cp?</text>
+
+  <polygon class="node-box accent" points="300,470 440,515 300,560 160,515"/>
+  <text class="node-sub" x="300" y="510">Gate 4 · Verification</text>
+  <text class="node-sub" x="300" y="524">depth-18 confirms?</text>
+
+  <g><rect class="node-box accent" x="120" y="580" width="360" height="60" rx="8"/>
+     <text class="node-title" x="300" y="605">Puzzle accepted</text>
+     <text class="node-sub" x="300" y="622">_classify_tactic() -&gt; category, _estimate_rating() -&gt; Elo</text></g>
+
+  <!-- skip nodes -->
+  <g><rect class="node-box warn" x="460" y="115" width="150" height="40" rx="6"/>
+     <text class="node-sub" x="535" y="139">skip</text></g>
+  <g><rect class="node-box warn" x="460" y="235" width="150" height="40" rx="6"/>
+     <text class="node-sub" x="535" y="253">skip (dual-solution)</text></g>
+  <g><rect class="node-box warn" x="470" y="365" width="150" height="40" rx="6"/>
+     <text class="node-sub" x="545" y="383">skip</text></g>
+  <g><rect class="node-box warn" x="460" y="495" width="150" height="40" rx="6"/>
+     <text class="node-sub" x="535" y="513">skip (engine changed)</text></g>
+</svg>
+</div>
+
+<p>Current tuning constants (read directly from <code>generator.py</code> — <strong>the README and <code>eval/run_evaluation.py</code>'s docstring both quote older values</strong>, see §6.2):</p>
+<table>
+<tr><th>Constant</th><th class="num">Current value</th><th>Meaning</th></tr>
+<tr><td><code>PUZZLE_THRESHOLD</code></td><td class="num">150 cp</td><td>Minimum eval-drop to count as a blunder worth a puzzle</td></tr>
+<tr><td><code>MIN_CLARITY_CP</code></td><td class="num">100 cp</td><td>PV1 must beat PV2 by at least this (rejects dual solutions)</td></tr>
+<tr><td><code>FORCED_OPP_MARGIN</code></td><td class="num">80 cp</td><td>Opponent's reply margin to count as "forced"</td></tr>
+<tr><td><code>DETECT_TIME</code></td><td class="num">0.10 s</td><td>Stockfish time per position during detection</td></tr>
+<tr><td><code>VERIFY_DEPTH</code></td><td class="num">18 ply</td><td>Depth for the final re-verification pass</td></tr>
+<tr><td><code>SOLUTION_DEPTH</code></td><td class="num">16 ply</td><td>Depth used while building the continuation</td></tr>
+<tr><td><code>CONTINUATION_MOVES</code></td><td class="num">6</td><td>Max extra half-moves appended after the player's first move</td></tr>
+<tr><td><code>MAX_PER_GAME</code></td><td class="num">5</td><td>Hard cap on puzzles extracted per game</td></tr>
+<tr><td><code>SKIP_PLIES</code></td><td class="num">8</td><td>Ignore the opening (theory gaps, not tactics)</td></tr>
+</table>
+
+<p><code>_classify_tactic(board, move)</code> is a <strong>hand-written, symbolic</strong> classifier (not learned) that inspects the resulting position with python-chess and returns one of: <code>Mating Pattern</code>, <code>Promotion</code>, <code>Fork</code> (≥2 opponent pieces attacked, at least one heavy/loose), <code>Hanging Piece</code> (undefended capture), <code>Deflection</code> (capturing a defender of something else), <code>Pin</code>/<code>Skewer</code> (a sliding piece attacks through an opponent piece to the king), <code>Discovered Attack</code>/<code>King Safety</code> (delivers check), <code>Sacrifice</code> (captures with a piece worth ≥100cp more than the target), <code>X-Ray Attack</code>, <code>Pawn/Rook Endgame</code> (≤12 pieces left), <code>Quiet Move</code> (no capture, no check), or <code>General</code> as the final fallback.</p>
+
+<p><code>_estimate_rating(eval_drop, solution_len)</code>: <code>base = 800 + min(eval_drop − 150, 700) * 0.6 + (solution_len − 2) * 150</code>, clamped to <code>[700, 2400]</code>. <code>_difficulty_tier()</code> then buckets that rating into Beginner/Intermediate/Advanced/Hard/Expert (a <em>different</em>, simpler 5-tier scheme than the Lichess-pool's 7-tier scheme — see §6.4).</p>
+
+<p>Puzzles are saved to <code>data/user_puzzles/&lt;username&gt;.json</code>, deduplicated by <code>PuzzleId</code>, and merged with any existing file — mining is additive across sessions, never destructive.</p>
+
+<h2 id="s5"><span class="num">5.</span>Pipeline 3 — The Puzzle Pool &amp; Recommendation Loop</h2>
+
+<h3>5.1 Building the served pool</h3>
+<p><code>scripts/build_puzzle_dataset.py</code> streams the raw ~6M-row Lichess CSV in 1M-row chunks, enriches and cleans each chunk, and writes <code>puzzles_full.parquet</code>, per-category and per-tier Parquet splits, and a category summary. Real counts from the current dataset:</p>
+<table>
+<tr><th>Category</th><th class="num">Puzzles</th><th>Category</th><th class="num">Puzzles</th></tr>
+<tr><td>Endgame</td><td class="num">2,942,587</td><td>Attraction</td><td class="num">216,012</td></tr>
+<tr><td>Mating Pattern</td><td class="num">1,849,329</td><td>Promotion</td><td class="num">142,800</td></tr>
+<tr><td>King Safety</td><td class="num">766,027</td><td>Skewer</td><td class="num">130,482</td></tr>
+<tr><td>Fork</td><td class="num">758,947</td><td>Queen Endgame</td><td class="num">113,304</td></tr>
+<tr><td>Sacrifice</td><td class="num">447,248</td><td>Interference</td><td class="num">91,293</td></tr>
+<tr><td>Rook Endgame</td><td class="num">362,109</td><td>Bishop Endgame</td><td class="num">81,399</td></tr>
+<tr><td>Pin</td><td class="num">355,611</td><td>Clearance</td><td class="num">78,289</td></tr>
+<tr><td>Discovered Attack</td><td class="num">330,422</td><td>Zugzwang</td><td class="num">62,068</td></tr>
+<tr><td>Deflection</td><td class="num">293,854</td><td>Knight Endgame</td><td class="num">49,229</td></tr>
+<tr><td>Hanging Piece</td><td class="num">278,677</td><td>X-Ray Attack</td><td class="num">21,100</td></tr>
+<tr><td>Quiet Move</td><td class="num">247,767</td><td>En Passant</td><td class="num">8,375</td></tr>
+<tr><td>Pawn Endgame</td><td class="num">219,843</td><td></td><td></td></tr>
+</table>
+
+<div class="callout warn">
+<h4>Real, documented bug fix in the enrichment logic</h4>
+Lichess emits theme tags alphabetically, so a naive "first tag wins" rule let the <em>phase</em> tag <code>endgame</code> outrank real motifs — <code>crushing endgame fork short</code> was filed under "Endgame" instead of "Fork", mislabelling ~198k of 305k "Endgame"-tagged puzzles (~45% of that category). <code>MOTIF_PRIORITY</code> fixes this with an explicit specificity ranking, and <code>_apply_quality_gate()</code> in <code>app.py</code> re-runs this resolver over the live pool at load time so even a parquet file built before the fix is corrected in memory.
+</div>
+
+<p>At server start, <code>_load_puzzles()</code> reads the parquet <strong>one row-group at a time</strong> (never materialising the full 6M rows), applies a quality gate (rating range, popularity, plays, rating deviation, minimum solution length, no low-quality themes, and <code>PrimaryCategory != "General"</code>), proportionally samples each row-group down to a pool cap, and builds a category index for O(1) lookups.</p>
+
+<h3>5.2 Thompson Sampling bandit (<code>src/recommender/bandit.py</code>)</h3>
+<p>The actual adaptive-learning core of the system. One arm per weakness category (23 arms), each a <code>Beta(alpha, beta)</code> posterior over "probability the player solves a puzzle in this category":</p>
+<div class="diagram-card">
+<svg viewBox="0 0 700 380" xmlns="http://www.w3.org/2000/svg">
+  <path class="edge" d="M200,70 L250,70" marker-end="url(#arrow)"/>
+  <path class="edge" d="M430,70 L480,70" marker-end="url(#arrow)"/>
+  <path class="edge" d="M570,100 L570,140" marker-end="url(#arrow)"/>
+  <path class="edge" d="M490,180 L490,210 L340,210 L340,240" marker-end="url(#arrow)"/>
+  <path class="edge" d="M650,180 L650,210 L530,210 L530,240" marker-end="url(#arrow)"/>
+  <path class="edge" d="M340,290 C340,315 90,315 90,100" marker-end="url(#arrow)"/>
+  <path class="edge" d="M530,290 C530,335 130,335 130,100" marker-end="url(#arrow)"/>
+  <text class="edge-label" x="415" y="204">no</text>
+  <text class="edge-label" x="605" y="204">yes</text>
+
+  <g><rect class="node-box accent" x="20" y="40" width="180" height="60" rx="8"/>
+     <text class="node-title" x="110" y="65">Sample θᵢ ~ Beta(αᵢ,βᵢ)</text>
+     <text class="node-sub" x="110" y="82">for all 23 arms</text></g>
+
+  <g><rect class="node-box accent" x="250" y="40" width="180" height="60" rx="8"/>
+     <text class="node-title" x="340" y="65">Pick argmin θᵢ</text>
+     <text class="node-sub" x="340" y="82">(the weakest arm)</text></g>
+
+  <g><rect class="node-box accent" x="480" y="40" width="180" height="60" rx="8"/>
+     <text class="node-title" x="570" y="65">Serve a puzzle</text>
+     <text class="node-sub" x="570" y="82">in that category</text></g>
+
+  <polygon class="node-box" points="570,140 650,180 570,220 490,180"/>
+  <text class="node-sub" x="570" y="184">solved?</text>
+
+  <g><rect class="node-box" x="250" y="240" width="180" height="50" rx="8"/>
+     <text class="node-sub" x="340" y="262">β += 1</text>
+     <text class="node-sub" x="340" y="278">streak = 0</text></g>
+
+  <g><rect class="node-box" x="440" y="240" width="180" height="50" rx="8"/>
+     <text class="node-sub" x="530" y="262">α += 1</text>
+     <text class="node-sub" x="530" y="278">streak += 1</text></g>
+</svg>
+</div>
+<p>This is genuine Bayesian sequential decision-making: each arm's belief is a full posterior distribution (not a point estimate), and sampling from it naturally balances <strong>exploration</strong> against <strong>exploitation</strong> — no separate epsilon-greedy or UCB bolt-on is needed, which is the classical argument for Thompson Sampling over simpler bandit strategies.</p>
+<p>State is fully serialisable and persisted per-user in <code>data/sessions/&lt;username&gt;.json</code> after every puzzle attempt, so a session picks up exactly where it left off across visits.</p>
+
+<h4>5.2.1 The mathematics, in full</h4>
+<p>The bandit models each of the 23 categories as an independent <strong>Bernoulli process</strong>: every time the player attempts a puzzle in category <em>i</em>, the outcome is either a solve (1) or a fail (0), governed by some unknown true probability <code>p_i = P(solve | category i)</code>. The goal is to estimate every <code>p_i</code> online and use those estimates to decide what to serve next, without ever pausing to "train" on a batch.</p>
+
+<p><strong>Why Beta?</strong> The Beta distribution is the <em>conjugate prior</em> for a Bernoulli/Binomial likelihood: if the prior belief about <code>p_i</code> is <code>Beta(α, β)</code>, and <code>s</code> new successes and <code>f</code> new failures are then observed, the posterior belief is <strong>exactly</strong> <code>Beta(α+s, β+f)</code> — no numerical integration, no approximation, just two additions. That closed-form update is literally what <code>ThompsonBandit.update()</code> does:</p>
+<pre class="codeblock"><code>if solved: arm.alpha += 1
+else:      arm.beta  += 1</code></pre>
+
+<p><strong>What α and β mean, concretely:</strong></p>
+<table>
+<tr><th>Quantity</th><th>Meaning</th></tr>
+<tr><td><code>α − 1</code></td><td>effective number of "successes" seen for this arm (real solves + whatever the prior contributed)</td></tr>
+<tr><td><code>β − 1</code></td><td>effective number of "failures" seen</td></tr>
+<tr><td><code>α + β</code></td><td>total effective evidence — bigger ⇒ narrower, more confident posterior</td></tr>
+<tr><td><code>Beta(1,1)</code> (the default)</td><td>the uniform distribution on [0,1] — "before any evidence, every solve rate is equally plausible"</td></tr>
+</table>
+
+<p>Two numbers you can read directly off any <code>Beta(α, β)</code>:</p>
+<table>
+<tr><th>Quantity</th><th>Formula</th><th>Meaning</th></tr>
+<tr><td>Mean</td><td><code>α / (α + β)</code></td><td>best point estimate of the true solve rate</td></tr>
+<tr><td>Variance</td><td><code>αβ / [(α+β)²(α+β+1)]</code></td><td>how uncertain that estimate still is — shrinks as α+β grows</td></tr>
+</table>
+
+<div class="callout info">
+<strong>Selection rule, and why it explores automatically.</strong> <code>select_one()</code> does <em>not</em> just pick the category with the lowest <strong>mean</strong> — that would be pure exploitation, and would never revisit a category that happened to get a couple of early unlucky fails. Instead it draws one random sample <code>θᵢ ~ Beta(αᵢ, βᵢ)</code> <em>per arm</em> and picks the arm with the lowest <strong>sampled</strong> value. An arm the player has barely touched (say α=1, β=1, mean 0.5, but huge variance) can still be sampled at, say, θ=0.15 purely by chance — giving it a real shot at being picked even though its mean looks "average," precisely because the system doesn't yet know that mean is trustworthy. As real attempts accumulate, α+β grows, the posterior narrows, and the sampled θ converges tightly around the true mean — exploration fades naturally into exploitation without any separate schedule or tunable epsilon. This is the textbook argument for Thompson Sampling (Thompson, 1933; modern regret-bound treatment in Russo et al., 2018) over epsilon-greedy or UCB-style bandits.
+</div>
+
+<p><strong>Why "lowest" θ, not "highest."</strong> Standard bandit literature maximises reward — pick the arm with the highest sampled value. This system deliberately inverts that: θ is being used as an estimate of <em>proficiency</em> (P(solve)), and the pedagogical objective is to spend practice time on the player's <strong>weakest</strong> category, so <code>select_one()</code> returns <code>min(samples, key=samples.get)</code>. Getting this backwards (picking the argmax) would silently turn the app into a system that serves <em>more</em> puzzles in categories the player is already good at — worth stating explicitly if asked "why min and not max," because it is the one place this bandit deliberately departs from the textbook formulation.</p>
+
+<p><strong>Worked numeric example.</strong> Suppose the player has attempted "Fork" 8 times and solved 3, starting from the default <code>Beta(1,1)</code> prior: α = 1+3 = 4, β = 1+5 = 6, mean = 4/10 = 0.4. In any given selection round, <code>arm.sample()</code> might return 0.28 (below the mean — makes Fork look even weaker, likely to be picked) or 0.55 (above the mean — Fork looks fine this round, probably loses out to a genuinely weaker arm). Both are legitimate draws from Beta(4,6); the randomness is not noise to be eliminated — it is the mechanism that keeps every arm honestly in contention in proportion to how much is still unknown about it.</p>
+
+<p><strong>How the priors get seeded.</strong> <code>profile_to_bandit_priors()</code> converts a <code>weakness_scores</code> map (0=strong, 1=weak) into <code>Beta(α, β)</code> pairs with a fixed budget of α+β=10 "pseudo-observations": <code>α = round((1 − weakness) × 10)</code>, <code>β = 10 − α</code>. A weakness score of 0.8 becomes Beta(2,8) — the system starts already believing this category is weak, but with only the confidence of 10 pretend attempts, so 5–6 real solves/fails can already outweigh it. This is deliberate: the priors should give the bandit a sensible starting point without letting a possibly-wrong upstream profiler (§6.1) dominate real evidence for long.</p>
+
+<h3>5.3 Serving a puzzle (<code>/api/session/puzzle</code>)</h3>
+<p>Not a naive "grab any puzzle in the bandit's chosen category" — a fallback cascade that prefers, in order:</p>
+<ol>
+  <li>User-mined puzzles in the bandit's target category, in range, unseen.</li>
+  <li>(40% of the time, if no in-category mined puzzle exists) any unseen mined puzzle in range, re-labelling the session target.</li>
+  <li>Lichess pool, target category, requested rating window.</li>
+  <li>Lichess pool, target category, rating window widened by ±200.</li>
+  <li>Lichess pool, any category, requested rating window (target re-labelled).</li>
+  <li>Lichess pool, any category, full rating range.</li>
+  <li>If truly nothing unseen remains: allow a repeat, but flag <code>poolExhausted: true</code> rather than silently repeating.</li>
+</ol>
+<p>Rating window narrows to the player's known Elo ±300 when available. <code>/api/session/result</code> updates the bandit, appends a <code>{ts, puzzleId, category, rating, solved}</code> history entry, and persists — this history file is exactly what <code>difficulty_fitter.load_solve_events()</code> reads (§7.1).</p>
+
+<h3>5.4 Puzzle quality evaluation</h3>
+<p>A separate, composite 5-dimension quality score (used to validate the <em>generator</em>, not to serve puzzles):</p>
+<table>
+<tr><th>Dimension</th><th class="num">Weight</th><th>Criterion</th></tr>
+<tr><td><code>engine_agrees</code></td><td class="num">0.30</td><td>Stockfish (depth 18) confirms the intended move is still best</td></tr>
+<tr><td><code>clarity_cp</code></td><td class="num">0.25</td><td>PV1−PV2 gap: full credit ≥150cp, partial ≥80cp, none below</td></tr>
+<tr><td><code>solution_depth</code></td><td class="num">0.20</td><td>≥3 ply total</td></tr>
+<tr><td><code>not_trivial</code></td><td class="num">0.15</td><td>Not an undefended free capture with no follow-up</td></tr>
+<tr><td><code>difficulty_fit</code></td><td class="num">0.10</td><td>|puzzle rating − player Elo| ≤ 300</td></tr>
+</table>
+<p><code>python eval/run_evaluation.py --username &lt;user&gt; --elo &lt;elo&gt;</code> runs this over a user's mined puzzles and prints a full report, saved to <code>eval/reports/&lt;user&gt;_&lt;timestamp&gt;.json</code>.</p>
+
+<h2 id="s6"><span class="num">6.</span>Discovered Contradictions and Bugs</h2>
+<p>These were found by reading the current source directly, not carried over from any earlier version of this document.</p>
+
+<h3>6.1 ✅ Fixed — the real weakness-scoring path now actually runs Stockfish</h3>
+<p><code>analysis_start()</code> in <code>app.py</code> used to locate Stockfish with:</p>
+<pre class="codeblock"><code>sf_path = shutil.which("stockfish")</code></pre>
+<p>This only found a binary literally named <code>stockfish</code> (or <code>stockfish.exe</code>) somewhere on the system PATH. It did <strong>not</strong> check the project's bundled binary at <code>stockfish/stockfish-windows-x86-64-avx2.exe</code>. This was inconsistent with <code>generate_puzzles()</code> and <code>_eval_engine()</code>, both of which correctly call <code>stockfish_analyzer.find_stockfish()</code> — a function that explicitly checks that exact bundled path as a fallback.</p>
+<div class="callout info">
+<h4>Fix applied</h4>
+<code>analysis_start()</code> now imports and calls <code>find_stockfish()</code> — the same resolver already used by puzzle mining and the eval bar — instead of the bare <code>shutil.which</code> call. Unless <code>stockfish</code> was separately added to PATH, <code>sf_path</code> used to always resolve to <code>None</code>, meaning <code>build_profile()</code> — the real, Stockfish-verified, per-category rule-based scorer — was <strong>never reached</strong> in the live app, and every login/registration silently fell through to <code>_heuristic_profile()</code>. <code>build_profile()</code> is now the path that runs by default on every successful analysis. Puzzle mining and the eval bar were never affected by this bug; only the weakness-profiling analysis path was.
+</div>
+<div class="callout warn">
+<h4>A second, related bug this exposed</h4>
+Fixing the bug above meant <code>analyze_game()</code>'s real Stockfish calls ran against live games for the first time in this project's history (previously masked entirely, since this code path was unreachable). Doing so immediately surfaced a second bug: both <code>engine.analyse()</code> calls in <code>analyze_game()</code> passed <code>multipv=1</code>, which — per <code>python-chess</code>'s actual behaviour — makes <code>engine.analyse()</code> return a <code>List[InfoDict]</code> instead of a single <code>InfoDict</code>, even when only one PV line is requested. The very next line, <code>info_before["score"]</code>, then failed with <code>TypeError: list indices must be integers or slices, not str</code> on <em>every</em> analysed move, silently failing every game and falling all the way through to <code>_heuristic_profile()</code> again — a live smoke test after the fix above caught this immediately. <strong>Fixed</strong> by dropping the unnecessary <code>multipv=1</code> kwarg from both calls (the code only ever reads the top line via <code>info["score"]</code> / <code>info.get("pv")</code>, exactly what a plain <code>engine.analyse()</code> call returns). This bug had zero test coverage, because <code>tests/test_stockfish_analyzer.py</code> is deliberately engine-free (per its own module docstring) — it never actually calls <code>engine.analyse()</code>, so a real-engine-only bug like this couldn't have been caught by the existing offline suite. A good illustration of why "128 passing tests" and "runs correctly against a live engine" are different claims.
+</div>
+
+<h3>6.2 Stale tuning-constant documentation</h3>
+<p>Both <code>README.md</code>'s "Key constants to tune" table and <code>eval/run_evaluation.py</code>'s docstring quote <code>PUZZLE_THRESHOLD: 120</code>, <code>DETECT_TIME: 0.05</code>, <code>MAX_PER_GAME: 3</code>, <code>MIN_CLARITY_CP: 80</code>, <code>CONTINUATION_MOVES: 4</code> — all since tuned upward in <code>generator.py</code> itself (see §4). The docstrings were not updated when the constants were.</p>
+
+<h3>6.3 ✅ Fixed — all three weakness-scoring paths are now wired together</h3>
+<table>
+<tr><th>Path</th><th>File</th><th>Nature</th><th>Wired into app.py?</th></tr>
+<tr><td><code>build_profile()</code></td><td><code>player_profiler.py</code></td><td>Rule-based, per-category, Stockfish-error-driven</td><td><strong>Yes — the default</strong>, now reachable since the §6.1 fix</td></tr>
+<tr><td><code>build_profile_ml()</code></td><td><code>ml_weakness_model.py</code></td><td>Trained RandomForest, per-category, Stockfish-error-driven</td><td><strong>Yes — opt-in</strong>, via <code>WEAKNESS_MODEL=ml</code> environment variable</td></tr>
+<tr><td><code>_heuristic_profile()</code></td><td><code>app.py</code></td><td>Win/loss-pattern heuristic, 2 buckets, no engine</td><td><strong>Yes — last-resort fallback</strong>, used only if Stockfish can't be found or the engine call fails</td></tr>
+</table>
+<div class="callout info">
+<h4>Fix applied</h4>
+A new <code>WEAKNESS_MODEL</code> environment variable (default <code>"rule-based"</code>) controls which model <code>analysis_start()</code> tries first when Stockfish analysis succeeds. Left at its default, <code>build_profile()</code> runs — the honest, Stockfish-verified rule-based scorer, unchanged in behaviour. Set to <code>WEAKNESS_MODEL=ml</code>, the app instead calls <code>build_profile_ml()</code> if a trained model file exists at <code>ml_weakness_model.DEFAULT_MODEL_PATH</code>, and transparently falls back to <code>build_profile()</code> if the model file is missing or loading/predicting raises any error. Either way, <code>_heuristic_profile()</code> remains the last-resort fallback if Stockfish itself can't be found at all. The <code>/api/analysis/status/&lt;username&gt;</code> response now also reports which of the three paths actually produced the profile, via a new <code>modelUsed</code> field.
+</div>
+<p>This was deliberately implemented as an <strong>opt-in flag, not a default swap</strong>. <code>build_profile_ml()</code> is methodologically sound and validated (§7.2), but only against <em>simulated</em> players — the honest position, unchanged from before this fix, is that it hasn't yet been proven to outperform the rule-based scorer on real Chess.com players, because too few real players have enough mined-puzzle history to evaluate that comparison meaningfully. Making it opt-in means the model is now genuinely reachable and testable end-to-end, without silently becoming what every real user gets by default before that evidence exists.</p>
+
+<h3>6.4 Two different difficulty-tier schemes</h3>
+<p><code>puzzle_loader.DIFFICULTY_TIERS</code> (7 tiers, Lichess pool) and <code>generator._difficulty_tier()</code> (5 tiers, mined puzzles) use different bucket names and boundaries. A puzzle rated 1150 is "Easy" if it came from Lichess but has no equivalent label if mined (mined tiers jump straight from Beginner &lt;1000 to Intermediate &lt;1300).</p>
+
+<h3>6.5 The Glicko-2 fitter is validated, not deployed — the ML classifier is now opt-in</h3>
+<p><code>src/analysis/difficulty_fitter.py</code> is fully built and unit-tested, and runnable via its own CLI, but it is not imported anywhere in <code>app.py</code>. It currently produces a standalone artefact (<code>fitted_ratings.json</code>) that a future iteration would need to explicitly load and use at serve time. This remains intentional, out-of-scope-for-this-pass work and should not be presented as "already live" — it genuinely isn't.</p>
+<p><code>src/classifier/ml_weakness_model.py</code>'s status changed with the §6.3 fix: it is now imported and callable from <code>app.py</code> (<code>WEAKNESS_MODEL=ml</code>), so it is no longer accurate to describe it as "never called." It is still not the <strong>default</strong> path, for the same data-volume reason as the Glicko-2 fitter — see §6.3 for the full reasoning.</p>
+
+<h2 id="s7"><span class="num">7.</span>Offline Research Components</h2>
+<p>These two modules were built specifically to close gaps identified earlier in this project's own dissertation planning — genuine methodological contributions, evaluated honestly, independent of whether they're deployed yet.</p>
+
+<h3>7.1 Glicko-2 difficulty fitting (<code>src/analysis/difficulty_fitter.py</code>)</h3>
+<p><strong>Problem it addresses:</strong> puzzle difficulty currently comes entirely from a static heuristic formula computed once at mining time. It never updates from how players actually perform against it.</p>
+<p><strong>What it does:</strong> a from-scratch implementation of the full Glicko-2 algorithm (Mark Glickman) — rating <em>μ</em>, rating deviation <em>φ</em>, and volatility <em>σ</em>, including the Illinois (regula falsi) root-finder for the new volatility. <code>fit_from_sessions()</code> treats every recorded puzzle attempt in <code>data/sessions/*.json</code> as a single-game rating period where the puzzle is the opponent.</p>
+<div class="callout info">
+<strong>Validation:</strong> reproduces Glickman's own canonical published worked example exactly — a 1500/RD200/vol0.06 player facing three opponents in one period ends at <code>rating≈1464.06, RD≈151.52, volatility≈0.05999</code>, matching the published paper to the tested tolerance. This is the standard cross-implementation sanity check used by other Glicko-2 libraries.
+</div>
+<p><strong>Current real-data yield:</strong> the last run over the three players with session history fitted <strong>3 players and 61 puzzles from 105 recorded events</strong>.</p>
+<p><strong>Honest limitation:</strong> with 105 total events across 3 players, each puzzle typically has only one or two rating-period updates — nowhere near enough for the fitted ratings to have converged to something more reliable than the static heuristic yet. The methodology is correct; the data volume to make it <em>better than</em> the current heuristic is not there yet.</p>
+
+<h4>7.1.1 The mathematics, in full</h4>
+<p><strong>Why not just use Elo?</strong> Elo assigns every player (or, here, every puzzle) a single number. It cannot distinguish "a rating we're very sure about" (thousands of games) from "a rating we just guessed" (zero games) — both look identical, a bare number. Glicko-2 (Glickman, 1999; extended 2012) tracks <strong>three</strong> numbers per entity instead of one:</p>
+<table>
+<tr><th>Symbol (paper)</th><th>Symbol (code)</th><th>Name</th><th>Meaning</th></tr>
+<tr><td><code>r</code></td><td><code>rating</code></td><td>Rating</td><td>same interpretation as Elo — higher = stronger / harder</td></tr>
+<tr><td><code>RD</code></td><td><code>rd</code></td><td>Rating Deviation</td><td>the system's <em>uncertainty</em> about <code>rating</code> — think "margin of error." <code>rating ± 2×RD</code> is roughly a 95% confidence interval</td></tr>
+<tr><td><code>σ</code></td><td><code>volatility</code></td><td>Volatility</td><td>how erratically the <em>true</em> rating itself seems to move over time — separates "normal fluctuation" from "genuinely changing strength"</td></tr>
+</table>
+<p>A brand-new puzzle or player starts with a high RD (the system doesn't know them yet); RD shrinks as more results come in. A rating with low RD is trustworthy, one with high RD should be treated with caution — exactly the distinction a bare Elo number cannot make.</p>
+
+<p><strong>Internal scale.</strong> All update math happens on a converted scale, <code>μ = (r − 1500) / 173.7178</code> and <code>φ = RD / 173.7178</code> (<code>GLICKO2_SCALE</code> in the code) — this keeps the numbers in a range where the logistic-function math behaves well numerically; converting back to <code>(r, RD)</code> at the end is a one-line inverse of the same formula.</p>
+
+<p><strong>The update, conceptually (one rating period, possibly several games):</strong></p>
+<ol>
+  <li><strong><code>g(φⱼ)</code></strong> — for each opponent <em>j</em> (here: each puzzle attempted), compute a discount factor based on <em>that opponent's own uncertainty</em>: an opponent whose rating is itself poorly known (high φⱼ) contributes a softer, less decisive signal than one whose rating is well established. <code>g(φ) = 1 / sqrt(1 + 3φ²/π²)</code>.</li>
+  <li><strong><code>E(μ, μⱼ, φⱼ)</code></strong> — the expected outcome, a logistic function of the (discounted) rating gap: the probability the player beats/solves that opponent/puzzle given current ratings. Glicko-2's equivalent of the classic Elo expected-score formula, with the <code>g()</code> discount folded in.</li>
+  <li><strong><code>v</code></strong> — an estimated variance of the rating change, computed from <code>g()</code> and <code>E()</code> across all games in the period: how much new information this batch of results actually carries.</li>
+  <li><strong><code>Δ</code></strong> — the naive rating change implied by comparing <em>actual</em> outcomes (solved=1 / failed=0) against the <em>expected</em> outcomes from step 2, scaled by <code>v</code>.</li>
+  <li><strong>New volatility σ′</strong> — solved for numerically via the <strong>Illinois algorithm</strong> (a refinement of regula falsi / false-position root-finding) applied to an objective function balancing "how surprising was Δ" against "how volatile has this entity been historically." This is the one step with no closed form — it's why Glicko-2 needs an iterative solver at all, and it's the step most from-scratch implementations get subtly wrong.</li>
+  <li><strong>New φ′ and μ′</strong> — uncertainty shrinks based on how much new evidence (v) came in, and the rating shifts toward the actual results, weighted by the <em>updated</em> uncertainty (more-confident systems move less per game; less-confident ones move more).</li>
+  <li>Convert <code>(μ′, φ′)</code> back to <code>(rating′, RD′)</code>.</li>
+</ol>
+
+<div class="callout info">
+<strong>This project's specific adaptation (<code>fit_from_sessions</code>).</strong> Every recorded puzzle attempt in <code>data/sessions/*.json</code> is treated as <strong>one rating period containing exactly one game</strong>: the player is one side, the puzzle (at its currently-fitted rating, seeded from its static heuristic rating on first sight) is the "opponent." A solve is a win for the player (and, symmetrically, a loss for the puzzle — it "lost" to this player, so its fitted rating eases down slightly); a fail is a loss for the player (a win for the puzzle — it out-difficultied them, so its rating ticks up). Running every historical event through this update in chronological order is the same self-consistent, evidence-driven calibration idea Lichess itself uses to rate puzzles from aggregate solver performance — the difference here is the evidence pool is this project's own 105 recorded events, not millions of Lichess attempts.
+</div>
+
+<p><strong>Validation against the literature.</strong> <code>test_matches_glickmans_published_worked_example</code> reproduces Glickman's own canonical example from the original paper exactly: a player starting at 1500/RD200/vol0.06 plays three opponents in one period — beats a 1400/RD30 (a well-established, easier opponent), loses to a 1550/RD100, and loses to a 1700/RD300 (a much less-established strong opponent) — and should end at <strong>rating≈1464.06, RD≈151.52, volatility≈0.05999</strong>. The implementation matches to the tested tolerance. Reading the result intuitively: the rating <em>dropped</em> overall (two losses outweighing one win against a weaker opponent), RD <em>shrank substantially</em> (200→151.5 — three real games is real evidence, so uncertainty falls a lot), and volatility barely moved (0.06→0.05999 — none of the three results were shocking given the player's prior rating, so the system sees no reason to believe this player's true skill is unusually unstable). That match to a third-party published reference is the strongest available evidence the formula transcription is correct, independent of anything else in this codebase.</p>
+
+<h3>7.2 Trained weakness classifier (<code>src/classifier/ml_weakness_model.py</code>)</h3>
+<p><strong>Problem it addresses:</strong> <code>build_profile()</code>'s weakness scorer is hand-tuned if/else thresholds — Objective 1 of the original dissertation plan called for a model trained and evaluated on held-out players instead.</p>
+<p><strong>Why it's trained on simulated players:</strong> only 4 real players currently have any mined-puzzle history (9–33 puzzles each). A held-out-player split at N=4 cannot produce a statistically meaningful accuracy, MAE, or confidence interval for any model — this was verified, not assumed, before writing any model code.</p>
+<p><strong>Design:</strong> <code>build_profile_ml()</code> is a drop-in alternative to <code>build_profile()</code> — same signature, same return type, calls <code>build_profile()</code> internally and only overrides <code>weakness_scores</code>. A <code>RandomForestRegressor</code> predicts all 23 category weaknesses at once from <strong>30 features</strong>: 7 coarse summary stats (same signals the rule-based scorer uses) plus 23 per-category observed error rates, now genuinely computable in production because <code>MoveError.category</code> exists.</p>
+<p><strong>Training data:</strong> synthetic players with a known latent per-category weakness vector, and noisy "observed" features correlated with it — the coarse block via the same domain links as the rule-based scorer, the per-category block via a <strong>Dirichlet-multinomial</strong> draw (concentration boosted for the true-weak categories).</p>
+
+<h4>Held-out-simulated-player 5-fold cross-validation (300 synthetic players, seed 42)</h4>
+<table>
+<tr><th>Fold</th><th class="num">Model MAE</th><th class="num">Baseline MAE</th><th class="num">True top weakness in top-3</th></tr>
+<tr><td>0</td><td class="num">0.1645</td><td class="num">0.1674</td><td class="num">30%</td></tr>
+<tr><td>1</td><td class="num">0.1628</td><td class="num">0.1649</td><td class="num">30%</td></tr>
+<tr><td>2</td><td class="num">0.1638</td><td class="num">0.1674</td><td class="num">27%</td></tr>
+<tr><td>3</td><td class="num">0.1642</td><td class="num">0.1677</td><td class="num">38%</td></tr>
+<tr><td>4</td><td class="num">0.1686</td><td class="num">0.1710</td><td class="num">40%</td></tr>
+<tr><td><strong>Mean</strong></td><td class="num"><strong>0.1648</strong></td><td class="num"><strong>0.1677</strong></td><td class="num"><strong>33%</strong></td></tr>
+</table>
+<p>The model beats the naive baseline in <em>every</em> fold, and its top-3 hit rate (33% average) is roughly 2.5× random chance (3-in-23 ≈ 13%). This is a modest but real, consistent signal — not dramatic, and that's an honest reflection of the task. Top feature importances: <code>endgame_error_rate</code> (0.087), <code>blunders_per_game</code> (0.062), <code>error_rate__Endgame</code> (0.052).</p>
+<div class="callout info">
+<strong>What this validates and what it doesn't:</strong> the cross-validation numbers are evidence the <em>methodology</em> is sound. They are <strong>not</strong> a claim about real-world accuracy on real players — that can only be established once more real players accumulate mined-puzzle history. The trained model is real and loadable via <code>build_profile_ml()</code> today; it is simply not yet the path <code>app.py</code> calls.
+</div>
+
+<h2 id="s8"><span class="num">8.</span>What Is Actually "AI-Driven" Here — An Honest Breakdown</h2>
+<table>
+<tr><th>Component</th><th>Category</th><th>Learned from data?</th></tr>
+<tr><td>Thompson Sampling bandit</td><td>Bayesian reinforcement learning</td><td><strong>Yes</strong> — posteriors update online from every real puzzle attempt</td></tr>
+<tr><td>RandomForest weakness classifier</td><td>Supervised machine learning</td><td><strong>Yes</strong>, trained on simulated data; reachable in the live app via opt-in <code>WEAKNESS_MODEL=ml</code>, not yet the default pending real-player validation</td></tr>
+<tr><td>Stockfish (third-party engine)</td><td>Classical search-based AI (alpha-beta + NNUE)</td><td>Yes, but not a contribution of this project</td></tr>
+<tr><td>Glicko-2 fitter</td><td>Statistical/Bayesian rating estimation</td><td><strong>Yes</strong> — updates from real solve outcomes, data volume currently too small</td></tr>
+<tr><td><code>_classify_tactic()</code></td><td>Rule-based / symbolic reasoning</td><td>No — hand-coded heuristics</td></tr>
+<tr><td><code>build_profile()</code>'s scorer</td><td>Rule-based thresholds</td><td>No — hand-tuned if/else</td></tr>
+<tr><td><code>_heuristic_profile()</code></td><td>Rule-based heuristic</td><td>No, and coarser than the above</td></tr>
+<tr><td>Puzzle pool filtering/enrichment</td><td>Deterministic data engineering</td><td>No</td></tr>
+</table>
+<p>The single most defensible "this is genuinely AI, and it is this project's own contribution" claim is the <strong>Thompson Sampling bandit</strong> — it is live, online, updates from real evidence every single puzzle attempt, and is a textbook example of Bayesian exploration/exploitation applied to a real recommendation problem. The RandomForest classifier is a legitimate second AI contribution, methodologically sound and validated, currently gated on real-world data volume rather than on anything unfinished in the model itself.</p>
+
+<h2 id="s9"><span class="num">9.</span>Technology Stack</h2>
+<table>
+<tr><th>Layer</th><th>Technology</th></tr>
+<tr><td>Core language</td><td>Python 3.13</td></tr>
+<tr><td>Chess logic</td><td>python-chess (board state, legality, PGN parsing)</td></tr>
+<tr><td>Engine</td><td>Stockfish 18 (bundled Windows binary)</td></tr>
+<tr><td>Bandit / recommender</td><td>Custom Thompson Sampling (numpy.random.beta)</td></tr>
+<tr><td>Difficulty rating</td><td>Custom from-scratch Glicko-2</td></tr>
+<tr><td>Weakness classifier</td><td>scikit-learn RandomForestRegressor, joblib persistence</td></tr>
+<tr><td>Data processing</td><td>pandas, pyarrow (Parquet, row-group streaming)</td></tr>
+<tr><td>Backend</td><td>Flask + flask-cors, JSON file storage (no database)</td></tr>
+<tr><td>Frontend</td><td>Vanilla JS SPA, served by Flask itself</td></tr>
+<tr><td>Testing</td><td>pytest, 128 tests across 8 files, all offline</td></tr>
+</table>
+
+<h2 id="s10"><span class="num">10.</span>File Map</h2>
+<div class="file-tree">├── data/
+│   ├── raw/                       # gitignored — DataSets/lichess_db_puzzle.csv
+│   ├── processed/                 # puzzles_full.parquet, per-category/tier splits,
+│   │                               #   fitted_ratings.json, weakness_model.joblib
+│   ├── cache/chess_com/           # cached Chess.com API responses
+│   ├── sessions/                  # per-user bandit state + solve history (JSON)
+│   └── user_puzzles/              # mined puzzles per user (JSON)
+├── eval/
+│   ├── puzzle_evaluator.py        # 5-dimension composite quality score
+│   ├── run_evaluation.py          # CLI evaluation harness
+│   └── reports/                   # saved evaluation JSON reports
+├── src/
+│   ├── api/chess_com_fetcher.py   # Chess.com public API client + disk cache
+│   ├── data/
+│   │   ├── pgn_parser.py          # PGN -> structured dict, game-phase classification
+│   │   ├── puzzle_loader.py       # Lichess CSV load/enrich/clean, WEAKNESS_CATEGORIES
+│   │   ├── puzzle_difficulty_mapper.py
+│   │   └── data_cleaner.py
+│   ├── classifier/
+│   │   ├── stockfish_analyzer.py  # per-move Stockfish analysis -> MoveError/GameAnalysis
+│   │   ├── player_profiler.py     # build_profile() -- rule-based weakness scorer
+│   │   └── ml_weakness_model.py   # build_profile_ml() -- trained classifier (offline)
+│   ├── analysis/
+│   │   ├── style_profile.py       # archetype + stylistic metrics (no engine)
+│   │   └── difficulty_fitter.py   # Glicko-2 puzzle/player difficulty fitting (offline)
+│   ├── recommender/bandit.py      # ThompsonBandit -- the live recommendation core
+│   └── puzzles/generator.py       # 4-gate Stockfish puzzle miner
+├── web/
+│   ├── backend/app.py             # Flask app -- API + serves the frontend (same origin)
+│   └── frontend/index.html        # vanilla JS SPA
+├── scripts/build_puzzle_dataset.py
+└── tests/                         # 128 tests, pytest</div>
+
+<h2 id="s11"><span class="num">11.</span>Reproduction Guide</h2>
+<pre class="codeblock"><code>python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+
+# Puzzle pool already built in this repo at data/processed/ -- to rebuild from scratch:
+python scripts/build_puzzle_dataset.py     # needs DataSets/lichess_db_puzzle.csv
+
+# Start the app -- Flask serves both the API and the frontend from one origin
+python web/backend/app.py
+# open http://localhost:5000
+
+# Optional: use the trained ML weakness classifier instead of the rule-based
+# scorer for analysis runs (opt-in -- see §6.3). Falls back to the rule-based
+# scorer automatically if data/processed/weakness_model.joblib doesn't exist.
+# PowerShell (default on Windows):
+$env:WEAKNESS_MODEL="ml"; python web/backend/app.py
+# cmd.exe:
+set WEAKNESS_MODEL=ml && python web/backend/app.py
+
+# Run the test suite
+pytest tests/ -v                            # 128 tests, all offline
+
+# Offline research CLIs (difficulty_fitter is standalone, not called by app.py;
+# ml_weakness_model is also used opt-in at serve time -- see WEAKNESS_MODEL above)
+python -m src.analysis.difficulty_fitter    # fits Glicko-2 ratings from data/sessions/*.json
+python -m src.classifier.ml_weakness_model  # trains + cross-validates the classifier
+
+# Puzzle-mining quality report for a user who has generated puzzles
+python eval/run_evaluation.py --username &lt;name&gt; --elo &lt;elo&gt;</code></pre>
+
+<h2 id="s12"><span class="num">12.</span>Talking Points / Likely Professor Questions</h2>
+
+<h4>"Is this reinforcement learning?"</h4>
+<p>The bandit is, precisely: it's a Bayesian multi-armed bandit (Thompson Sampling), a canonical RL formulation for the "which action maximises long-run reward under uncertainty" problem, applied here with "action" = category to serve next and "reward" = solved/not-solved. It is <em>not</em> a deep RL system (no neural policy network, no PPO/DQN) — being precise about which RL family this is resolves any earlier mismatch with an assumed deep-RL architecture.</p>
+
+<h4>"How do you know the bandit actually works, not just that it runs?"</h4>
+<p>Unit-tested directly: priors seed correctly from game analysis, <code>update()</code> moves alpha/beta in the right direction, <code>select_one()</code> statistically favours the weaker arm under a seeded RNG, and full state round-trips through persistence. The statistical validity of Thompson Sampling itself is well-established literature — the engineering question this project had to answer was "is <em>this</em> implementation correct."</p>
+
+<h4>"Where does the puzzle quality assurance come from?"</h4>
+<p>Two independent layers: the four-gate mining pipeline rejects most bad extractions before they're ever saved, and the puzzle evaluator independently re-scores whatever does get saved on five weighted dimensions, giving a second, separate quality signal you can report numerically.</p>
+
+<h4>"What's the single biggest gap right now?"</h4>
+<p>Data volume, not methodology. Both the Glicko-2 fitter and the ML weakness classifier are correctly built and validated against synthetic/reference data, but real usage (3–4 players, dozens of puzzles each) is too small for either to outperform the current rule-based scorer on real players yet. This used to be compounded by a separate bug (§6.1, now fixed) where <code>analysis_start()</code> never actually found Stockfish, so even the rule-based scorer it would eventually be compared against wasn't the one running in practice — that's resolved now, so the comparison, when there's enough real data to make it, will be apples-to-apples.</p>
+
+<h4>"Why Thompson Sampling and not, say, UCB or epsilon-greedy?"</h4>
+<p>Thompson Sampling naturally balances exploration/exploitation through the shape of each arm's posterior, without a separate tunable exploration parameter, and empirically performs at least as well as UCB-style approaches in the Bernoulli-reward setting — which is exactly this problem shape (solved/not-solved).</p>
+
+<h4>"What would you do next if you had another month?"</h4>
+<p>In priority order: (1) collect more real puzzle-session data so the Glicko-2 fitter and the ML classifier have enough evidence to be worth deploying over the current rule-based scorer, (2) run a real A/B comparison of <code>build_profile_ml()</code> against <code>build_profile()</code> — now that both are genuinely reachable in the live app (§6.3), this is a data-collection problem rather than an engineering one, (3) load the Glicko-2 fitter's output into the live serving path the same way the ML classifier now is, (4) reconcile the two difficulty-tier schemes and the stale constant documentation.</p>
+
+<h2 id="s13"><span class="num">13.</span>Appendix — Slide-Ready Diagrams</h2>
+
+<h3>13.1 One-slide system overview</h3>
+<div class="diagram-card">
+<svg viewBox="0 0 780 260" xmlns="http://www.w3.org/2000/svg">
+  <path class="edge" d="M280,45 L520,45 L520,100 L560,100" marker-end="url(#arrow)"/>
+  <path class="edge" d="M280,135 L320,135" marker-end="url(#arrow)"/>
+  <path class="edge" d="M520,135 L520,105 L560,105" marker-end="url(#arrow)"/>
+  <path class="edge" d="M660,130 L660,190" marker-end="url(#arrow)"/>
+  <path class="edge" d="M560,215 C470,215 470,120 560,120" marker-end="url(#arrow)"/>
+  <text class="edge-label" x="475" y="168">solve / fail</text>
+
+  <g><rect class="node-box" x="20" y="20" width="260" height="50" rx="8"/>
+     <text class="node-title" x="150" y="42">Lichess DB (6M) +</text>
+     <text class="node-sub" x="150" y="58">mined puzzles</text></g>
+
+  <g><rect class="node-box" x="20" y="110" width="260" height="50" rx="8"/>
+     <text class="node-title" x="150" y="140">Chess.com games</text></g>
+
+  <g><rect class="node-box" x="320" y="110" width="200" height="50" rx="8"/>
+     <text class="node-title" x="420" y="140">Weakness Profile</text></g>
+
+  <g><rect class="node-box accent" x="560" y="70" width="200" height="60" rx="8"/>
+     <text class="node-title" x="660" y="95">Thompson Sampling</text>
+     <text class="node-sub" x="660" y="112">Bandit</text></g>
+
+  <g><rect class="node-box accent" x="560" y="190" width="200" height="50" rx="8"/>
+     <text class="node-title" x="660" y="220">Adaptive puzzle session</text></g>
+</svg>
+</div>
+
+<h3>13.2 One-slide "what's genuinely AI"</h3>
+<div class="diagram-card">
+<svg viewBox="0 0 800 280" xmlns="http://www.w3.org/2000/svg">
+  <rect class="group-box" x="20" y="20" width="260" height="240" rx="10"/>
+  <text class="group-label" x="32" y="40">Live in the app today</text>
+  <g><rect class="node-box accent" x="40" y="50" width="220" height="60" rx="8"/>
+     <text class="node-title" x="150" y="75">Thompson Sampling</text>
+     <text class="node-sub" x="150" y="92">Bandit (Bayesian RL, online)</text></g>
+  <g><rect class="node-box accent" x="40" y="150" width="220" height="60" rx="8"/>
+     <text class="node-title" x="150" y="172">RandomForest Weakness</text>
+     <text class="node-sub" x="150" y="188">Classifier — opt-in flag</text></g>
+
+  <rect class="group-box" x="310" y="20" width="220" height="240" rx="10"/>
+  <text class="group-label" x="322" y="40">Built + validated, not deployed</text>
+  <g><rect class="node-box accent" x="330" y="110" width="180" height="60" rx="8"/>
+     <text class="node-title" x="420" y="135">Glicko-2 Difficulty</text>
+     <text class="node-sub" x="420" y="152">Fitter</text></g>
+
+  <rect class="group-box" x="560" y="20" width="220" height="240" rx="10"/>
+  <text class="group-label" x="572" y="40">Rule-based / symbolic (not ML)</text>
+  <g><rect class="node-box warn" x="580" y="80" width="180" height="50" rx="8"/>
+     <text class="node-sub" x="670" y="109">_classify_tactic()</text></g>
+  <g><rect class="node-box warn" x="580" y="160" width="180" height="60" rx="8"/>
+     <text class="node-sub" x="670" y="185">build_profile()</text>
+     <text class="node-sub" x="670" y="202">scorer</text></g>
+</svg>
+</div>
+
+<p style="margin-top:60px; color:var(--sub); font-size:13.5px; border-top:1px solid var(--line); padding-top:16px;">
+Cross-references throughout use exact file paths and function names so any claim here can be checked directly against the source in under a minute.
+</p>
+
+</div>
+
+</body>
+</html>
