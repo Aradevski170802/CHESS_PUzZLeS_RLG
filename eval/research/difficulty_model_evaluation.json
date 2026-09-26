@@ -3,6 +3,7 @@
   "players": 5,
   "solve_rate": 0.846,
   "mined_share": 0.675,
+  "mined_rated_by_puzzlenet": 44,
   "models": {
     "Base rate": {
       "log_loss": 0.4508,
@@ -68,6 +69,17 @@
       "ci95": [
         -0.8124,
         -0.4058
+      ]
+    },
+    "IRT, per category + PuzzleNet": {
+      "log_loss": 0.7542,
+      "brier": 0.2492,
+      "auc": 0.531,
+      "mean_prediction": 0.653,
+      "logloss_minus_static_elo": -0.4543,
+      "ci95": [
+        -0.674,
+        -0.2367
       ]
     }
   }

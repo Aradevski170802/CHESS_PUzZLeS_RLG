@@ -1,0 +1,113 @@
+\chapter{Implementation}\label{ch:implementation}
+
+\section{Technology Stack and Tools}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Technology stack.}\label{tab:stack}
+\begin{tabularx}{\linewidth}{p{0.3\linewidth}Y}
+\toprule
+\textbf{Layer} & \textbf{Technology} \\
+\midrule
+Language & Python 3.13 \\
+Board logic, PGN, UCI & python-chess~\cite{pythonchess} \\
+Engine & Stockfish 18~\cite{stockfish} (bundled Windows binary) \\
+Numerics and machine learning & NumPy, SciPy, scikit-learn~\cite{pedregosa2011scikit} \\
+Data & pandas~\cite{mckinney2010data}, PyArrow (Parquet, read one row group at a time) \\
+Web application & Flask with a vanilla-JavaScript single-page front end, served from one origin \\
+Persistence & JSON files per user (no database) \\
+Testing & pytest, 231 tests, fully offline \\
+Figures and reports & Matplotlib; HTML reports printed to PDF \\
+Version control & Git, feature branch \code{feature/adaptive-engine} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{System Modules}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Main modules.}\label{tab:modules}
+\begin{tabularx}{\linewidth}{p{0.38\linewidth}Y}
+\toprule
+\textbf{Module} & \textbf{Responsibility} \\
+\midrule
+\code{src/api/chess\_com\_fetcher.py} & Chess.com client with disk cache and rate limiting \\
+\code{src/data/puzzle\_loader.py} & Lichess loading, cleaning, the 23-category taxonomy and motif priority \\
+\code{src/classifier/stockfish\_analyzer.py} & Deterministic MultiPV analysis, win-probability grading, opportunities \\
+\code{src/puzzles/tactic\_tagger.py} & Line-level tactic tagging \\
+\code{src/classifier/player\_profiler.py} & Profile, hierarchical shrinkage with population norms, priors \\
+\code{src/data/category\_norms.json} & Population category offsets and shrinkage strength (aggregates only) \\
+\code{src/recommender/irt\_model.py} & Difficulty-aware IRT learner with Thompson Sampling (default policy) \\
+\code{src/recommender/bandit.py} & Beta--Bernoulli Thompson bandit (the original policy, kept for comparison) \\
+\code{src/analysis/difficulty\_fitter.py} & Glicko-2 fitter (frozen-pool mode, prequential hook) \\
+\code{src/classifier/ml\_weakness\_model.py} & Random-forest weakness model (optional, trained on simulated players) \\
+\code{src/puzzles/generator.py} & Four-gate puzzle miner \\
+\code{src/evaluation/simulation.py} & Simulation environment: synthetic players, policies, episodes \\
+\code{web/backend/app.py} & Flask API: analysis, sessions, serving cascade, logging \\
+\code{scripts/research/*} & Labeller validation, simulation study, cohort collection and analysis, evaluations, report \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\input{sections/puzzlenet_impl}
+
+\section{Integration and Deployment Setup}
+
+The whole application is served by one Flask process on port 5000: the API and the static front end
+from the same origin. At start-up it streams the Parquet pool one row group at a time, never holding
+all six million rows in memory, and applies the quality gate. Game analysis runs in a background
+thread, and the browser polls for progress. The policy is chosen with environment variables:
+\code{RECOMMENDER} (\code{irt} by default, or \code{beta}), \code{BANDIT\_DISCOUNT}, and
+\code{WEAKNESS\_MODEL}. Both recommendation models are updated on every attempt, whichever one served
+the puzzle, so switching policy never starts cold. A player who trained before the IRT learner
+existed has a posterior rebuilt by replaying their stored history.
+
+The research pipeline runs separately and reproducibly:
+\begin{itemize}
+  \item cohort collection (resumable, rate-limited);
+  \item cohort analysis in worker processes;
+  \item the evaluation scripts, which write JSON results;
+  \item a report builder that reads only those JSON files, so that no number in a report is typed by
+        hand.
+\end{itemize}
+Research data is kept in a git-ignored directory and stored under pseudonyms. Only aggregate results
+are committed.
+
+\section{Implementation Challenges and Solutions}\label{sec:challenges}
+
+Several defects were found during the project by re-reading the code against its own documentation.
+They are listed because some of them silently invalidated earlier behaviour, which matters for
+interpreting anything measured before they were fixed.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Defects found and how they were fixed.}\label{tab:defects}
+\begin{tabularx}{\linewidth}{p{0.3\linewidth}Yp{0.25\linewidth}}
+\toprule
+\textbf{Defect} & \textbf{Consequence} & \textbf{Fix} \\
+\midrule
+Stockfish located with \code{shutil.which} only & The bundled engine was never found; every profile silently fell back to a crude heuristic & Use the project's resolver, which checks the bundled path \\
+\code{multipv=1} returned a list & Every move analysis raised \code{TypeError}; hidden by the defect above & Drop the argument; found by a live smoke test \\
+``First tag wins'' theme mapping & About 198k of 305k ``Endgame'' puzzles mislabelled & Motif-priority resolution, re-applied at load time \\
+Accuracy formula fed centipawns & Lichess's accuracy formula takes win-\% loss, so a typical player showed about 15\% accuracy & Pass win-\% loss~\cite{lichessaccuracy} \\
+Substring colour detection & ``bob'' against ``bobby\_99'' was assigned the wrong colour & Exact username match first \\
+Priors truncated with \code{int()} & Fractional priors lost & Floats end to end \\
+Time-limited search & The same game could give different errors on another run & Node-limited, deterministic search \\
+Recaptures counted as opportunities & Hit rates inflated by trivial moves & Recapture filter \\
+Country-list sampling & Cohort dominated by beginners & Snowball and titled-player sampling \\
+Parallel pool crash on Windows & 14 processes $\times$ 16 BLAS threads oversubscribed the CPU & One BLAS thread per worker \\
+Evaluation runtime & $O(n^2)$ recomputation (more than 10 minutes) & Statistics computed once per fold (1.7 minutes) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Two lessons stand out. First, \emph{``the tests pass'' and ``it works against a real engine'' are
+different claims.} The offline test suite deliberately never calls Stockfish, so the
+\code{multipv} defect was invisible to it; only a live run exposed it. Second, \emph{hypotheses about
+performance should be measured before they are fixed.} A plausible diagnosis, that Python's global
+interpreter lock limited the analysis thread pool, was refuted by a head-to-head benchmark: 127\,s
+with threads against 129\,s with processes, with identical output. The design kept threads.

@@ -78,13 +78,13 @@ def _to_analysis(g: dict) -> GameAnalysis:
     )
 
 
-def load_players() -> list[dict]:
+def load_players(analysis_dir: Path = ANALYSIS) -> list[dict]:
     # Never let a norms file fitted on the whole cohort leak into scoring:
     # the population-norms model below is fitted fold by fold instead.
     import src.classifier.player_profiler as pp
     pp.load_category_norms = lambda *a, **k: None
     players = []
-    for path in sorted(ANALYSIS.glob("*.json")):
+    for path in sorted(analysis_dir.glob("*.json")):
         d = json.loads(path.read_text("utf-8"))
         games = sorted(d["games"], key=lambda g: g["end_time"] or 0)   # oldest first
         if len(games) < 15:
@@ -214,9 +214,12 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--write-norms", action="store_true",
                     help="also fit population category norms on all players for the app")
+    ap.add_argument("--analysis-dir", type=Path, default=ANALYSIS,
+                    help="cohort analyses to score (e.g. a relabelled copy)")
+    ap.add_argument("--out-name", default="cohort_evaluation.json")
     args = ap.parse_args()
     OUT.mkdir(parents=True, exist_ok=True)
-    players = load_players()
+    players = load_players(args.analysis_dir)
     n = len(players)
     print(f"{n} players with ≥ 15 analysed games")
     rf_syn = load_model(DEFAULT_MODEL_PATH) if DEFAULT_MODEL_PATH.exists() else None
@@ -389,7 +392,8 @@ def main() -> None:
     }
     if args.write_norms:
         report["norms_written"] = write_norms(players, chosen_strength)
-    (OUT / "cohort_evaluation.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
+    report["analysis_dir"] = str(args.analysis_dir)
+    (OUT / args.out_name).write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps({k: v for k, v in report.items() if k not in ("reliability",)}, indent=2))
     print("\nreliability (split-half, Spearman-Brown):")
     for r in sorted(rel, key=lambda r: -r["split_half_r"]):

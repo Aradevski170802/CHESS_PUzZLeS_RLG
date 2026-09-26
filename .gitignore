@@ -229,6 +229,8 @@ data/sessions/
 data/user_puzzles/
 # Research cohort: third-party public game data, kept local and pseudonymised
 data/research/
+# PuzzleNet training arrays (rebuilt by scripts/neural/build_dataset.py)
+data/neural/
 *.parquet
 *.csv
 

@@ -72,6 +72,10 @@ def load_category_norms(path: Path = NORMS_PATH) -> Optional[dict]:
 
 RECENCY_HALF_LIFE_GAMES = 25
 TIME_CLASS_WEIGHT = {"bullet": 0.5, "blitz": 0.85, "rapid": 1.0, "daily": 1.0, "unknown": 0.85}
+# Categories the recommender can actually serve; "General" and anything else the
+# labeller emits is measured but is not an arm (see aggregate_opportunities).
+_ARM_CATEGORIES = frozenset(WEAKNESS_CATEGORIES)
+
 SHRINK_STRENGTH = 4.0       # pseudo-opportunities pulling each category to the overall rate
 MIN_OPPORTUNITIES = 10      # below this, fall back to the rule-based scores for priors
 PRIOR_BUDGET = 10.0         # max pseudo-count a game-derived Beta prior may carry
@@ -321,13 +325,22 @@ def aggregate_opportunities(
 
     total_n = sum(n.values())
     overall = sum(hits.values()) / total_n if total_n > 0 else 0.0
+    # The population offsets are fitted relative to the hit rate over categories that
+    # are actually arms, so the shrinkage baseline has to be computed the same way.
+    # Positions the labeller calls "General" carry no motif to practise, and under the
+    # neural labeller they are about a third of all critical positions; counting them
+    # here would shift every expected rate for a reason that has nothing to do with
+    # the motif. `overall` is still reported as the player's all-in hit rate.
+    arm_n = sum(v for c, v in n.items() if c in _ARM_CATEGORIES)
+    arm_hits = sum(v for c, v in hits.items() if c in _ARM_CATEGORIES)
+    baseline = arm_hits / arm_n if arm_n > 0 else overall
     offsets = (norms or {}).get("offsets", {})
     strength = float((norms or {}).get("shrink_strength", SHRINK_STRENGTH))
     stats = {}
     for cat in n:
-        expected = overall
-        if cat in offsets and 0.0 < overall < 1.0:
-            expected = 1.0 / (1.0 + math.exp(-(_logit(overall) + float(offsets[cat]))))
+        expected = baseline
+        if cat in offsets and 0.0 < baseline < 1.0:
+            expected = 1.0 / (1.0 + math.exp(-(_logit(baseline) + float(offsets[cat]))))
         rate = (hits[cat] + strength * expected) / (n[cat] + strength)
         stats[cat] = {"hits": round(hits[cat], 4), "n": round(n[cat], 4),
                       "raw_n": raw_n[cat], "rate": round(rate, 4),

@@ -57,7 +57,7 @@ import chess.engine
 import chess.pgn
 
 from src.data.pgn_parser import get_game_phase
-from src.puzzles.tactic_tagger import tag_line
+from src.puzzles.labeller import label_line
 
 logger = logging.getLogger(__name__)
 
@@ -352,8 +352,9 @@ def analyze_game(
                     second_pv = infos[1].get("pv") or []
                     second_move = second_pv[0] if second_pv else None
 
-                # Snapshot the pre-move state before board.push() mutates it.
-                pre_board = board.copy(stack=False)
+                # Snapshot the pre-move state before board.push() mutates it. One
+                # move of history is kept: PuzzleNet reads the opponent's last move.
+                pre_board = board.copy(stack=1)
                 fen_before_move = pre_board.fen()
                 phase = get_game_phase(pre_board)
 
@@ -392,11 +393,12 @@ def analyze_game(
 
                 category = "General"
                 if best_move is not None and best_move in pre_board.legal_moves:
-                    # Tag the engine's whole line, not just its first move, and
-                    # trust the engine's mate verdict (validate_labeller.py:
-                    # strict agreement with Lichess themes 31 % -> 58 %).
-                    category = tag_line(pre_board, best_pv[:PV_PLIES_FOR_TAGGING],
-                                        mate=best_score >= MATE_CP)
+                    # Label the engine's whole line, not just its first move, and
+                    # trust the engine's mate verdict. label_line uses PuzzleNet when
+                    # a model is installed, else the rule-based tagger
+                    # (src/puzzles/labeller.py; LABELLER=rules forces the rules).
+                    category = label_line(pre_board, best_pv[:PV_PLIES_FOR_TAGGING],
+                                          mate=best_score >= MATE_CP)
 
                 if critical:
                     result.opportunities.append(Opportunity(

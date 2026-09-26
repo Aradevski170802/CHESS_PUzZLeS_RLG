@@ -1,0 +1,292 @@
+\chapter{Methodology}\label{ch:method}
+
+\section{Data Sources and Preprocessing}\label{sec:data}
+
+\paragraph{Lichess puzzle database.} The open Lichess puzzle export~\cite{lichessdb} (CC0) contains
+roughly six million puzzles. Each has a starting position (FEN), a solution in UCI notation, a
+Glicko-2 rating with its deviation, a popularity score, a play count and theme tags. A streaming ETL
+reads the 1.1\,GB CSV in chunks of one million rows. It removes duplicates, puzzles with rating
+deviation above 150, unplayed puzzles and empty solutions, leaving \textbf{5,877,641 puzzles}. At
+server start a second quality gate filters on popularity, play count and solution length, and a
+bounded, category-stratified sample of 199,998 puzzles is kept in memory.
+
+A \emph{motif-priority} rule maps Lichess's roughly fifty raw theme tags onto the project's 23
+categories. Tags arrive in alphabetical order, so an earlier ``first tag wins'' rule let the phase tag
+\emph{endgame} outrank real motifs. It mislabelled about 198,000 of 305,000 puzzles then marked
+Endgame (Section~\ref{sec:challenges}). The fixed rule resolves ties by specificity: forced mate,
+then concrete motif, then generic attack, then endgame type.
+
+\paragraph{Chess.com games.} Games are fetched from the public Chess.com Published-Data
+API~\cite{chesscomapi}. The fetcher walks the player's monthly archives from newest to oldest,
+caches every response on disk, and waits between requests as the platform's guidance asks.
+
+\paragraph{Application logs.} Every puzzle attempt in the deployed application is stored with its
+timestamp, puzzle, category, rating and outcome. For attempts made since the upgrade it also records
+the serving policy, the selection probability and the model's prediction before the outcome. At the
+time of writing the logs contain 123 attempts by five players.
+
+\paragraph{Research cohort.} Five app users are far too few to evaluate the player models, so a
+cohort was collected from the public API. It contains \textbf{300 players}, 60 in each of five rating
+bands (below 1000, 1000--1399, 1400--1799, 1800--2199, 2200 and above). Players had to be active (a
+rated rapid or blitz game within the last year) and experienced (at least 100 games in that time
+control). Candidate players came from three sources:
+\begin{enumerate}
+  \item \emph{snowball sampling}: opponents of already-collected players whose game rating fell in a
+        band that still needed players;
+  \item Chess.com's titled-player lists;
+  \item random members of the country player lists.
+\end{enumerate}
+Country lists alone are dominated by beginners, so the upper bands would never fill without the first
+two sources. The cost is that the cohort is not a uniform random sample of Chess.com
+(Section~\ref{sec:validity}). For each player the newest 60 rated standard-chess games were
+analysed, about 18,000 games in total. Players are stored under a salted SHA-256 pseudonym.
+
+\section{Player Modelling and Style Classification}\label{sec:player-model}
+
+\subsection{Move grading by win probability}
+
+Each player move after the first eight half-moves is analysed with Stockfish at a fixed budget of
+75,000 nodes, using MultiPV~2 (the best move and the runner-up). Centipawn scores $c$ (from the side
+to move) are mapped to win percentages with the curve Lichess uses~\cite{lichessaccuracy}:
+
+\begin{equation}
+  W(c) \;=\; 50 + 50\left(\frac{2}{1+e^{-0.00368208\,c}} - 1\right).
+\end{equation}
+
+\noindent The loss caused by a move is $L = W(c_{\text{best}}) - W(c_{\text{played}}) \geq 0$. Moves
+are graded as inaccuracies, mistakes or blunders at $L\geq 5$, $10$ and $15$ percentage points. Win
+probability is used instead of raw centipawns because the same centipawn loss means very different
+things in different positions. A 300-centipawn loss is a blunder at $+50$ but only an inaccuracy at
+$+900$, where the game is already decided.
+
+\subsection{Opportunities: measuring weakness with a denominator}
+
+A position is \emph{critical}, an opportunity, when the best move beats the runner-up by at least 10
+win-percentage points. A simple recapture of a piece the opponent has just taken is excluded, because
+it is usually the only move without being a tactic. Each opportunity is labelled with the tactic of
+the engine's best line (Section~\ref{sec:features}), and is recorded as a \emph{hit} if the player's
+move lost fewer than 5 points.
+
+Counting errors alone is misleading. A player who meets many fork positions will make more fork
+errors even if they convert most of them. The quantity of interest is the hit rate per category,
+$\text{hits}_k / \text{opportunities}_k$.
+
+\subsection{Weighting and hierarchical shrinkage}
+
+Games are ranked from newest to oldest. Game $g$ receives weight $w_g = 0.5^{\text{rank}/25} \cdot
+\tau(\text{time class})$, with $\tau = 0.5$ for bullet, $0.85$ for blitz and $1$ for rapid. Recent
+games count more; bullet games count less, because time pressure rather than tactical knowledge drives
+many bullet errors.
+
+Each category's weighted hit count is then shrunk towards an \emph{expected} rate, the rate that is
+typical for category $k$ at this player's overall level:
+
+\begin{equation}
+  e_{u,k} = \sigma\!\bigl(\operatorname{logit}(h_u) + o_k\bigr), \qquad
+  \hat r_{u,k} = \frac{\text{hits}_{u,k} + S\,e_{u,k}}{n_{u,k} + S},
+\end{equation}
+
+\noindent Here $h_u$ is the player's overall hit rate. The population offset $o_k =
+\operatorname{logit}(h_k) - \operatorname{logit}(h)$ says how much harder or easier category $k$ is
+for everyone. It is fitted on the research cohort from 23,796 opportunities, for example $+1.71$ for
+pawn endgames and $-0.74$ for sacrifices. The strength $S$ is chosen by cross-validation over
+players, and was 128--256 in every fold. The original profiler, which shrank towards $h_u$ alone,
+misread ``this motif is hard for everyone'' as ``this player is weak at it''.
+
+\subsection{Rating-group classification (Objective O1)}\label{sec:rating-method}
+
+For each cohort player, 18 features are computed from their analysed games, describing \emph{how}
+they play:
+\begin{itemize}
+  \item mean and median win-percentage loss, and mean centipawn loss;
+  \item blunders, mistakes and inaccuracies per game;
+  \item the share of errors in the opening, middlegame and endgame;
+  \item opportunities per game, and the overall hit rate;
+  \item hit rates for tactical, mating, endgame and quiet-move groups;
+  \item mean game length, win rate, and the share of blitz games.
+\end{itemize}
+The PGN rating headers of both players are \emph{excluded}, because they would leak the label. The
+classifiers are a multinomial logistic regression on standardised features and a random
+forest~\cite{breiman2001random}, both from scikit-learn~\cite{pedregosa2011scikit}. They are
+evaluated with stratified 5-fold cross-validation over players, repeated ten times, and a
+500-shuffle permutation test.
+
+\begin{honest}[Honest status: style]
+The portfolio's style classification (positional, attacking, defensive) was not built as a learned
+model. A rule-based archetype heuristic (\code{style\_profile.py}) assigns labels such as ``Tactical
+Attacker'' from termination patterns and sacrifice rates, but it has no ground truth and was not
+validated. Unsupervised style discovery in the manner of Jayasekara~\cite{jayasekara2018classification}
+is left as future work.
+\end{honest}
+
+\section{Puzzle Representation and Feature Design}\label{sec:features}
+
+A puzzle is a FEN position before the opponent's last move, followed by a solution line in UCI
+notation, which alternates the player's moves and forced replies. Its category comes from the
+motif-priority rule for Lichess puzzles, or from the tactic tagger for mined puzzles and game
+opportunities.
+
+\paragraph{The tactic tagger.} The original labeller looked at the first move only and used a few
+geometric tests. It was measured to agree with Lichess themes on only 31\% of puzzles
+(Section~\ref{sec:labeller-results}). The replacement tags the \emph{whole line}:
+\begin{itemize}
+  \item A line the engine scores as a forced mate is a \emph{Mating Pattern}, whatever its first move
+        looks like.
+  \item A \emph{fork} requires the moved piece to attack at least two targets. Each target must be
+        the king, worth more than the attacker, or undefended. The forking piece must not simply be
+        lost to a cheaper capture, and a king only counts as a capturer if the square is undefended.
+  \item \emph{Pin} and \emph{skewer} come from ray geometry. Walking outward from a line piece, let
+        $P_1$ be the first enemy piece and $P_2$ the second. If $P_2$ is the king or worth more than
+        $P_1$, it is a pin. If $P_1$ is the king or worth more than $P_2$, it is a skewer.
+  \item A \emph{discovered attack} is recorded when another of the player's line pieces newly attacks
+        a valuable or undefended target.
+  \item \emph{Endgame types} come from the material left on the board (for example, only rooks and
+        pawns means a rook endgame), not from which piece moved.
+  \item Only the first two player moves may contribute combination motifs; later moves may add only
+        promotion or mate. Incidental pins and pawn captures deep in a continuation were the main
+        source of false positives.
+\end{itemize}
+Five categories are never emitted: Attraction, Interference, Clearance, Zugzwang and X-Ray. They need
+deeper reasoning about the line, and emitting nothing is preferable to guessing.
+
+\input{sections/puzzlenet_method}
+
+\section{Generative Model Design}\label{sec:generation}
+
+\begin{honest}[Honest status: no generative model was built]
+The portfolio planned a generative model fine-tuned with reinforcement learning to create new puzzles,
+optimised for uniqueness and counter-intuitiveness, following Feng et al.~\cite{feng2025generating}.
+This was \textbf{not implemented}. That approach needs millions of training puzzles, a neural
+generator, and an RL loop in which every candidate is scored by engine search, a compute budget far
+beyond an individual MSc project. The implemented alternative, \emph{engine-verified mining} from the
+player's own games, meets the legality and uniqueness requirements of Objective O2 by construction.
+It does not produce puzzles that are new to the world, and it does not optimise
+counter-intuitiveness.
+\end{honest}
+
+\paragraph{Engine-verified mining.} For each move the player made, four gates must all pass
+(the constants are listed in Appendix~\ref{app:constants}):
+\begin{enumerate}
+  \item \emph{Detection}: the player's move is at least 150 centipawns worse than the engine's best.
+  \item \emph{Clarity}: the best move beats the runner-up by at least 100 centipawns, which rules out
+        a second solution.
+  \item \emph{Forcing}: each opponent reply in the continuation is at least 80 centipawns better than
+        its alternative.
+  \item \emph{Verification}: a depth-18 re-analysis confirms the solution.
+\end{enumerate}
+An earlier miner used heuristics without an engine and produced about 40\% false positives; it was
+removed. Accepted puzzles are labelled by the tactic tagger. Their difficulty is estimated by a
+closed-form heuristic from the size of the error and the length of the solution. That heuristic is
+uncalibrated, and replacing it is a stated item of future work (Section~\ref{sec:future}).
+
+\section{Reinforcement Learning Setup}\label{sec:rl-setup}
+
+The recommendation problem is formulated as a multi-armed bandit: one arm per category, with Bernoulli
+rewards (solved or not). This is reinforcement learning in its simplest setting, a single state with
+repeated actions~\cite{sutton2018reinforcement}. It is \emph{not} deep reinforcement learning: there is
+no neural policy, no value network and no multi-step planning.
+
+\subsection{Beta--Bernoulli Thompson Sampling (original policy)}
+
+Each category $k$ has a posterior $\text{Beta}(\alpha_k,\beta_k)$ over its solve rate. The update is
+exact by conjugacy: $\alpha_k \leftarrow \alpha_k + y$ and $\beta_k \leftarrow \beta_k + 1 - y$. The
+selection rule draws $\tilde\theta_k \sim \text{Beta}(\alpha_k,\beta_k)$ for every category and serves
+$\arg\min_k \tilde\theta_k$. This is the \emph{minimum}, not the maximum of standard
+TS~\cite{russo2018tutorial}, because the goal is to practise weaknesses. Priors come from the profile,
+with a pseudo-count that grows with the evidence: $C_k = \min(10, n_k+2)$, $\alpha_k = 1 + \hat
+r_k C_k$, $\beta_k = 1 + (1-\hat r_k) C_k$. An optional discount $\gamma$ pulls every arm back towards
+its prior after each update, as in the discounted TS of Raj and Kalyani~\cite{raj2017taming}. It is
+switched off by default, for reasons given in Section~\ref{sec:ablations}.
+
+This policy has a structural flaw. Failing a 2200-rated puzzle and failing a 1000-rated one change
+$\beta_k$ by the same amount, so categories that happen to be served harder puzzles look weaker.
+
+\subsection{Difficulty-aware IRT learner with Thompson Sampling (new default)}
+
+The new policy keeps a Gaussian posterior $\mathcal{N}(\mathbf{m}, \mathbf{S})$ over $\mathbf{w} =
+(\theta, \delta_1,\dots,\delta_{23})$, with full $24\times24$ covariance, for the model in
+Equation~\eqref{eq:rasch}. For an attempt in category $k$ at difficulty $b$, whose own uncertainty is
+$v_b$, let $\mathbf{x} = \mathbf{e}_\theta + \mathbf{e}_k$. One online Laplace (extended-Kalman) step
+gives:
+
+\begin{align}
+  \kappa &= \bigl(1 + 3 v_b / \pi^2\bigr)^{-1/2}, \qquad
+  p = \sigma\!\bigl(\kappa(\mathbf{x}^\top\mathbf{m} - b)\bigr), \qquad
+  h = \kappa^2 p(1-p), \\
+  \mathbf{S}' &= \mathbf{S} - \frac{h\,\mathbf{S}\mathbf{x}\mathbf{x}^\top\mathbf{S}}{1 + h\,\mathbf{x}^\top\mathbf{S}\mathbf{x}}, \\
+  \mathbf{m}' &= \mathbf{m} + \frac{\kappa\,(y - p)\,\mathbf{S}\mathbf{x}}{1 + h\,\mathbf{x}^\top\mathbf{S}\mathbf{x}}.
+\end{align}
+
+\noindent With one parameter this is term for term the Glicko update: $\kappa$ is Glicko's $g(\phi_j)$,
+$p$ is $E$ and $h$ is $1/v$. A unit test checks the equivalence to $10^{-9}$ against the Glicko-2
+implementation, which itself reproduces Glickman's published worked example (1464.06 / 151.52 /
+0.05999)~\cite{glickman2012example}. Because the covariance is full, evidence from a failed puzzle is
+split between ``weak overall'' ($\theta$) and ``weak at this motif'' ($\delta_k$). Before each update
+the learner adds random-walk drift, $\mathbf{S} \leftarrow \mathbf{S} + \operatorname{diag}(0.02^2,
+0.04^2,\dots)$, so that it can follow a player who is improving.
+
+\paragraph{Selection.} Draw $\tilde{\mathbf{w}} \sim \mathcal{N}(\mathbf{m},\mathbf{S})$ and serve
+$\arg\min_k \tilde\delta_k$. This is Thompson Sampling on the difficulty-adjusted category offsets.
+
+\paragraph{Priors.} $\delta_k$ is centred on $\operatorname{logit}(\hat r_{u,k}) -
+\operatorname{logit}(e_{u,k})$, the player's deviation from what is typical. The information credited
+to game evidence is $0.5 \cdot \tfrac{n}{n+S} \cdot n\,\hat r(1-\hat r)$. The factor $0.5$ reflects
+that finding a move in a game and solving a flagged puzzle are related but different tasks. The factor
+$n/(n+S)$ keeps the prior wide when pooling dominates, so that puzzle attempts can still move it.
+
+\section{Adaptive Curriculum / Recommendation Strategy}
+
+After choosing a category $k$, the learner sets a target difficulty at which the predicted solve
+probability equals $p^\star = 0.65$:
+
+\begin{equation}
+  b^\star = m_\theta + m_{\delta_k} - \operatorname{logit}(p^\star), \qquad
+  r^\star = 1500 + 173.7178\, b^\star ,
+\end{equation}
+
+\noindent and the serving window is $r^\star \pm 150$. The choice of $p^\star$ follows the
+zone-of-proximal-development argument~\cite{vygotsky1978mind}: hard enough to demand effort, easy enough
+to succeed usually. Its sensitivity is tested in Section~\ref{sec:ablations}.
+
+The \emph{serving cascade} looks for an unseen puzzle in this order:
+\begin{enumerate}
+  \item the player's own mined puzzles in category $k$ and the rating window;
+  \item any unseen mined puzzle, 40\% of the time;
+  \item the Lichess pool, category $k$, within the window;
+  \item the same, with the window widened by $\pm 200$;
+  \item any category within the window;
+  \item any category at any rating;
+  \item a repeat, flagged as such.
+\end{enumerate}
+Each served puzzle records the policy, the Monte Carlo selection probability of the chosen category,
+and the prediction made before the outcome. These make calibration checks and off-policy evaluation
+possible later, as in Nie et al.~\cite{nie2026discovering}.
+
+\section{Evaluation Metrics}\label{sec:metrics}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Metrics used in Chapter~\ref{ch:results}.}\label{tab:metrics}
+\begin{tabularx}{\linewidth}{p{0.27\linewidth}Y}
+\toprule
+\textbf{Metric} & \textbf{Definition} \\
+\midrule
+Strict / lenient agreement & Tagger label equals the Lichess primary category / is among any category the puzzle's themes map to. \\
+Cohen's $\kappa$ & Chance-corrected agreement, interpreted on the Landis and Koch scale~\cite{landis1977measurement}. \\
+Targeting rate & Share of served categories that are among the player's true three weakest. \\
+Regret & $\sum_t (\delta_{k_t} - \min_k \delta_k)$ in logits (Equation~\eqref{eq:regret}). \\
+Frustration / productive zone & Share of served puzzles with true $P(\text{solve})<0.30$ / in $[0.50, 0.85]$. \\
+Learning gain & Mean improvement of $\delta$ in the initially weak categories (simulation only). \\
+Log loss, Brier, AUC & Proper scoring of predicted probabilities on held-out outcomes. \\
+Prequential log loss & Each attempt is predicted before the model learns from it~\cite{dawid1984present}. \\
+Accuracy, macro-F1 & Rating-band classification; also accuracy within one band. \\
+Split-half reliability & Correlation of a player's category deviations between odd and even games. \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\noindent\textbf{Statistics.} Policy comparisons use common random numbers, so that every policy meets
+the same simulated player for a given seed. They are analysed as paired differences, with paired
+$t$-tests, Wilcoxon signed-rank tests, Cohen's $d_z$, bootstrap 95\% confidence intervals and Holm
+correction~\cite{holm1979simple} across the policies compared.

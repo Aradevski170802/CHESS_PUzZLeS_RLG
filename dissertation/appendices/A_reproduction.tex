@@ -1,0 +1,72 @@
+\chapter{Reproduction and Study Protocol}\label{app:repro}
+
+\section{Reproducing the results}
+
+Every result in Chapter~\ref{ch:results} is produced by a script in \code{scripts/research/}. Each
+script writes a JSON file to \code{eval/research/}, which the report builder then reads. From the
+repository root, in the project's virtual environment:
+
+\begin{verbatim}
+python -m scripts.research.validate_labeller --seed 11 --tag _heldout
+python -m scripts.research.run_simulation --runs 200
+python -m scripts.research.run_simulation --runs 200 --only E6,E7
+python -m scripts.research.evaluate_difficulty_models
+python -m scripts.research.fetch_cohort --per-band 60
+python -m scripts.research.analyze_cohort --workers 14 --max-games 60
+python -m scripts.research.evaluate_weakness_models --write-norms
+python -m scripts.research.classify_rating_band
+python -m scripts.research.make_figures
+python -m scripts.research.build_report
+pytest tests/
+\end{verbatim}
+
+\noindent Cohort collection needs network access and takes roughly an hour. Cohort analysis takes
+about ten hours on the development laptop. Every other step runs in minutes.
+
+\section{Reproducing PuzzleNet}
+
+The neural pipeline lives in \code{scripts/neural/} and writes to \code{eval/neural/}:
+
+\begin{verbatim}
+python -m scripts.neural.build_dataset --workers 12
+python -m scripts.neural.run_experiments
+python -m scripts.neural.engine_pv_check --n 2000 --workers 6
+python -m scripts.neural.evaluate_puzzlenet
+python -m scripts.neural.run_label_simulation --runs 200
+python -m scripts.neural.relabel_cohort --pvs --workers 8
+python -m scripts.neural.relabel_cohort
+python -m scripts.research.evaluate_weakness_models
+    --analysis-dir data/research/cohort/analysis_puzzlenet
+    --out-name cohort_evaluation_puzzlenet.json
+python -m scripts.research.evaluate_weakness_models
+    --analysis-dir data/research/cohort/analysis_rules_rerun
+    --out-name cohort_evaluation_rules_rerun.json
+python -m scripts.research.evaluate_difficulty_models
+python -m scripts.neural.make_figures
+\end{verbatim}
+
+\noindent Encoding the puzzle database takes about 50 minutes and produces 2.4\,GB of features in
+\code{data/neural/} (not in version control). Training the production model takes about half an hour
+on a laptop CPU; the ablations and the learning curve add roughly two hours. Re-running Stockfish on
+the cohort's 40{,}067 critical positions takes about an hour. The trained model itself,
+\code{src/data/models/puzzlenet.npz} (3.6\,MB), \emph{is} in version control, so the evaluation
+scripts can be run without retraining. The two \code{evaluate\_weakness\_models} commands are single
+lines; they are wrapped here for the page width.
+
+\section{Summary of the pre-registered human study}
+
+The full protocol is in \code{docs/USER\_STUDY\_PROTOCOL.md}.
+\begin{itemize}
+  \item \textbf{Design.} A within-subject crossover. Each participant trains for two weeks under the
+        adaptive policy and two weeks under the control (random category, Elo $\pm 300$ band), with the
+        order counterbalanced and 20 puzzles a day.
+  \item \textbf{Primary outcome.} Change in score on matched probe sets that are never served during
+        training.
+  \item \textbf{Secondary outcome.} Change in the opportunity-normalised miss rate in the participant's
+        real games.
+  \item \textbf{Analysis.} A linear mixed model of condition by period, with a random intercept per
+        participant.
+  \item \textbf{Sample size.} 34 paired participants for $d=0.5$ at 80\% power (exact noncentral-$t$
+        calculation); 40 to allow for attrition.
+  \item \textbf{Ethics.} Approval is required before recruitment. \authornote{status}
+\end{itemize}

@@ -1,0 +1,149 @@
+\chapter{Problem Definition and System Overview}\label{ch:problem}
+
+\section{Formal Problem Definition}
+
+Let $\mathcal{K}$ be a set of $K=23$ tactical categories (fork, pin, skewer, mating pattern, rook
+endgame, and so on; the full list is in Appendix~\ref{app:constants}). A \emph{puzzle} $p$ has a
+category $k(p)\in\mathcal{K}$, a starting position, a unique solution line, and a difficulty
+$b_p\in\mathbb{R}$ on a logit scale. A \emph{player} $u$ has an overall tactical ability $\theta_u$
+and a category-specific offset $\delta_{u,k}$ for each $k\in\mathcal{K}$. The probability that $u$
+solves $p$ is modelled as
+
+\begin{equation}\label{eq:rasch}
+  P(y_{u,p}=1) \;=\; \sigma\!\left(\theta_u + \delta_{u,k(p)} - b_p\right),
+  \qquad \sigma(z) = \frac{1}{1+e^{-z}} .
+\end{equation}
+
+\noindent This is the Rasch form used by Elo and Glicko. With ratings, $b_p=(r_p-1500)/173.7178$, so
+a 400-point gap corresponds to 10:1 odds.
+
+\paragraph{The decision problem.} At each step $t$ the system chooses a category $k_t$ and a
+difficulty window, serves a puzzle $p_t$, and observes $y_t\in\{0,1\}$. The \emph{weakness-targeting}
+objective is to concentrate practice on the categories with the lowest $\delta_{u,k}$, measured by
+the per-step regret
+
+\begin{equation}\label{eq:regret}
+  \mathrm{regret}_t \;=\; \delta_{u,k_t} - \min_{k}\delta_{u,k} \;\geq\; 0 .
+\end{equation}
+
+\noindent The \emph{difficulty} objective keeps $P(y_t=1)$ in a productive range. It should be
+neither trivially easy nor frustrating; this dissertation targets 0.65 and treats the band
+$[0.5,0.85]$ as productive. The two objectives interact. The $\delta$ values are learned from
+outcomes, and outcomes depend on the difficulty chosen.
+
+\paragraph{Evidence before the first puzzle.} Before any puzzle is served, the player's recent games
+provide \emph{opportunities}: critical positions where one move is clearly best. Each is labelled with
+a category and recorded as found or missed. They inform a prior over $(\theta_u,\delta_{u,\cdot})$.
+How much they should be trusted is an empirical question, answered in
+Section~\ref{sec:cohort-results}.
+
+\section{Conceptual Model: Player--Puzzle--Learning Loop}
+
+Figure~\ref{fig:loop} shows the loop. Diagnosis from games supplies a prior. Selection chooses what
+to practise and how hard it should be. Each attempt updates the belief about the player. The player
+also changes, since practice produces learning, so the belief must be able to track a moving
+target.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  box/.style={draw, rounded corners, align=center, minimum width=3.2cm, minimum height=1.1cm, font=\small},
+  arr/.style={-{Stealth[length=2.5mm]}, thick}]
+  \node[box, fill=gray!10] (games) {Player's recent\\games};
+  \node[box, fill=blue!8, right=1.2cm of games] (diag) {Diagnosis\\(prior on $\theta,\delta$)};
+  \node[box, fill=blue!8, right=1.2cm of diag] (select) {Selection\\(category $+$ difficulty)};
+  \node[box, fill=orange!10, below=1.4cm of select] (attempt) {Puzzle attempt\\(solve / fail)};
+  \node[box, fill=blue!8, below=1.4cm of diag] (update) {Belief update\\(posterior on $\theta,\delta$)};
+  \node[box, fill=green!8, below=1.4cm of games] (learn) {Player learns\\($\delta$ changes)};
+  \draw[arr] (games) -- (diag);
+  \draw[arr] (diag) -- (select);
+  \draw[arr] (select) -- (attempt);
+  \draw[arr] (attempt) -- (update);
+  \draw[arr] (update) -- (select);
+  \draw[arr, dashed] (attempt) to[bend left=20] (learn);
+  \draw[arr, dashed] (learn) -- (games);
+\end{tikzpicture}
+\caption{The player--puzzle--learning loop. Solid arrows are the system's own inference; dashed arrows
+are the change in the player that the system must track.}\label{fig:loop}
+\end{figure}
+
+\section{Requirements and Design Goals}
+
+\paragraph{Functional requirements.}
+\begin{enumerate}[label=FR\arabic*]
+  \item Fetch a player's public games and profile from Chess.com without authentication.
+  \item Analyse every move with Stockfish; grade errors and record critical positions (opportunities)
+        with their tactical category.
+  \item Build a weakness profile and priors for the recommender.
+  \item Mine puzzles with a unique solution from the player's own games.
+  \item Serve puzzles adaptively, choosing category and difficulty, and update after every attempt.
+  \item Log each attempt with the serving policy, the selection probability and the pre-outcome
+        prediction, so that the system can be evaluated later.
+\end{enumerate}
+
+\paragraph{Non-functional requirements and design goals.}
+\begin{itemize}
+  \item \textbf{Reproducibility.} Engine analysis is limited by node count, not time, so the same game
+        always gives the same result. Simulations use fixed seeds and common random numbers.
+  \item \textbf{Testability.} The whole test suite runs offline, with no engine or network (231 tests).
+  \item \textbf{Graceful degradation.} If Stockfish is missing, or a category has no puzzle in range,
+        the system falls back instead of failing.
+  \item \textbf{Privacy.} Research data is pseudonymised and only aggregates are published.
+  \item \textbf{Honest evaluation.} Every numeric claim can be regenerated from a result file by a
+        script.
+\end{itemize}
+
+\section{High-Level System Architecture}
+
+Figure~\ref{fig:arch} shows the components and data flow.
+
+\begin{figure}[H]
+\centering
+\begin{tikzpicture}[
+  comp/.style={draw, rounded corners, align=center, minimum width=3.2cm, minimum height=1.0cm, font=\footnotesize},
+  arr/.style={-{Stealth[length=2mm]}, thick},
+  lab/.style={font=\scriptsize, fill=white, inner sep=1pt}]
+  % three columns (x = 0, 4.2, 8.4) and three rows (y = 0, -2.2, -4.4)
+  \node[comp, fill=gray!10]   (cc)    at (0,0)      {Chess.com\\Published-Data API};
+  \node[comp, fill=blue!8]    (an)    at (4.2,0)    {Game analyser\\(Stockfish + tactic tagger)};
+  \node[comp, fill=blue!8]    (prof)  at (8.4,0)    {Profiler\\(opportunities, norms)};
+  \node[comp, fill=gray!10]   (pool)  at (0,-2.2)   {Lichess pool\\(5.9M puzzles)};
+  \node[comp, fill=blue!8]    (mine)  at (4.2,-2.2) {Puzzle miner\\(4 engine gates)};
+  \node[comp, fill=orange!12] (irt)   at (8.4,-2.2) {IRT learner\\(Thompson Sampling)};
+  \node[comp, fill=blue!8]    (serve) at (4.2,-4.4) {Serving cascade\\(Flask API)};
+  \node[comp, fill=green!8]   (ui)    at (8.4,-4.4) {Player\\(browser SPA)};
+  \draw[arr] (cc) -- node[lab, above]{games} (an);
+  \draw[arr] (an) -- (prof);
+  \draw[arr] (cc) -- node[lab, sloped, below]{own games} (mine);
+  \draw[arr] (prof) -- node[lab, right]{priors} (irt);
+  \draw[arr] (mine) -- (serve);
+  \draw[arr] (pool) -- (serve);
+  \draw[arr] (irt) -- node[lab, sloped, above]{category, difficulty} (serve);
+  \draw[arr] (serve) -- node[lab, above]{puzzle} (ui);
+  \draw[arr] (ui) -- node[lab, right]{solve / fail} (irt);
+\end{tikzpicture}
+\caption{System architecture. The IRT learner decides the category and difficulty of the next puzzle,
+and the serving cascade finds an unseen matching puzzle. Every attempt updates the learner and is
+logged with the serving policy, the selection probability and the pre-outcome
+prediction.}\label{fig:arch}
+\end{figure}
+
+The \textbf{game analyser} evaluates every player move after the opening with Stockfish. It grades
+the move by the loss of win probability it causes, and records \emph{opportunities}, meaning
+positions where the best move beats the runner-up by at least 10 percentage points of win
+probability. The \textbf{tactic tagger} labels the engine's best line with one of the 23 categories.
+The \textbf{profiler} turns found and missed opportunities into per-category estimates, shrunk
+towards population norms. The \textbf{IRT learner} maintains a Gaussian posterior over $\theta_u$ and
+the 23 offsets $\delta_{u,k}$. It chooses a category by Thompson Sampling, and a target difficulty
+that gives a predicted 65\% solve rate. The \textbf{serving cascade} finds an unseen puzzle in that
+category and rating window. It prefers puzzles mined from the player's own games, and widens its
+constraints one at a time when nothing matches. The \textbf{miner} extracts puzzles from the player's
+own losses through four verification gates.
+
+\section{Chapter Summary}
+
+The problem is formalised as sequential decision-making under uncertainty, based on a Rasch-type
+model with a category-specific ability offset. The system implements that model online, with
+evidence from games as a prior and puzzle attempts as the main source of information. The
+requirements stress reproducibility, offline testability and evaluation that can be checked, and
+these shape the methodology in the next chapter.

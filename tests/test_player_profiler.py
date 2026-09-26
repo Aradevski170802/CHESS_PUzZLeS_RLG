@@ -173,3 +173,33 @@ class TestPopulationNorms:
         # so the prior sd stays close to the default and puzzles can move it.
         assert prior["Quiet Move"][1] > 0.58
         assert abs(prior["Quiet Move"][0]) < 0.25
+
+
+class TestGeneralPositionsAreMeasuredButNotAnArm:
+    """Under the neural labeller about a third of real critical positions carry no
+    nameable motif ("General"). They are not a category the recommender can serve,
+    and the population offsets are fitted without them, so they must not move the
+    baseline the offsets are relative to."""
+
+    def _games(self):
+        # 10 Fork opportunities at 50 %, 10 General ones at 100 %.
+        opps = [("Fork", i < 5) for i in range(10)] + [("General", True) for _ in range(10)]
+        return [_game([_opp(c, h) for c, h in opps])]
+
+    def test_general_counts_towards_the_reported_hit_rate(self):
+        stats, overall = aggregate_opportunities(self._games())
+        assert overall == pytest.approx(0.75)
+        assert stats["General"]["raw_n"] == 10
+
+    def test_general_does_not_move_the_shrinkage_baseline(self):
+        stats, _ = aggregate_opportunities(self._games())
+        # Fork is shrunk toward the arm-only baseline of 0.5, so it stays at 0.5,
+        # rather than being dragged up toward the all-in rate of 0.75.
+        assert stats["Fork"]["rate"] == pytest.approx(0.5, abs=1e-6)
+        assert stats["Fork"]["expected"] == pytest.approx(0.5, abs=1e-6)
+
+    def test_offsets_are_applied_to_the_arm_baseline(self):
+        norms = {"offsets": {"Fork": 1.0}, "shrink_strength": 4.0}
+        stats, _ = aggregate_opportunities(self._games(), norms=norms)
+        # sigma(logit(0.5) + 1.0) = 0.731, not sigma(logit(0.75) + 1.0) = 0.891
+        assert stats["Fork"]["expected"] == pytest.approx(0.7311, abs=1e-3)

@@ -1559,7 +1559,7 @@ def session_puzzle():
 
     # Blend user-generated puzzles (priority) with Lichess pool
     from src.puzzles.generator import load_user_puzzles
-    user_puzzles = load_user_puzzles(username) if username != "guest" else []
+    user_puzzles = load_user_puzzles(username, rerate=True) if username != "guest" else []
 
     chosen = None
     exhausted = False
@@ -1611,7 +1611,7 @@ def session_puzzle():
 
     result = _serialise(chosen)
     source = chosen.get("source", "lichess")
-    puzzle_rd = MINED_PUZZLE_RD if source == "generated" else DEFAULT_PUZZLE_RD
+    puzzle_rd = _puzzle_rd(chosen)
     predicted = learner.predict(target, chosen.get("Rating", 1500), puzzle_rd)
     cat_rating, cat_rd = learner.category_rating(target)
 
@@ -1640,6 +1640,18 @@ def session_puzzle():
     while len(served) > _LAST_SERVED_CAP:
         served.pop(next(iter(served)))
     return jsonify(result)
+
+
+def _puzzle_rd(puzzle: dict) -> float:
+    """Uncertainty about a puzzle's difficulty, in rating points, for the IRT
+    update. Lichess puzzles use DEFAULT_PUZZLE_RD. A mined puzzle rated by
+    PuzzleNet uses the network's own per-puzzle deviation. A mined puzzle that only
+    has the fixed-formula rating keeps the wide MINED_PUZZLE_RD."""
+    if puzzle.get("source") != "generated":
+        return DEFAULT_PUZZLE_RD
+    if puzzle.get("ratingModel") == "puzzlenet" and puzzle.get("RatingDeviation"):
+        return float(puzzle["RatingDeviation"])
+    return MINED_PUZZLE_RD
 
 
 @app.route("/api/session/result", methods=["POST"])
