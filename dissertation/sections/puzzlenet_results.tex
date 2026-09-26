@@ -1,0 +1,186 @@
+\section{The Neural Tactic and Difficulty Model}\label{sec:nn-results}
+
+PuzzleNet was trained on the 5{,}526{,}626 puzzles of the training split for three epochs (8{,}097
+updates of 2{,}048 puzzles), which took 42 minutes on the development laptop's CPU. The 59{,}668
+puzzles of the held-out labeller harness were excluded from training and from model selection, so the
+comparison below is on exactly the puzzles the rule-based tagger was scored on in
+Section~\ref{sec:labeller-results}, with neither labeller having seen them.
+
+\subsection{Tactic labelling}\label{sec:nn-labelling}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Labeller agreement with Lichess themes on the held-out harness (seed 11). Uniform sample
+$n = 30{,}000$; stratified sample $n = 48{,}000$. The rule-based row reproduces
+Section~\ref{sec:labeller-results} exactly, which confirms that both labellers see the same
+puzzles.}\label{tab:nn-harness}
+\begin{tabularx}{\linewidth}{Xccccc}
+\toprule
+\textbf{Labeller} & \textbf{Strict} & \textbf{Lenient} & \textbf{$\kappa$} & \textbf{Macro recall} & \textbf{Macro precision} \\
+\midrule
+Rule-based tagger & 58.4\% & 60.9\% & 0.516 & 0.320 & 0.537 \\
+\textbf{PuzzleNet} & \textbf{92.6\%} & \textbf{93.1\%} & \textbf{0.913} & \textbf{0.859} & \textbf{0.877} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\begin{finding}[The labeller stops being the bottleneck]
+Agreement rises from 58.4\% to 92.6\% and $\kappa$ from 0.52 to 0.91, which moves the labeller from
+``moderate'' to ``almost perfect'' on the Landis and Koch scale~\cite{landis1977measurement}. Because
+both labellers ran on the same puzzles, the comparison is paired: PuzzleNet is right on 10{,}671
+puzzles where the rules are wrong, and wrong on 424 where the rules are right (McNemar's exact test,
+$p < 10^{-300}$). Bootstrap 95\% intervals for the differences are $+33.6$ to $+34.7$ points of
+agreement, $+0.391$ to $+0.403$ of $\kappa$, and $+0.536$ to $+0.543$ of macro recall.
+\end{finding}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/nn_harness_comparison.png}
+\caption{Both labellers on the held-out harness. The samples are the same puzzles that Section~\ref{sec:labeller-results} used, and neither labeller saw them during development.}\label{fig:nn-harness}
+\end{figure}
+
+The gain is largest where the rules were weakest. Macro recall nearly triples, because the tagger's
+failures were structural rather than a matter of tuning: five of the 24 categories (Attraction,
+Interference, Clearance, Zugzwang and X-Ray Attack) could never be emitted at all, since no
+hand-written test existed for them, so their recall was zero by construction. PuzzleNet emits every
+category, and learns the five missing ones from examples alone. Its remaining confusions are mostly
+with the residual class \emph{General}, in both directions (for example 82 pins called General and 75
+Generals called Pin): those are puzzles whose Lichess tags name no motif, where the boundary is
+genuinely soft.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Per-category recall on the stratified harness sample (2{,}000 puzzles per category where the
+database has that many). The five categories in the upper block have no hand-written test at all, so
+the rule-based tagger can never emit them; PuzzleNet learns them from examples.}\label{tab:nn-perclass}
+\begin{tabularx}{\linewidth}{Xcccc}
+\toprule
+& \multicolumn{2}{c}{\textbf{Recall}} & \multicolumn{2}{c}{\textbf{Precision}} \\
+\cmidrule(lr){2-3}\cmidrule(lr){4-5}
+\textbf{Category} & Rules & PuzzleNet & Rules & PuzzleNet \\
+\midrule
+Attraction        & 0.000 & 0.869 & --- & 0.840 \\
+Interference      & 0.000 & 0.714 & --- & 0.815 \\
+Clearance         & 0.000 & 0.413 & --- & 0.590 \\
+Zugzwang          & 0.000 & 0.618 & --- & 0.774 \\
+X-Ray Attack      & 0.000 & 0.648 & --- & 0.909 \\
+\midrule
+En Passant        & 0.331 & 0.929 & 0.78 & 0.895 \\
+Pin               & 0.227 & 0.798 & 0.43 & 0.833 \\
+General           & 0.180 & 0.925 & 0.61 & 0.889 \\
+Fork              & \textbf{0.956} & 0.934 & 0.61 & 0.922 \\
+Mating Pattern    & 0.999 & 1.000 & 1.00 & 1.000 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Fork is the one category where the rule-based tagger has the higher recall (0.956 against 0.934), and
+it shows what a rule tuned for recall costs elsewhere: its fork precision is 0.61, against 0.92 for the
+network, so two of every five positions it called a fork were something else, and that misdirected
+evidence went into a player's fork arm. Fourteen of the 24 categories now reach a recall of 0.9 or
+better. The weakest are Clearance (0.41), Zugzwang (0.62) and X-Ray Attack (0.65) --- the motifs that
+depend on what does \emph{not} happen in a line, or on long-range geometry, which a
+position-and-move encoding captures least well. Lenient agreement, which accepts any category the
+puzzle's own themes map to, rises from 60.9\% to 95.1\%.
+
+\subsection{Difficulty prediction}\label{sec:nn-difficulty}
+
+On the 174{,}754 test puzzles, the difficulty head reaches an RMSE of 268 rating points and a mean
+absolute error of 205, against a rating standard deviation of 550: it explains $R^2 = 0.76$ of the
+variance, with a rank correlation of $\rho = 0.88$ with the Lichess rating. The predictions are
+essentially unbiased overall (mean error $-0.8$ points), but they regress to the mean at the extremes,
+as any squared-error regression does: $+114$ points on puzzles rated below 1000 and $-390$ on those
+above 2500.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Difficulty prediction on the 174{,}754 test puzzles. Every baseline gets a constant
+predictive standard deviation fitted on the validation split, so that the likelihoods are comparable.
+The miner's formula needs an engine evaluation drop, which a Lichess puzzle does not have, so it is
+evaluated with that term fixed at the median of the puzzles actually mined from users' games
+(312 centipawns), which makes it a function of solution length.}\label{tab:nn-rating-baselines}
+\begin{tabularx}{\linewidth}{Xcccc}
+\toprule
+\textbf{Difficulty model} & \textbf{RMSE} & \textbf{MAE} & \textbf{$R^2$} & \textbf{$\rho$} \\
+\midrule
+Constant (training mean)                          & 550 & 459 & 0.00 & --- \\
+The miner's formula (what PuzzleNet replaces)     & 496 & 390 & 0.19 & 0.55 \\
+Least squares on line length $\times$ mate verdict & 433 & 351 & 0.38 & 0.61 \\
+Gradient-boosted trees on the hand-built features & 306 & 239 & 0.69 & 0.84 \\
+\textbf{PuzzleNet}                                & \textbf{268} & \textbf{205} & \textbf{0.76} & \textbf{0.88} \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+The formula the system used until now explains 19\% of the variance in puzzle difficulty; the network
+explains 76\%. The comparison that matters more, though, is with the gradient-boosted trees, because
+they see the same hand-built tactical features and are a strong classical model on tabular data: the
+network is 38 rating points better on RMSE, and on the category task it beats them by $\kappa = 0.91$
+against $0.79$ with a calibration error of 0.003 against 0.123. Whatever the network is adding, it is
+not only the feature engineering.
+
+What matters more for the recommender is that the uncertainty is honest. The predictive intervals cover
+what they claim to cover: 50.1\%, 81.2\% and 95.3\% of the test puzzles fall inside the nominal 50\%,
+80\% and 95\% intervals. The mean content uncertainty is 240 rating points, which is the number a
+mined puzzle now carries into the Bayesian update in place of the blanket 300.
+
+\begin{table}[H]
+\centering
+\small
+\caption{The trained network on seven textbook positions built by hand for the unit tests, none of
+them from the puzzle database. $p$ is the calibrated probability of the chosen category; the rating is
+the predicted difficulty with its content uncertainty.}\label{tab:nn-examples}
+\begin{tabularx}{\linewidth}{Xlccl}
+\toprule
+\textbf{Position} & \textbf{PuzzleNet} & \textbf{$p$} & \textbf{Rating} & \textbf{Rule tagger} \\
+\midrule
+Back-rank mate in 1            & Mating Pattern & 1.00 & $477 \pm 83$   & Mating Pattern \\
+Knight forks king and rook     & Fork           & 0.72 & $1026 \pm 196$ & Fork \\
+Bishop pins knight to the king & Pin            & 0.63 & $1201 \pm 282$ & Pin \\
+Rook skewers king, wins queen  & Skewer         & 1.00 & $696 \pm 58$   & Skewer \\
+Pawn promotes                  & Promotion      & 0.98 & $857 \pm 162$  & Promotion \\
+En passant capture             & En Passant     & 1.00 & $1137 \pm 194$ & En Passant \\
+Rook ladder, mate in 2         & Mating Pattern & 1.00 & $1339 \pm 155$ & Mating Pattern \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+Both labellers agree on all seven, which is the expected result: these are the clean cases the rules
+were written for. The interesting column is the difficulty. The network has never seen these
+positions, yet it rates the mate in one at 477 with a tight interval and the two-move rook ladder at
+1339, and it is least sure about the pin ($\pm 282$), which is the position whose difficulty depends
+most on what the defender can try next.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/nn_rating_baselines.png}
+\caption{Difficulty prediction on the test split against the non-neural baselines: a constant, the miner's fixed formula, a least-squares fit on line length and the mate verdict, and gradient-boosted trees on the hand-built features. $\rho$ is the rank correlation with the Lichess rating.}\label{fig:nn-rating}
+\end{figure}
+
+\subsection{Themes and calibration}
+
+The auxiliary theme head reaches a micro-averaged $F_1$ of 0.913 and a mean average precision of 0.817
+over the 66 Lichess themes with enough positives to score. The category head is already well calibrated
+before any correction (expected calibration error 0.0055) and essentially perfectly calibrated after
+temperature scaling with $T = 1.08$ (0.0026). The variance scale fitted for the difficulty head is
+1.05, that is, the learned variances needed almost no correction. Good calibration is not a
+presentational detail here: the probabilities are consumed by the recommender, so a model that is
+confidently wrong would corrupt a player's profile.
+
+\input{sections/puzzlenet_results2}
+
+\input{sections/puzzlenet_results3}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/nn_calibration.png}
+\caption{Calibration on the test split. Left: category confidence against accuracy. Middle: how often the predicted difficulty intervals contain the Lichess rating, against what they claim. Right: the regression to the mean that a squared-error fit produces at the extremes.}\label{fig:nn-calibration}
+\end{figure}
+
+
+\input{sections/puzzlenet_results2}
+
+\input{sections/puzzlenet_results3}

@@ -71,6 +71,25 @@ def _categories() -> dict[tuple, str]:
     return out
 
 
+def _puzzlenet_difficulty(events) -> dict[str, tuple[float, float]]:
+    """PuzzleId -> (PuzzleNet rating, deviation) for the mined puzzles in the logs,
+    read back from data/user_puzzles; empty when no model is installed."""
+    from src.neural.predictor import get_predictor
+    from src.puzzles.generator import PUZZLENET_MIN_RD, USER_PUZZLES_DIR
+    net = get_predictor()
+    if net is None:
+        return {}
+    wanted = {e.puzzle_id for e in events if is_mined_puzzle(e.puzzle_id)}
+    out = {}
+    for f in USER_PUZZLES_DIR.glob("*.json"):
+        for pz in json.loads(f.read_text("utf-8")):
+            pid = pz.get("PuzzleId")
+            if pid in wanted and pid not in out and pz.get("FEN") and pz.get("Moves"):
+                pred = net.predict_puzzle(pz["FEN"], pz["Moves"])
+                out[pid] = (pred.rating, max(PUZZLENET_MIN_RD, pred.rating_sd))
+    return out
+
+
 def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     events = load_solve_events(SESSIONS)
@@ -99,6 +118,18 @@ def main() -> None:
             rd = MINED_PUZZLE_RD if is_mined_puzzle(e.puzzle_id) else POOL_PUZZLE_RD
             preds[name].append(L.update(cat, e.puzzle_rating, e.solved, rd))
 
+    # The same per-category learner, but every mined puzzle takes PuzzleNet's
+    # difficulty and per-puzzle deviation instead of the fixed formula's rating
+    # and the blanket MINED_PUZZLE_RD (what the app now does; see app._puzzle_rd).
+    nn = _puzzlenet_difficulty(events)
+    if nn:
+        learners = {}
+        for e in events:
+            L = learners.setdefault(e.username, IRTLearner.new(elo=elos.get(e.username)))
+            cat = cats.get((e.username, e.ts.strftime("%Y-%m-%dT%H:%M:%SZ"), e.puzzle_id), "")
+            rating, rd = nn.get(e.puzzle_id, (e.puzzle_rating, MINED_PUZZLE_RD))                 if is_mined_puzzle(e.puzzle_id) else (e.puzzle_rating, POOL_PUZZLE_RD)
+            preds["IRT, per category + PuzzleNet"].append(L.update(cat, rating, e.solved, rd))
+
     rng = np.random.default_rng(0)
     idx = rng.integers(0, len(y), size=(5000, len(y)))
 
@@ -110,6 +141,7 @@ def main() -> None:
     report = {"events": len(events), "players": len({e.username for e in events}),
               "solve_rate": round(float(y.mean()), 3),
               "mined_share": round(float(np.mean([is_mined_puzzle(e.puzzle_id) for e in events])), 3),
+              "mined_rated_by_puzzlenet": len(nn),
               "models": {}}
     for name, p in preds.items():
         p = np.asarray(p)
@@ -136,7 +168,10 @@ def main() -> None:
     import matplotlib.pyplot as plt
     fig, ax = plt.subplots(figsize=(6.5, 6))
     bins = np.linspace(0, 1, 6)
-    for name in ("Static Elo", "Glicko-2 (symmetric)", "Glicko-2 (pool frozen)", "IRT, per category"):
+    for name in ("Static Elo", "Glicko-2 (symmetric)", "Glicko-2 (pool frozen)", "IRT, per category",
+                 "IRT, per category + PuzzleNet"):
+        if name not in preds:
+            continue
         p = np.asarray(preds[name])
         which = np.clip(np.digitize(p, bins) - 1, 0, 4)
         xs = [p[which == b].mean() for b in range(5) if (which == b).sum() >= 3]

@@ -28,6 +28,7 @@ import hashlib
 import io
 import json
 import logging
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -35,6 +36,8 @@ import chess
 import chess.engine
 import chess.pgn
 
+from src.neural.predictor import get_predictor
+from src.puzzles.labeller import active_labeller
 from src.puzzles.tactic_tagger import tag_line
 
 logger = logging.getLogger(__name__)
@@ -51,6 +54,8 @@ MIN_PLAYER_MOVES   = 1     # puzzle must require at least this many player moves
 MAX_PER_GAME       = 5     # hard cap on puzzles extracted per game
 SKIP_PLIES         = 8     # ignore the opening
 MATE_CP            = 9_000
+HEURISTIC_RD       = 150   # nominal deviation of the fixed-formula rating
+PUZZLENET_MIN_RD   = 75    # floor on a PuzzleNet puzzle's deviation (see _puzzlenet_rd)
 
 USER_PUZZLES_DIR = Path("data/user_puzzles")
 
@@ -147,14 +152,25 @@ def save_user_puzzles(username: str, puzzles: list[dict]) -> Path:
     return path
 
 
-def load_user_puzzles(username: str) -> list[dict]:
+def load_user_puzzles(username: str, *, rerate: bool = False) -> list[dict]:
+    """A user's stored puzzles. With rerate=True, puzzles that only have the
+    fixed-formula rating get a PuzzleNet rating (see rerate_puzzles), and the file is
+    rewritten once so the work is not repeated."""
     path = USER_PUZZLES_DIR / f"{username.lower()}.json"
     if not path.exists():
         return []
     try:
-        return json.loads(path.read_text(encoding="utf-8"))
+        puzzles = json.loads(path.read_text(encoding="utf-8"))
     except Exception:
         return []
+    if rerate and rerate_puzzles(puzzles):
+        try:
+            tmp = path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(puzzles, indent=2), encoding="utf-8")
+            tmp.replace(path)
+        except OSError as exc:
+            logger.warning("Could not save re-rated puzzles for %s: %s", username, exc)
+    return puzzles
 
 
 # ── Stockfish extractor ───────────────────────────────────────────────────────
@@ -310,13 +326,27 @@ def _extract_stockfish(pgn_str: str, username: str, stockfish_path: str) -> list
                 if s1 is not None and s2 is not None:
                     clarity_cp = s1 - s2
 
-            # Tag the whole solution line (player move first), trusting the
-            # engine's mate verdict -- see src/puzzles/tactic_tagger.py for why
-            # the single-move _classify_tactic was replaced.
+            # Label the whole solution line (player move first), trusting the
+            # engine's mate verdict. With a trained PuzzleNet installed the network
+            # labels the line and estimates its difficulty with an uncertainty;
+            # otherwise the rule-based tagger and the fixed formula are used.
             best_cp = _pov_cp(infos[0]["score"], b.turn) if infos else None
-            tactic    = tag_line(b, [chess.Move.from_uci(u) for u in solution[1:]],
-                                 mate=(best_cp is not None and best_cp >= MATE_CP) or None)
-            rating    = _estimate_rating(eval_drop, len(solution))
+            mate_verdict = (best_cp is not None and best_cp >= MATE_CP) or None
+            line = [chess.Move.from_uci(u) for u in solution[1:]]
+            tactic = tag_line(b, line, mate=mate_verdict)
+            rating = _estimate_rating(eval_drop, len(solution))
+            rating_dev, rating_model = HEURISTIC_RD, "heuristic"
+            net_rating = net_rd = None
+            net = get_predictor()
+            if net is not None:
+                start = chess.Board(setup_fen)          # keeps the opponent's move
+                start.push(chess.Move.from_uci(opp_move))
+                pred = net.predict_line(start, line, mate=mate_verdict)
+                net_rating, net_rd = _clamp_rating(pred.rating), _puzzlenet_rd(pred.rating_sd)
+                if use_puzzlenet_rating():
+                    rating, rating_dev, rating_model = net_rating, net_rd, "puzzlenet"
+                if active_labeller() == "neural":
+                    tactic = pred.category
             puzzle_id = "gen_" + hashlib.md5(
                 (setup_fen + "".join(solution)).encode()
             ).hexdigest()[:8]
@@ -326,6 +356,10 @@ def _extract_stockfish(pgn_str: str, username: str, stockfish_path: str) -> list
                 rating, tactic, game_url,
                 eval_drop=eval_drop,
                 clarity_cp=clarity_cp,
+                rating_deviation=rating_dev,
+                rating_model=rating_model,
+                puzzlenet_rating=net_rating,
+                puzzlenet_rd=net_rd,
             ))
 
     return puzzles
@@ -343,6 +377,10 @@ def _make_puzzle(
     *,
     eval_drop:  int = 0,
     clarity_cp: Optional[int] = None,
+    rating_deviation: int = 150,
+    rating_model: str = "heuristic",
+    puzzlenet_rating: Optional[int] = None,
+    puzzlenet_rd: Optional[int] = None,
 ) -> dict:
     player_moves = len([i for i in range(1, len(solution), 2)])  # odd indices
     return {
@@ -350,7 +388,10 @@ def _make_puzzle(
         "FEN":             setup_fen,
         "Moves":           " ".join(solution),
         "Rating":          rating,
-        "RatingDeviation": 150,
+        "RatingDeviation": rating_deviation,
+        "ratingModel":     rating_model,
+        "puzzlenetRating": puzzlenet_rating,
+        "puzzlenetRd":     puzzlenet_rd,
         "Popularity":      100,
         "NbPlays":         0,
         "Themes":          tactic.lower().replace(" ", "") + " personal",
@@ -473,6 +514,62 @@ def _validate_sequence(fen: str, moves: list[str]) -> bool:
         return True
     except Exception:
         return False
+
+
+def _clamp_rating(rating: float) -> int:
+    return int(max(400, min(3200, round(rating))))
+
+
+def _puzzlenet_rd(content_sd: float) -> int:
+    """Rating deviation for a PuzzleNet-rated puzzle. The network's content
+    uncertainty is floored at PUZZLENET_MIN_RD: a puzzle nobody has played cannot be
+    rated more precisely than a well-played Lichess puzzle (RD ~75), and the model
+    was calibrated on Lichess puzzles, not on puzzles mined from a player's games."""
+    return int(round(max(PUZZLENET_MIN_RD, content_sd)))
+
+
+def use_puzzlenet_rating() -> bool:
+    """Whether a mined puzzle is SERVED at PuzzleNet's difficulty.
+
+    Off by default. On the app's own logs the network rates a mined puzzle 493
+    points harder than the formula, while players solve 86.7% of mined puzzles
+    (against 80.0% of pool puzzles) because the position comes from their own game:
+    prequential log loss is 0.599 with the formula and 0.754 with the network. The
+    level does not transfer from Lichess puzzles to a player's own positions, and
+    123 attempts are far too few to fit the offset that would fix it, so the
+    network's estimate is recorded but not used until there is data to calibrate it.
+    """
+    return os.environ.get("MINED_RATING", "heuristic").lower() == "puzzlenet"
+
+
+def rerate_puzzles(puzzles: list[dict]) -> int:
+    """Record PuzzleNet's difficulty estimate on mined puzzles that lack one, in
+    place. It becomes the serving rating only when MINED_RATING=puzzlenet, in which
+    case the formula's estimate is kept as `heuristicRating`. The category is never
+    relabelled: it decides where a stored puzzle is served, and changing it silently
+    would change a player's training set. Returns how many puzzles changed."""
+    net = get_predictor()
+    if net is None:
+        return 0
+    todo = [p for p in puzzles
+            if p.get("source") == "generated" and p.get("puzzlenetRating") is None
+            and p.get("FEN") and p.get("Moves")]
+    changed = 0
+    for p in todo:
+        try:
+            pred = net.predict_puzzle(p["FEN"], p["Moves"])
+        except Exception:
+            continue
+        p["puzzlenetRating"] = _clamp_rating(pred.rating)
+        p["puzzlenetRd"] = _puzzlenet_rd(pred.rating_sd)
+        if use_puzzlenet_rating():
+            p["heuristicRating"] = p.get("Rating")
+            p["Rating"] = p["puzzlenetRating"]
+            p["RatingDeviation"] = p["puzzlenetRd"]
+            p["DifficultyTier"] = _difficulty_tier(p["Rating"])
+            p["ratingModel"] = "puzzlenet"
+        changed += 1
+    return changed
 
 
 def _estimate_rating(eval_drop: int, solution_len: int) -> int:
