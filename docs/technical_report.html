@@ -1,0 +1,2015 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Adaptive Chess Puzzle Advisor — Technical System Report</title>
+<style>
+  @page { size: A4; margin: 20mm 18mm 22mm 18mm; }
+
+  :root{
+    --navy:#151d38; --navy2:#1c2747; --ink:#1a2340; --slate:#4a5578;
+    --line:#d8ddea; --tint:#f5f6fb; --gold:#a8801f; --gold-soft:#fbf3e2;
+    --good:#25674c; --good-soft:#e8f3ee; --warn:#96461a; --warn-soft:#fdf0e6;
+    --code-bg:#f4f5fa;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family:"Georgia","Cambria","Times New Roman",serif;
+    font-size:10.2pt; line-height:1.58; color:var(--ink);
+    -webkit-print-color-adjust:exact; print-color-adjust:exact;
+  }
+
+  h1,h2,h3,h4,.sans{ font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif; }
+
+  h2{
+    font-size:16.5pt; font-weight:700; color:var(--navy);
+    margin:0 0 4mm; padding-bottom:2.5mm; border-bottom:2px solid var(--gold);
+    letter-spacing:-0.01em; break-after:avoid;
+  }
+  h3{
+    font-size:12.2pt; font-weight:650; color:var(--navy2);
+    margin:7mm 0 2.5mm; break-after:avoid;
+  }
+  h4{
+    font-size:10.6pt; font-weight:650; color:var(--navy2);
+    margin:5mm 0 1.5mm; break-after:avoid;
+  }
+  p{ margin:0 0 3mm; text-align:justify; hyphens:auto; orphans:3; widows:3; }
+  li{ orphans:2; widows:2; }
+
+  code,.mono{
+    font-family:"Consolas","SF Mono","DejaVu Sans Mono",monospace;
+    font-size:8.8pt; background:var(--code-bg); padding:0.4mm 1.1mm;
+    border-radius:2px; color:#243056;
+  }
+  pre{
+    font-family:"Consolas","DejaVu Sans Mono",monospace; font-size:8.5pt;
+    background:var(--code-bg); border-left:3px solid var(--gold);
+    padding:3mm 4mm; margin:3mm 0; line-height:1.45;
+    white-space:pre-wrap; break-inside:avoid; border-radius:0 3px 3px 0;
+  }
+  pre code{ background:none; padding:0; font-size:inherit; }
+
+  table{
+    width:100%; border-collapse:collapse; font-size:8.9pt;
+    margin:3mm 0 4mm; break-inside:avoid;
+    font-family:"Segoe UI",Arial,sans-serif;
+  }
+  th,td{ text-align:left; padding:1.7mm 2.2mm; border-bottom:0.5pt solid var(--line); vertical-align:top; }
+  th{
+    background:var(--navy); color:#fff; font-weight:600; font-size:8.4pt;
+    letter-spacing:0.02em; border-bottom:none;
+  }
+  tbody tr:nth-child(even){ background:#fafbfd; }
+  td.num,th.num{ text-align:right; font-variant-numeric:tabular-nums; }
+  table.tight td,table.tight th{ padding:1.2mm 2mm; }
+
+  ul,ol{ margin:0 0 3mm; padding-left:6mm; }
+  li{ margin-bottom:1.4mm; text-align:justify; }
+
+  .cite{
+    font-family:"Segoe UI",Arial,sans-serif; font-size:8pt; font-weight:600;
+    color:var(--gold); vertical-align:super; line-height:0;
+    text-decoration:none;
+  }
+
+  .callout{
+    border:0.5pt solid var(--line); border-left:3px solid var(--slate);
+    background:var(--tint); padding:3mm 4mm; margin:3.5mm 0;
+    break-inside:avoid; font-size:9.6pt;
+  }
+  .callout h4{ margin:0 0 1.5mm; font-size:9.8pt; }
+  .callout p:last-child{ margin-bottom:0; }
+  .callout.good{ border-left-color:var(--good); background:var(--good-soft); }
+  .callout.good h4{ color:var(--good); }
+  .callout.warn{ border-left-color:var(--warn); background:var(--warn-soft); }
+  .callout.warn h4{ color:var(--warn); }
+  .callout.key{ border-left-color:var(--gold); background:var(--gold-soft); }
+  .callout.key h4{ color:var(--gold); }
+
+  .eq{
+    text-align:center; font-family:"Cambria Math","Georgia",serif;
+    font-size:11pt; margin:3.5mm 0; break-inside:avoid; font-style:italic;
+  }
+  .eq .lbl{ float:right; font-style:normal; font-size:9pt; color:var(--slate); }
+
+  figure{ margin:4mm 0 5mm; break-inside:avoid; text-align:center; }
+  figure svg{ max-width:100%; height:auto; }
+  figcaption{
+    font-family:"Segoe UI",Arial,sans-serif; font-size:8.3pt; color:var(--slate);
+    margin-top:2mm; text-align:center;
+  }
+  figcaption b{ color:var(--navy); }
+
+  .page-break{ break-before:page; }
+  .avoid-break{ break-inside:avoid; }
+
+  /* ---------- Title page ---------- */
+  .titlepage{
+    height:242mm; display:flex; flex-direction:column;
+    justify-content:center; break-after:page; position:relative; text-align:left;
+  }
+  .titlepage .rule{ width:28mm; height:3px; background:var(--gold); margin-bottom:8mm; }
+  .titlepage .kicker{
+    font-family:"Segoe UI",Arial,sans-serif; font-size:9.5pt; font-weight:600;
+    letter-spacing:0.14em; text-transform:uppercase; color:var(--gold); margin-bottom:5mm;
+  }
+  .titlepage h1{
+    font-size:31pt; font-weight:700; line-height:1.12; margin:0 0 5mm;
+    color:var(--navy); letter-spacing:-0.02em;
+  }
+  .titlepage .sub{
+    font-size:13pt; color:var(--slate); margin:0 0 14mm; line-height:1.5;
+    font-style:italic; max-width:145mm;
+  }
+  .titlepage .meta{
+    font-family:"Segoe UI",Arial,sans-serif; font-size:10pt; line-height:1.85;
+    border-top:0.5pt solid var(--line); padding-top:6mm; max-width:120mm;
+  }
+  .titlepage .meta b{ color:var(--navy); display:inline-block; min-width:34mm; }
+  .titlepage .foot{
+    position:absolute; bottom:0; left:0; right:0;
+    font-family:"Segoe UI",Arial,sans-serif; font-size:8.5pt; color:var(--slate);
+    border-top:0.5pt solid var(--line); padding-top:3mm;
+  }
+
+  /* ---------- TOC ---------- */
+  .toc{
+    font-family:"Segoe UI",Arial,sans-serif; font-size:8.6pt;
+    column-count:2; column-gap:9mm; column-fill:balance;
+  }
+  .toc ol{ list-style:none; padding-left:0; margin:0; counter-reset:sec; }
+  .toc > ol > li{
+    counter-increment:sec; margin-bottom:0.8mm; padding:1mm 0;
+    border-bottom:0.5pt dotted var(--line); font-weight:600; color:var(--navy);
+    break-inside:avoid;
+  }
+  .toc > ol > li::before{
+    content:counter(sec) ".  "; color:var(--gold); font-weight:700;
+  }
+  .toc ol ol{ margin:1mm 0 0 6mm; counter-reset:sub; font-weight:400; }
+  .toc ol ol li{
+    counter-increment:sub; border:none; padding:0.3mm 0; color:var(--slate);
+    font-size:8.2pt; line-height:1.35;
+  }
+  .toc ol ol li::before{
+    content:counter(sec) "." counter(sub) "   "; color:var(--gold); font-weight:600;
+  }
+
+  /* ---------- References ---------- */
+  .refs{ font-size:9.3pt; font-family:"Segoe UI",Arial,sans-serif; }
+  .refs ol{ padding-left:0; list-style:none; counter-reset:ref; }
+  .refs li{
+    counter-increment:ref; margin-bottom:3mm; padding-left:10mm;
+    position:relative; text-align:left; line-height:1.5; break-inside:avoid;
+  }
+  .refs li::before{
+    content:"[" counter(ref) "]"; position:absolute; left:0; top:0;
+    font-weight:700; color:var(--gold);
+  }
+  .refs .where{
+    display:block; font-size:8.4pt; color:var(--slate); margin-top:0.8mm; font-style:italic;
+  }
+  .refs a{ color:var(--navy2); word-break:break-all; text-decoration:none; }
+
+  .lead{ font-size:11pt; color:var(--slate); line-height:1.6; margin-bottom:5mm; font-style:italic; }
+
+  .pill{
+    display:inline-block; font-family:"Segoe UI",Arial,sans-serif; font-size:7.6pt;
+    font-weight:650; padding:0.6mm 2mm; border-radius:9px; letter-spacing:0.03em;
+    background:var(--tint); color:var(--slate); border:0.5pt solid var(--line);
+  }
+  .pill.live{ background:var(--good-soft); color:var(--good); border-color:#bcdccd; }
+  .pill.off{ background:var(--warn-soft); color:var(--warn); border-color:#eccdb6; }
+  .pill.ext{ background:#eef0f8; color:var(--navy2); border-color:#ccd3e6; }
+
+  .pagefoot{
+    position:fixed; bottom:-14mm; left:0; right:0;
+    font-family:"Segoe UI",Arial,sans-serif; font-size:7.6pt; color:#98a0b8;
+    border-top:0.5pt solid var(--line); padding-top:1.8mm;
+    display:flex; justify-content:space-between;
+  }
+
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:4mm; margin:3mm 0; }
+  .grid3{ display:grid; grid-template-columns:repeat(3,1fr); gap:3.5mm; margin:3mm 0; }
+  .statbox{
+    border:0.5pt solid var(--line); border-top:2.5px solid var(--gold);
+    padding:3mm; text-align:center; background:#fff; break-inside:avoid;
+  }
+  .statbox .n{
+    font-family:"Segoe UI",Arial,sans-serif; font-size:19pt; font-weight:700;
+    color:var(--navy); line-height:1.1;
+  }
+  .statbox .l{
+    font-family:"Segoe UI",Arial,sans-serif; font-size:7.8pt; color:var(--slate);
+    text-transform:uppercase; letter-spacing:0.04em; margin-top:1.2mm; line-height:1.35;
+  }
+</style>
+</head>
+<body>
+
+<div class="pagefoot">
+  <span>Adaptive Chess Puzzle Advisor — Technical System Report</span>
+  <span>A. Radevski · MSc AI &amp; Data Science</span>
+</div>
+
+<!-- ══════════════════ TITLE PAGE ══════════════════ -->
+<section class="titlepage">
+  <div class="rule"></div>
+  <div class="kicker">MSc Dissertation · Technical System Report</div>
+  <h1>The Adaptive Chess Puzzle Advisor</h1>
+  <p class="sub">A Bayesian bandit-driven system for diagnosing tactical weakness from real game
+  history and adaptively targeting remedial practice</p>
+
+  <div class="meta">
+    <div><b>Author</b> Aleksandar Radevski</div>
+    <div><b>Programme</b> MSc Artificial Intelligence &amp; Data Science</div>
+    <div><b>Institution</b> City College, University of York</div>
+    <div><b>Period</b> July – October 2026</div>
+    <div><b>Document</b> Technical system report, algorithms &amp; evaluation</div>
+    <div><b>Date</b> 8 September 2026</div>
+  </div>
+
+  <div class="foot">
+    Every constant, metric and behavioural claim in this report was read directly from the
+    current source tree and is cross-referenced to the file and function that implements it.
+  </div>
+</section>
+
+<!-- ══════════════════ ABSTRACT ══════════════════ -->
+<section>
+  <h2>Abstract</h2>
+  <p>
+    Chess improvement literature and expertise research converge on a single prescription: practice
+    is effective in proportion to how precisely it targets a learner's actual deficiencies<a href="#r19" class="cite">[19]</a>.
+    Mainstream chess platforms, however, serve tactical puzzles drawn from difficulty-matched pools without
+    any model of <em>which</em> tactical motifs a given player actually fails at. This report documents the
+    <strong>Adaptive Chess Puzzle Advisor</strong>, a working end-to-end system that closes that gap.
+  </p>
+  <p>
+    The system ingests a player's Chess.com game history, analyses every move with Stockfish to
+    produce a per-category weakness profile across a 23-motif tactical taxonomy, and then drives an
+    adaptive practice session using a <strong>Thompson Sampling multi-armed bandit</strong><a href="#r1" class="cite">[1]</a><a href="#r2" class="cite">[2]</a>
+    in which each tactical category is an independent Beta–Bernoulli arm. Practice material comes from two
+    sources: a filtered and re-categorised 6-million-row Lichess puzzle corpus<a href="#r14" class="cite">[14]</a>, and puzzles
+    mined from the player's own losses through a four-gate Stockfish verification pipeline that rejects
+    dual-solution and trivially-forced positions.
+  </p>
+  <p>
+    Two further components exist as validated research artefacts rather than default production paths: a
+    from-scratch <strong>Glicko-2</strong><a href="#r5" class="cite">[5]</a><a href="#r6" class="cite">[6]</a> difficulty
+    fitter that re-estimates puzzle difficulty from the system's own solve logs, validated against Glickman's
+    published worked example, and a <strong>RandomForest</strong><a href="#r8" class="cite">[8]</a> weakness classifier
+    validated by held-out-player cross-validation on simulated cohorts. Both are gated on real-player data
+    volume, not on unfinished implementation — a distinction this report states explicitly rather than eliding.
+  </p>
+  <p>
+    The report specifies each algorithm in full mathematical detail, documents the three pipelines and how
+    they interconnect, gives an honest component-by-component account of which parts are genuinely learned
+    from data and which are symbolic, and grounds every design decision in the primary literature.
+  </p>
+
+  <div class="grid3" style="margin-top:6mm;">
+    <div class="statbox"><div class="n">23</div><div class="l">Tactical categories<br>(bandit arms)</div></div>
+    <div class="statbox"><div class="n">6M+</div><div class="l">Puzzles filtered<br>&amp; re-categorised</div></div>
+    <div class="statbox"><div class="n">128</div><div class="l">Passing tests<br>across 8 files</div></div>
+  </div>
+</section>
+
+<!-- ══════════════════ TOC ══════════════════ -->
+<section class="page-break">
+  <h2>Contents</h2>
+  <div class="toc">
+    <ol>
+      <li>Introduction
+        <ol>
+          <li>Problem statement</li>
+          <li>Why adaptivity is the right response</li>
+          <li>Research objectives</li>
+          <li>Contributions</li>
+        </ol>
+      </li>
+      <li>Background and Related Work
+        <ol>
+          <li>Rating systems: Elo, Glicko, Glicko-2</li>
+          <li>Multi-armed bandits and Thompson Sampling</li>
+          <li>Chess engines: alpha-beta search and NNUE evaluation</li>
+          <li>Adaptive learning and knowledge tracing</li>
+          <li>Positioning of this work</li>
+        </ol>
+      </li>
+      <li>System Architecture
+        <ol>
+          <li>Component overview</li>
+          <li>The three pipelines and their coupling</li>
+          <li>Persistence model</li>
+          <li>Technology stack</li>
+        </ol>
+      </li>
+      <li>Data Layer
+        <ol>
+          <li>The Lichess Open Puzzle Database</li>
+          <li>ETL: streaming construction of the served pool</li>
+          <li>The 23-category weakness taxonomy</li>
+          <li>The motif-priority defect and its correction</li>
+          <li>Chess.com ingestion</li>
+        </ol>
+      </li>
+      <li>Pipeline 1 — Player Weakness Profiling
+        <ol>
+          <li>PGN parsing and phase classification</li>
+          <li>Per-move Stockfish analysis</li>
+          <li>The rule-based weakness scorer</li>
+          <li>The trained RandomForest classifier</li>
+          <li>The engine-free fallback and path selection</li>
+        </ol>
+      </li>
+      <li>Pipeline 2 — Puzzle Mining from Real Games
+        <ol>
+          <li>Rationale: verified extraction, not generation</li>
+          <li>The four verification gates</li>
+          <li>Tactic classification and rating estimation</li>
+        </ol>
+      </li>
+      <li>Pipeline 3 — Adaptive Recommendation
+        <ol>
+          <li>Formalisation as a Bernoulli bandit</li>
+          <li>Beta–Bernoulli conjugacy</li>
+          <li>The selection rule and its deliberate inversion</li>
+          <li>Prior seeding from the weakness profile</li>
+          <li>The serving cascade</li>
+        </ol>
+      </li>
+      <li>Difficulty Modelling with Glicko-2
+        <ol>
+          <li>Why a three-parameter rating system</li>
+          <li>The update algorithm in full</li>
+          <li>Adaptation to puzzle rating</li>
+          <li>Validation against the published reference</li>
+        </ol>
+      </li>
+      <li>Evaluation
+        <ol>
+          <li>A two-level evaluation strategy</li>
+          <li>Puzzle quality: the five-dimension evaluator</li>
+          <li>Recommender validation methodology</li>
+          <li>Classifier cross-validation results</li>
+          <li>Test suite and reference validation</li>
+        </ol>
+      </li>
+      <li>What Is Genuinely AI-Driven
+        <ol>
+          <li>Component-by-component breakdown</li>
+          <li>The defensible claim</li>
+        </ol>
+      </li>
+      <li>Limitations and Threats to Validity
+        <ol>
+          <li>Defects found and fixed</li>
+          <li>Open limitations</li>
+        </ol>
+      </li>
+      <li>Future Work</li>
+      <li>Conclusion</li>
+      <li>References</li>
+      <li>Appendices
+        <ol>
+          <li>Literature-to-component mapping</li>
+          <li>Complete constants reference</li>
+          <li>Repository map</li>
+          <li>Reproduction guide</li>
+        </ol>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ══════════════════ 1. INTRODUCTION ══════════════════ -->
+<section class="page-break">
+  <h2>1 &nbsp; Introduction</h2>
+
+  <h3>1.1 &nbsp; Problem statement</h3>
+  <p>
+    A club-level chess player who wants to improve faces an information problem before they face a
+    training problem. They know they lose games; they do not reliably know <em>why</em>. Self-diagnosis
+    is unreliable precisely because the errors that cost games are, by definition, the ones the player
+    did not see. The standard remedy — solving tactical puzzles — is offered by every major platform,
+    but the selection policy is almost universally <em>difficulty-matched</em> rather than
+    <em>weakness-matched</em>: puzzles are drawn from a pool filtered by rating, with no model of which
+    tactical motifs this particular player systematically misses.
+  </p>
+  <p>
+    The consequence is a misallocation of practice time. A player who is competent at forks and pins but
+    loses repeatedly to back-rank mates and rook endgames will, under a rating-matched policy, receive
+    forks and pins in proportion to their frequency in the corpus — which is to say, mostly. Their
+    practice is comfortable, measurable, and largely redundant.
+  </p>
+
+  <h3>1.2 &nbsp; Why adaptivity is the right response</h3>
+  <p>
+    Ericsson, Krampe and Tesch-Römer's account of deliberate practice<a href="#r19" class="cite">[19]</a>
+    identifies the defining property of practice that produces expertise: it is targeted at tasks just
+    beyond current competence, with immediate feedback, and it is specifically <em>not</em> the repetition
+    of already-mastered skills. Vygotsky's zone of proximal development<a href="#r18" class="cite">[18]</a>
+    supplies the complementary constraint from the other direction — material far above current ability
+    produces failure without learning. An effective puzzle recommender must therefore solve two coupled
+    problems simultaneously: <strong>what</strong> motif to practise (the weakness-targeting problem) and
+    <strong>how hard</strong> the instance should be (the difficulty-matching problem).
+  </p>
+  <p>
+    Intelligent tutoring systems have addressed the first problem since Corbett and Anderson's knowledge
+    tracing framework<a href="#r17" class="cite">[17]</a>, which maintains a per-skill probability that a
+    learner has mastered each component skill and updates it from observed successes and failures. This
+    system adopts the same fundamental posture — a per-skill belief updated online from evidence — but
+    implements it as a Bayesian bandit, which additionally answers the <em>selection</em> question that
+    knowledge tracing alone leaves open: given current beliefs, which skill should be exercised next, and
+    how should the system trade off acting on what it believes against testing what it is unsure of?
+  </p>
+
+  <div class="callout key">
+    <h4>The central design decision</h4>
+    <p>
+      Weakness is never directly observable. It is inferred from noisy binary evidence (solved / failed),
+      and every observation costs the learner time. This is precisely the structure of a multi-armed bandit
+      problem, which is why the recommendation core of this system is a Thompson Sampling
+      bandit<a href="#r1" class="cite">[1]</a> rather than a ranking heuristic over a static profile.
+    </p>
+  </div>
+
+  <h3>1.3 &nbsp; Research objectives</h3>
+  <table>
+    <thead>
+      <tr><th style="width:6%">#</th><th style="width:47%">Objective</th><th>Status at time of writing</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>1</td>
+        <td>Classify a player's tactical weakness profile from their game history</td>
+        <td><span class="pill live">Met</span> Rule-based Stockfish-driven scorer live by default; trained
+        RandomForest alternative validated on simulated cohorts and reachable via opt-in flag (§5.4)</td>
+      </tr>
+      <tr>
+        <td>2</td>
+        <td>Produce legal, unique, non-trivial puzzles targeted at those weaknesses</td>
+        <td><span class="pill live">Met, reframed</span> Engine-verified mining from the player's own
+        games rather than generative synthesis — a deliberate, documented scope decision (§6.1)</td>
+      </tr>
+      <tr>
+        <td>3</td>
+        <td>Match puzzle difficulty to player ability</td>
+        <td><span class="pill live">Partially met</span> Rating-band targeting live; Glicko-2 fitting from
+        the system's own solve logs built and validated but not yet in the serving path (§8)</td>
+      </tr>
+      <tr>
+        <td>4</td>
+        <td>Evaluate the adaptive system against a non-adaptive baseline</td>
+        <td><span class="pill off">Partially met</span> Five-dimension puzzle quality evaluator live;
+        bandit simulation methodology specified with pre-registered criteria (§9.3)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>1.4 &nbsp; Contributions</h3>
+  <ol>
+    <li><strong>An end-to-end working system</strong> connecting public game-history ingestion, engine-based
+    error analysis, weakness profiling, puzzle mining, and adaptive serving — deployed as a Flask
+    application with a browser front end.</li>
+    <li><strong>A Thompson Sampling formulation of tactical weakness targeting</strong>, including a
+    deliberate inversion of the standard reward-maximising selection rule (§7.3) and a principled
+    scheme for seeding arm priors from engine-derived error statistics (§7.4).</li>
+    <li><strong>A four-gate engine verification pipeline</strong> for mining sound puzzles from amateur
+    games, which eliminated the ~40% false-positive rate of an earlier pattern-matching approach (§6).</li>
+    <li><strong>A from-scratch Glicko-2 implementation</strong> adapted to treat puzzles as opponents,
+    validated to published-reference tolerance against Glickman's own worked example (§8.4).</li>
+    <li><strong>A documented correction to a taxonomy defect</strong> that had mislabelled approximately
+    198,000 puzzles and would have systematically corrupted the bandit's weakness model (§4.4).</li>
+  </ol>
+
+  <div class="callout">
+    <h4>A note on the evidential standard of this document</h4>
+    <p>
+      Where the implementation diverges from what earlier project documentation claimed, this report
+      states the divergence rather than smoothing it over. Section 11 documents defects found by
+      re-reading the live source, including two that made the system's primary analysis path
+      unreachable in practice. This is deliberate: a technical report whose claims cannot be
+      falsified against the source tree is not evidence of anything.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════ 2. BACKGROUND ══════════════════ -->
+<section class="page-break">
+  <h2>2 &nbsp; Background and Related Work</h2>
+
+  <h3>2.1 &nbsp; Rating systems: Elo, Glicko, Glicko-2</h3>
+  <p>
+    Elo's rating system<a href="#r7" class="cite">[7]</a> models the outcome of a paired comparison as a
+    function of the difference between two scalar strength parameters, updating each after every result by
+    a fixed-gain rule. Its limitation is structural: a single number cannot distinguish a rating established
+    over a thousand games from one assigned after two. Both are simply numbers, and both move by the same
+    increment under the same result.
+  </p>
+  <p>
+    Glickman's Glicko system<a href="#r5" class="cite">[5]</a> addresses this by modelling strength as a
+    distribution rather than a point, adding a <em>rating deviation</em> (RD) that quantifies the system's
+    uncertainty. Ratings with high RD move quickly under new evidence; well-established ratings move slowly.
+    Glicko-2<a href="#r6" class="cite">[6]</a> extends this with a third parameter, <em>volatility</em>,
+    capturing how erratically the underlying true strength itself appears to change — separating "this
+    result was ordinary variance" from "this competitor's real strength is genuinely shifting."
+  </p>
+  <p>
+    This distinction matters directly for puzzle rating. A newly mined puzzle has been attempted by nobody;
+    its difficulty is a guess. A Lichess puzzle with 40,000 recorded attempts has a difficulty known to
+    within a few points. Under Elo these are indistinguishable; under Glicko-2 the difference is explicit
+    and actionable. Section 8 develops the algorithm and its adaptation to this system.
+  </p>
+
+  <h3>2.2 &nbsp; Multi-armed bandits and Thompson Sampling</h3>
+  <p>
+    The multi-armed bandit problem formalises sequential decision-making under uncertainty: an agent
+    repeatedly chooses among actions with unknown reward distributions, and must balance
+    <em>exploitation</em> of the action currently believed best against <em>exploration</em> that
+    reduces uncertainty about the others<a href="#r4" class="cite">[4]</a>.
+  </p>
+  <p>
+    Thompson's 1933 paper<a href="#r1" class="cite">[1]</a> — predating the formal bandit literature by
+    decades — proposed what is now the canonical Bayesian solution: maintain a posterior distribution over
+    each action's reward probability, draw one sample from each posterior, and act greedily with respect to
+    the sampled values. The elegance of this rule is that exploration is not a bolt-on. An action whose
+    posterior is wide is sampled across a wide range and will occasionally win the comparison on its own
+    merits; as evidence accumulates the posterior narrows and the same rule becomes increasingly
+    exploitative, with no schedule, no temperature, and no tunable exploration constant.
+  </p>
+  <p>
+    The principal alternative family, Upper Confidence Bound methods, achieves logarithmic regret through
+    deterministic optimism<a href="#r3" class="cite">[3]</a>. Chapelle and Li's empirical
+    study<a href="#r20" class="cite">[20]</a> found Thompson Sampling competitive with or superior to UCB
+    across realistic problem settings, and Russo <em>et al.</em>'s tutorial<a href="#r2" class="cite">[2]</a>
+    supplies the modern regret-bound treatment together with practical guidance. Two properties made it the
+    right choice here: rewards are exactly Bernoulli (a puzzle is solved or not), which makes the
+    Beta–Bernoulli conjugate update exact and closed-form; and there is no exploration parameter requiring
+    calibration against user data this project does not yet have at scale.
+  </p>
+
+  <h3>2.3 &nbsp; Chess engines: alpha-beta search and NNUE evaluation</h3>
+  <p>
+    All ground truth in this system — what the best move was, how much a played move cost, whether a
+    candidate puzzle has a unique solution — comes from Stockfish<a href="#r12" class="cite">[12]</a>,
+    an alpha-beta searcher whose evaluation function since version 12 is an
+    NNUE network: an efficiently-updatable shallow neural evaluator originally developed by Nasu for
+    computer shogi<a href="#r11" class="cite">[11]</a> and subsequently adapted to chess. The relevant
+    property for this work is incremental updatability, which makes NNUE evaluation cheap enough to
+    remain viable inside a high-throughput alpha-beta search — a practical requirement given that this
+    system analyses tens of thousands of positions per user.
+  </p>
+  <p>
+    It is worth stating what this system does <em>not</em> do. AlphaZero<a href="#r10" class="cite">[10]</a>
+    demonstrated that a policy-value network trained by self-play with Monte Carlo tree search can reach
+    superhuman chess strength from rules alone. That is a fundamentally different problem from the one
+    addressed here. This project does not train a chess-playing agent; it treats a mature engine as an
+    oracle and applies machine learning to the <em>pedagogical</em> layer above it — which player needs
+    which practice, and when.
+  </p>
+
+  <h3>2.4 &nbsp; Adaptive learning and knowledge tracing</h3>
+  <p>
+    Corbett and Anderson's knowledge tracing<a href="#r17" class="cite">[17]</a> established the template
+    for modelling learner mastery in intelligent tutoring systems: a latent per-skill mastery probability,
+    updated by Bayesian inference from observed correct and incorrect responses, with explicit parameters
+    for guessing and slipping. The Beta–Bernoulli arms in this system are a direct structural analogue —
+    a per-skill posterior over success probability, updated from binary evidence.
+  </p>
+  <p>
+    The substantive difference is decision-theoretic. Knowledge tracing estimates mastery; it does not by
+    itself specify a selection policy. By formulating selection as a bandit, this system obtains an
+    exploration-aware policy for free, which matters when the number of skills (23) is large relative to
+    the number of observations available in a single practice session (tens).
+  </p>
+
+  <h3>2.5 &nbsp; Positioning of this work</h3>
+  <table>
+    <thead>
+      <tr><th style="width:26%">Prior art</th><th style="width:37%">What it establishes</th><th>How this system relates</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Elo <a href="#r7" class="cite">[7]</a>, Glicko-2 <a href="#r5" class="cite">[5]</a><a href="#r6" class="cite">[6]</a></td>
+        <td>Uncertainty-aware strength estimation from paired comparisons</td>
+        <td>Reimplemented from scratch and adapted to treat a <em>puzzle</em> as the opponent (§8.3)</td></tr>
+      <tr><td>Thompson Sampling <a href="#r1" class="cite">[1]</a><a href="#r2" class="cite">[2]</a></td>
+        <td>Bayesian exploration/exploitation with no tuning parameter</td>
+        <td>Applied with an inverted objective — select the <em>weakest</em> arm, not the best (§7.3)</td></tr>
+      <tr><td>Knowledge tracing <a href="#r17" class="cite">[17]</a></td>
+        <td>Per-skill Bayesian mastery estimation in tutoring systems</td>
+        <td>Same posture, extended with an explicit selection policy over 23 skills</td></tr>
+      <tr><td>AlphaZero <a href="#r10" class="cite">[10]</a></td>
+        <td>Self-play RL can master chess itself</td>
+        <td>Explicitly not attempted; the engine is an oracle, ML operates on the pedagogical layer</td></tr>
+      <tr><td>Lichess puzzle corpus <a href="#r14" class="cite">[14]</a></td>
+        <td>6M engine-verified, community-rated puzzles under CC0</td>
+        <td>Used as the base pool, re-categorised under a purpose-built 23-motif taxonomy (§4.3)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════ 3. ARCHITECTURE ══════════════════ -->
+<section class="page-break">
+  <h2>3 &nbsp; System Architecture</h2>
+
+  <h3>3.1 &nbsp; Component overview</h3>
+  <p>
+    The system decomposes into three pipelines that meet at a single shared object — the per-user bandit
+    state. Pipeline 1 produces a weakness profile that seeds the bandit's priors. Pipeline 2 mines
+    personalised puzzle material. Pipeline 3 consumes both, serving puzzles and feeding outcomes back into
+    the bandit posterior. Nothing else is stateful.
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 720 400" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+      <defs>
+        <marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#4a5578"/>
+        </marker>
+        <marker id="arg" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#a8801f"/>
+        </marker>
+      </defs>
+
+      <!-- Ingestion -->
+      <rect x="8" y="20" width="150" height="120" rx="5" fill="#eef0f8" stroke="#ccd3e6"/>
+      <text x="83" y="38" text-anchor="middle" font-size="10" font-weight="700" fill="#151d38">INGESTION</text>
+      <rect x="20" y="48" width="126" height="34" rx="3" fill="#fff" stroke="#ccd3e6"/>
+      <text x="83" y="63" text-anchor="middle" font-size="8.5" fill="#1a2340">Chess.com API</text>
+      <text x="83" y="74" text-anchor="middle" font-size="7" fill="#4a5578">profile · PGN archives</text>
+      <rect x="20" y="92" width="126" height="34" rx="3" fill="#fff" stroke="#ccd3e6"/>
+      <text x="83" y="107" text-anchor="middle" font-size="8.5" fill="#1a2340">Lichess Puzzle DB</text>
+      <text x="83" y="118" text-anchor="middle" font-size="7" fill="#4a5578">~6M rows, CC0</text>
+
+      <!-- Pipeline 1 -->
+      <rect x="190" y="8" width="170" height="146" rx="5" fill="#f5f6fb" stroke="#d8ddea"/>
+      <text x="275" y="26" text-anchor="middle" font-size="10" font-weight="700" fill="#151d38">PIPELINE 1 · PROFILING</text>
+      <rect x="202" y="36" width="146" height="26" rx="3" fill="#fff" stroke="#d8ddea"/>
+      <text x="275" y="52" text-anchor="middle" font-size="8" fill="#1a2340">Stockfish per-move CPL</text>
+      <rect x="202" y="68" width="146" height="26" rx="3" fill="#e8f3ee" stroke="#bcdccd"/>
+      <text x="275" y="80" text-anchor="middle" font-size="8" fill="#25674c" font-weight="600">build_profile()</text>
+      <text x="275" y="90" text-anchor="middle" font-size="6.8" fill="#25674c">rule-based · DEFAULT</text>
+      <rect x="202" y="100" width="146" height="24" rx="3" fill="#fbf3e2" stroke="#e8d5a8"/>
+      <text x="275" y="111" text-anchor="middle" font-size="8" fill="#a8801f" font-weight="600">build_profile_ml()</text>
+      <text x="275" y="120" text-anchor="middle" font-size="6.8" fill="#a8801f">RandomForest · opt-in</text>
+      <rect x="202" y="129" width="146" height="18" rx="3" fill="#fdf0e6" stroke="#eccdb6"/>
+      <text x="275" y="141" text-anchor="middle" font-size="7.4" fill="#96461a">_heuristic_profile() · fallback</text>
+
+      <!-- Pipeline 2 -->
+      <rect x="190" y="176" width="170" height="76" rx="5" fill="#f5f6fb" stroke="#d8ddea"/>
+      <text x="275" y="194" text-anchor="middle" font-size="10" font-weight="700" fill="#151d38">PIPELINE 2 · MINING</text>
+      <rect x="202" y="204" width="146" height="36" rx="3" fill="#fff" stroke="#d8ddea"/>
+      <text x="275" y="219" text-anchor="middle" font-size="8" fill="#1a2340">4-gate Stockfish miner</text>
+      <text x="275" y="231" text-anchor="middle" font-size="7" fill="#4a5578">detect→clarity→forced→verify</text>
+
+      <!-- Bandit -->
+      <rect x="398" y="60" width="150" height="94" rx="5" fill="#151d38"/>
+      <text x="473" y="80" text-anchor="middle" font-size="10" font-weight="700" fill="#c99a3c">PIPELINE 3 · BANDIT</text>
+      <rect x="410" y="90" width="126" height="52" rx="3" fill="#1c2747" stroke="#2f3a63"/>
+      <text x="473" y="107" text-anchor="middle" font-size="8.6" fill="#fff" font-weight="600">Thompson Sampling</text>
+      <text x="473" y="119" text-anchor="middle" font-size="7.4" fill="#c3c9e6">23 arms · Beta(α, β)</text>
+      <text x="473" y="132" text-anchor="middle" font-size="7.4" fill="#c3c9e6">select argmin θᵢ</text>
+
+      <!-- Serving -->
+      <rect x="398" y="186" width="150" height="66" rx="5" fill="#f5f6fb" stroke="#d8ddea"/>
+      <text x="473" y="204" text-anchor="middle" font-size="9.4" font-weight="700" fill="#151d38">SERVING CASCADE</text>
+      <text x="473" y="219" text-anchor="middle" font-size="7.4" fill="#4a5578">mined → pool → widen band</text>
+      <text x="473" y="231" text-anchor="middle" font-size="7.4" fill="#4a5578">→ any category → repeat</text>
+      <text x="473" y="243" text-anchor="middle" font-size="7" fill="#96461a">7 fallback levels</text>
+
+      <!-- User -->
+      <rect x="588" y="96" width="122" height="58" rx="5" fill="#fff" stroke="#a8801f" stroke-width="1.5"/>
+      <text x="649" y="116" text-anchor="middle" font-size="9.4" font-weight="700" fill="#151d38">PLAYER</text>
+      <text x="649" y="131" text-anchor="middle" font-size="7.6" fill="#4a5578">solves / fails</text>
+      <text x="649" y="144" text-anchor="middle" font-size="7.6" fill="#4a5578">in browser SPA</text>
+
+      <!-- Offline -->
+      <rect x="190" y="288" width="358" height="66" rx="5" fill="#fdf0e6" stroke="#eccdb6" stroke-dasharray="4 3"/>
+      <text x="369" y="306" text-anchor="middle" font-size="9.4" font-weight="700" fill="#96461a">OFFLINE RESEARCH · not in serving path</text>
+      <rect x="212" y="316" width="150" height="28" rx="3" fill="#fff" stroke="#eccdb6"/>
+      <text x="287" y="334" text-anchor="middle" font-size="8" fill="#1a2340">Glicko-2 difficulty fitter</text>
+      <rect x="376" y="316" width="150" height="28" rx="3" fill="#fff" stroke="#eccdb6"/>
+      <text x="451" y="334" text-anchor="middle" font-size="8" fill="#1a2340">fitted_ratings.json</text>
+
+      <!-- Arrows -->
+      <path d="M158,66 L190,66" stroke="#4a5578" stroke-width="1.3" fill="none" marker-end="url(#ar)"/>
+      <path d="M158,109 L174,109 L174,214 L190,214" stroke="#4a5578" stroke-width="1.3" fill="none" marker-end="url(#ar)"/>
+      <path d="M158,120 L174,120 L174,266 L560,266 L560,224 L548,224" stroke="#4a5578" stroke-width="1.3" fill="none" marker-end="url(#ar)" stroke-dasharray="3 2"/>
+      <path d="M360,90 L398,100" stroke="#a8801f" stroke-width="1.6" fill="none" marker-end="url(#arg)"/>
+      <text x="378" y="86" font-size="6.8" fill="#a8801f" font-weight="600">priors</text>
+      <path d="M360,222 L398,218" stroke="#4a5578" stroke-width="1.3" fill="none" marker-end="url(#ar)"/>
+      <path d="M473,154 L473,186" stroke="#4a5578" stroke-width="1.3" fill="none" marker-end="url(#ar)"/>
+      <text x="480" y="172" font-size="6.8" fill="#4a5578">target category</text>
+      <path d="M548,212 L568,212 L568,140 L588,140" stroke="#4a5578" stroke-width="1.3" fill="none" marker-end="url(#ar)"/>
+      <path d="M649,96 L649,44 L473,44 L473,60" stroke="#a8801f" stroke-width="1.6" fill="none" marker-end="url(#arg)"/>
+      <text x="556" y="40" font-size="7" fill="#a8801f" font-weight="600">solve / fail → α+=1 or β+=1</text>
+      <path d="M473,252 L473,270 L369,270 L369,288" stroke="#96461a" stroke-width="1.2" fill="none" marker-end="url(#ar)" stroke-dasharray="4 3"/>
+      <text x="380" y="282" font-size="6.8" fill="#96461a">sessions/*.json</text>
+    </svg>
+    <figcaption><b>Figure 1.</b> System architecture. Solid arrows are live data flow; dashed arrows
+    indicate the offline research path that consumes session logs but does not yet feed serving.</figcaption>
+  </figure>
+
+  <h3>3.2 &nbsp; The three pipelines and their coupling</h3>
+  <p>
+    The pipelines are deliberately loosely coupled. Pipeline 1 runs once per analysis request, in a
+    background thread, and terminates by writing a set of Beta priors. Pipeline 2 runs independently and
+    writes a JSON file of mined puzzles. Pipeline 3 is the only long-lived interactive loop, and it degrades
+    gracefully if either upstream pipeline produced nothing: absent priors, arms start at the uniform
+    <code>Beta(1,1)</code>; absent mined puzzles, the cascade falls through to the Lichess pool.
+  </p>
+  <p>
+    This matters architecturally because Stockfish analysis is expensive — roughly three to five minutes for
+    fifty games at two worker threads. Binding the interactive loop to that latency would make the system
+    unusable. Instead, analysis is asynchronous and its result is a <em>prior</em>, which by construction the
+    bandit is designed to override as real evidence arrives (§7.4).
+  </p>
+
+  <h3>3.3 &nbsp; Persistence model</h3>
+  <p>
+    There is no database. All state is JSON on disk, which is a defensible choice at this scale and an
+    explicit limitation at any larger one (§11.2).
+  </p>
+  <table class="tight">
+    <thead><tr><th style="width:32%">Path</th><th style="width:26%">Contents</th><th>Written by</th></tr></thead>
+    <tbody>
+      <tr><td><code>data/sessions/&lt;user&gt;.json</code></td><td>Bandit arm states, solve history, streaks</td><td>Every <code>/api/session/result</code> call</td></tr>
+      <tr><td><code>data/user_puzzles/&lt;user&gt;.json</code></td><td>Mined puzzles, deduplicated by <code>PuzzleId</code></td><td>Pipeline 2; additive, never destructive</td></tr>
+      <tr><td><code>data/cache/chess_com/</code></td><td>Cached API responses</td><td>Ingestion layer, rate-limited</td></tr>
+      <tr><td><code>data/processed/*.parquet</code></td><td>Cleaned, enriched, split puzzle pool</td><td>One-shot ETL script (§4.2)</td></tr>
+      <tr><td><code>data/processed/fitted_ratings.json</code></td><td>Glicko-2 fitted puzzle/player ratings</td><td>Offline CLI only — not read at serve time</td></tr>
+    </tbody>
+  </table>
+
+  <h3>3.4 &nbsp; Technology stack</h3>
+  <table class="tight">
+    <thead><tr><th style="width:30%">Layer</th><th style="width:40%">Technology</th><th>Reference</th></tr></thead>
+    <tbody>
+      <tr><td>Core language</td><td>Python 3.13</td><td>—</td></tr>
+      <tr><td>Board logic, PGN, UCI</td><td><code>python-chess</code></td><td><a href="#r13" class="cite">[13]</a></td></tr>
+      <tr><td>Engine oracle</td><td>Stockfish 18 (bundled binary)</td><td><a href="#r12" class="cite">[12]</a><a href="#r11" class="cite">[11]</a></td></tr>
+      <tr><td>Recommender</td><td>Custom Thompson Sampling over <code>numpy.random.beta</code></td><td><a href="#r1" class="cite">[1]</a><a href="#r2" class="cite">[2]</a></td></tr>
+      <tr><td>Difficulty rating</td><td>Custom from-scratch Glicko-2, no external library</td><td><a href="#r5" class="cite">[5]</a><a href="#r6" class="cite">[6]</a></td></tr>
+      <tr><td>Weakness classifier</td><td><code>scikit-learn</code> <code>RandomForestRegressor</code></td><td><a href="#r8" class="cite">[8]</a><a href="#r9" class="cite">[9]</a></td></tr>
+      <tr><td>Data processing</td><td><code>pandas</code>, <code>pyarrow</code> (Parquet row-group streaming)</td><td><a href="#r16" class="cite">[16]</a></td></tr>
+      <tr><td>Backend / frontend</td><td>Flask + flask-cors; vanilla JS SPA, same origin</td><td>—</td></tr>
+      <tr><td>Testing</td><td><code>pytest</code> — 128 tests, 8 files, fully offline</td><td>—</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════ 4. DATA LAYER ══════════════════ -->
+<section class="page-break">
+  <h2>4 &nbsp; Data Layer</h2>
+
+  <h3>4.1 &nbsp; The Lichess Open Puzzle Database</h3>
+  <p>
+    The base puzzle corpus is the Lichess Open Database puzzle export<a href="#r14" class="cite">[14]</a>:
+    approximately 6 million puzzles released under CC0, each carrying a FEN starting position, a solution
+    move sequence in UCI, a Glicko-2 rating with its rating deviation, a popularity score, a play count,
+    and a set of theme tags. The corpus is itself machine-generated — Lichess derives it by scanning
+    hundreds of millions of played games for positions where a decisive tactical opportunity exists, then
+    re-analysing those positions with Stockfish NNUE at high node counts.
+  </p>
+  <p>
+    This provenance is significant for the present work in two ways. It means the puzzles are already
+    engine-verified, so the quality problem for pool puzzles reduces to <em>filtering</em> rather than
+    <em>verification</em>. And it means the supplied ratings are Glicko-2 ratings fitted from a very large
+    population of Lichess solvers — statistically strong, but fitted on a different population than this
+    system's users, which is precisely the motivation for the difficulty refitting work in §8.
+  </p>
+
+  <h3>4.2 &nbsp; ETL: streaming construction of the served pool</h3>
+  <p>
+    The raw CSV is roughly 1.1 GB, which forbids naive whole-file loading. The ETL script streams it in
+    one-million-row chunks, enriching and cleaning each chunk before writing Parquet outputs partitioned
+    three ways — a single full table, one file per category, and one file per difficulty tier — plus a
+    category summary.
+  </p>
+  <p>
+    The cleaning stage drops rows with missing FEN, moves or rating; deduplicates on <code>PuzzleId</code>;
+    drops puzzles whose rating deviation exceeds 150 (poorly calibrated); drops puzzles never actually
+    played; and requires a non-empty solution. At server start the application performs a second pass,
+    reading Parquet <em>one row-group at a time</em> so the full six million rows are never materialised,
+    applying a live quality gate and sampling proportionally down to a bounded pool. A
+    <code>PUZZLE_BY_CAT</code> index is then built for constant-time category lookup during serving.
+  </p>
+
+  <h3>4.3 &nbsp; The 23-category weakness taxonomy</h3>
+  <p>
+    Lichess emits roughly fifty raw theme tags mixing motif, phase, length and outcome. These are mapped
+    onto a purpose-built taxonomy of 23 categories, which becomes the shared vocabulary of the entire
+    system: the arms of the bandit, the keys of the weakness profile, the labels of mined puzzles, and the
+    output classes of the trained classifier all range over exactly this set.
+  </p>
+  <table class="tight">
+    <thead><tr><th class="num" style="width:9%">Count</th><th style="width:24%">Category</th><th class="num" style="width:9%">Count</th><th style="width:24%">Category</th><th class="num" style="width:9%">Count</th><th>Category</th></tr></thead>
+    <tbody>
+      <tr><td class="num">2,942,587</td><td>Endgame</td><td class="num">330,422</td><td>Discovered Attack</td><td class="num">113,304</td><td>Queen Endgame</td></tr>
+      <tr><td class="num">1,849,329</td><td>Mating Pattern</td><td class="num">293,854</td><td>Deflection</td><td class="num">91,293</td><td>Interference</td></tr>
+      <tr><td class="num">766,027</td><td>King Safety</td><td class="num">278,677</td><td>Hanging Piece</td><td class="num">81,399</td><td>Bishop Endgame</td></tr>
+      <tr><td class="num">758,947</td><td>Fork</td><td class="num">247,767</td><td>Quiet Move</td><td class="num">78,289</td><td>Clearance</td></tr>
+      <tr><td class="num">447,248</td><td>Sacrifice</td><td class="num">219,843</td><td>Pawn Endgame</td><td class="num">62,068</td><td>Zugzwang</td></tr>
+      <tr><td class="num">362,109</td><td>Rook Endgame</td><td class="num">216,012</td><td>Attraction</td><td class="num">49,229</td><td>Knight Endgame</td></tr>
+      <tr><td class="num">355,611</td><td>Pin</td><td class="num">142,800</td><td>Promotion</td><td class="num">21,100</td><td>X-Ray Attack</td></tr>
+      <tr><td class="num">130,482</td><td>Skewer</td><td class="num">8,375</td><td>En Passant</td><td class="num"></td><td></td></tr>
+    </tbody>
+  </table>
+  <p>
+    The distribution is severely imbalanced — Endgame and Mating Pattern together account for more than
+    half the corpus, while En Passant and X-Ray Attack are three orders of magnitude rarer. This is a real
+    constraint on the recommender: for the rarest categories, the pool may contain too few puzzles in a
+    given rating band to serve a full session, which is exactly what the serving cascade's band-widening
+    fallbacks exist to handle (§7.5).
+  </p>
+
+  <h3>4.4 &nbsp; The motif-priority defect and its correction</h3>
+  <div class="callout warn">
+    <h4>A defect that would have silently corrupted the weakness model</h4>
+    <p>
+      Lichess emits theme tags in alphabetical order. The original enrichment logic resolved a puzzle's
+      primary category by taking the first recognised tag — which meant the alphabetically-early
+      <em>phase</em> tag <code>endgame</code> outranked genuine motif tags. A puzzle tagged
+      <code>crushing endgame fork short</code> was filed as <strong>Endgame</strong> rather than
+      <strong>Fork</strong>.
+    </p>
+    <p>
+      Approximately <strong>198,000 of 305,000</strong> puzzles then carrying the Endgame label — around
+      45% of that category — were misclassified. The consequence is not merely cosmetic: a player served
+      these puzzles would have solve/fail evidence attributed to the wrong bandit arm, systematically
+      corrupting the weakness posterior that the entire system exists to estimate.
+    </p>
+  </div>
+  <p>
+    The correction introduces an explicit specificity ordering, <code>MOTIF_PRIORITY</code>, resolving ties
+    in favour of the most informative label: forced mate ranks above a concrete tactical motif, which ranks
+    above a generic attacking theme, which ranks above a specific endgame type, which ranks above bare
+    "endgame", with "General" as terminal fallback. Because Parquet files built before the fix would
+    otherwise retain bad labels, the resolver is re-run over the pool in memory at application load time,
+    so a stale artefact is corrected rather than trusted.
+  </p>
+
+  <h3>4.5 &nbsp; Chess.com ingestion</h3>
+  <p>
+    Player data comes from the Chess.com Published-Data API<a href="#r15" class="cite">[15]</a>, which is
+    fully public and requires no authentication. The client fetches the player profile and walks monthly
+    game archives newest-first, stopping once the requested game count is reached, with a 0.5-second
+    inter-request delay in line with the platform's rate-limit guidance. Every response is cached to disk,
+    so repeated analyses of the same player never re-hit the network — which matters both for courtesy to
+    the upstream service and for the reproducibility of any evaluation run.
+  </p>
+</section>
+
+<!-- ══════════════════ 5. PIPELINE 1 ══════════════════ -->
+<section class="page-break">
+  <h2>5 &nbsp; Pipeline 1 — Player Weakness Profiling</h2>
+
+  <p class="lead">
+    Input: a Chess.com username. Output: a map from each of 23 categories to a weakness score in [0, 1],
+    where 0 is strong and 1 is weak — which is then converted into Beta priors for the bandit.
+  </p>
+
+  <h3>5.1 &nbsp; PGN parsing and phase classification</h3>
+  <p>
+    Parsing extracts player colour, result, ratings, and opening identity (ECO code plus a family name
+    resolved through a lookup table). Game phase is classified purely by piece count: 28 or more pieces is
+    opening, 14 to 27 is middlegame, fewer than 14 is endgame. The important property is that this single
+    function is shared by both the analyser and the puzzle miner, so "phase" denotes exactly the same thing
+    everywhere in the system — a small consistency guarantee that avoids a class of subtle attribution bugs.
+  </p>
+
+  <h3>5.2 &nbsp; Per-move Stockfish analysis</h3>
+  <p>
+    For every move the player made — skipping the first eight half-moves as opening theory rather than
+    tactical decision-making — the analyser evaluates the position before the move, records the engine's
+    preferred continuation, plays the move actually chosen, evaluates again, and takes the difference as
+    <em>centipawn loss</em>:
+  </p>
+  <div class="eq">
+    cp_loss = score<sub>before</sub> − score<sub>after</sub>
+  </div>
+  <p>Errors are then graded against fixed thresholds and recorded with their phase and, critically, their
+  tactical category — the missed best move is classified through the <em>same</em> routine the puzzle miner
+  uses, so "which motif did I fail to see" is answered identically whether the position came from game
+  analysis or from a mined puzzle.</p>
+
+  <table class="tight">
+    <thead><tr><th style="width:26%">Constant</th><th class="num" style="width:18%">Value</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><code>ANALYSIS_TIME</code></td><td class="num">0.05 s</td><td>Engine time per position (≈ depth 10–12)</td></tr>
+      <tr><td><code>INACCURACY_CP</code></td><td class="num">50 cp</td><td>Threshold for recording a <code>MoveError</code></td></tr>
+      <tr><td><code>MISTAKE_CP</code></td><td class="num">100 cp</td><td>Severity boundary: mistake</td></tr>
+      <tr><td><code>BLUNDER_CP</code></td><td class="num">200 cp</td><td>Severity boundary: blunder</td></tr>
+      <tr><td><code>SKIP_PLIES</code></td><td class="num">8</td><td>Opening half-moves excluded from analysis</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Analysis is parallelised across worker threads with one Stockfish subprocess per thread — no shared
+    engine state, therefore no locking. Fifty games complete in roughly three to five minutes at two workers.
+  </p>
+
+  <h3>5.3 &nbsp; The rule-based weakness scorer</h3>
+  <p>
+    The default scorer aggregates per-move errors into a profile and derives weakness scores through
+    hand-tuned rules. All 23 categories begin at a neutral 0.5 and are adjusted upward by additive boosts,
+    clamped at 0.90–0.92 depending on the rule that fired.
+  </p>
+  <table class="tight">
+    <thead><tr><th style="width:30%">Signal</th><th style="width:28%">Rule</th><th>Categories affected</th></tr></thead>
+    <tbody>
+      <tr><td>Middlegame error rate &gt; 0.5</td><td><code>+min(0.25, rate×0.3)</code></td><td>Fork, Pin, Skewer, Discovered Attack, Sacrifice, Deflection, Hanging Piece, King Safety</td></tr>
+      <tr><td>Endgame error rate &gt; 0.25</td><td><code>+min(0.30, rate×0.4)</code></td><td>Endgame and all five specific endgame types</td></tr>
+      <tr><td>Blunders per game ≥ 2</td><td><code>+0.25</code></td><td>Hanging Piece, Fork, Pin</td></tr>
+      <tr><td>Blunders per game ≥ 1</td><td><code>+0.15</code></td><td>Hanging Piece, Fork</td></tr>
+      <tr><td>Accuracy estimate &lt; 70</td><td><code>+0.10</code></td><td>Fork, Pin, Skewer, Discovered Attack</td></tr>
+    </tbody>
+  </table>
+  <p>
+    This is deliberately coarse and deliberately conservative. It has no notion of a ground-truth label
+    against which an accuracy could ever be reported, which is precisely the methodological objection that
+    motivated building a trained alternative.
+  </p>
+
+  <h3>5.4 &nbsp; The trained RandomForest classifier</h3>
+  <p>
+    The learned alternative is a <code>RandomForestRegressor</code><a href="#r8" class="cite">[8]</a><a href="#r9" class="cite">[9]</a>
+    predicting all 23 category weaknesses simultaneously from a 30-dimensional feature vector: seven coarse
+    summary statistics (middlegame and endgame error rates, blunders, mistakes and inaccuracies per game,
+    accuracy estimate, log games analysed) plus 23 per-category observed error rates. It is implemented as a
+    strict drop-in — same signature, same return type, overriding only the weakness scores, with every other
+    profile field unit-tested to be identical.
+  </p>
+  <div class="callout">
+    <h4>Why the training data is simulated, and why that is disclosed rather than obscured</h4>
+    <p>
+      Only four real players currently have mined-puzzle history, at 9–33 puzzles each. A held-out-player
+      split at <em>n</em> = 4 cannot yield a meaningful accuracy, error bar or confidence interval. This was
+      verified before any model code was written. Training therefore uses synthetic players generated with a
+      known latent weakness vector, whose observed features are drawn through a Dirichlet-multinomial
+      process — concentration boosted for genuinely weak categories, but sparse and noisy for players with
+      few recorded errors, mirroring the real data's sparsity.
+    </p>
+    <p>
+      The consequence is stated plainly: the cross-validation results in §9.4 validate the
+      <em>methodology</em> — the feature design, the held-out-player protocol, the simulation linking coarse
+      and per-category signal. They are not a claim about accuracy on real players.
+    </p>
+  </div>
+
+  <h3>5.5 &nbsp; The engine-free fallback and path selection</h3>
+  <p>
+    A third path exists for when Stockfish cannot be located or the engine call fails. It inspects only
+    win/loss and game-length patterns from PGN headers, with no board analysis at all, and assigns a single
+    shared score to every tactical category and another to every endgame category:
+  </p>
+  <pre><code>tactical_w = clamp(0.75 − win_rate×0.50 + short_loss_rate×0.20, 0.30, 0.85)
+endgame_w  = clamp(0.60 − win_rate×0.30 + long_loss_rate×0.30,  0.25, 0.80)</code></pre>
+  <p>
+    There is no per-category differentiation whatsoever in this path — it is a last resort, and §11.1
+    documents a defect that caused it to run almost universally in practice for a period.
+  </p>
+  <table class="tight">
+    <thead><tr><th style="width:26%">Path</th><th style="width:30%">Nature</th><th>Status in the live application</th></tr></thead>
+    <tbody>
+      <tr><td><code>build_profile()</code></td><td>Rule-based, per-category, engine-driven</td><td><span class="pill live">Default</span> on every successful analysis</td></tr>
+      <tr><td><code>build_profile_ml()</code></td><td>Trained RandomForest, per-category</td><td><span class="pill ext">Opt-in</span> via <code>WEAKNESS_MODEL=ml</code>; falls back on any error</td></tr>
+      <tr><td><code>_heuristic_profile()</code></td><td>Win/loss heuristic, two buckets, no engine</td><td><span class="pill off">Last resort</span> only if the engine is unavailable</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The status endpoint reports which of the three actually produced a given profile, so the provenance of
+    any weakness map is inspectable per run rather than inferred.
+  </p>
+</section>
+
+<!-- ══════════════════ 6. PIPELINE 2 ══════════════════ -->
+<section class="page-break">
+  <h2>6 &nbsp; Pipeline 2 — Puzzle Mining from Real Games</h2>
+
+  <h3>6.1 &nbsp; Rationale: verified extraction, not generation</h3>
+  <p>
+    An earlier iteration attempted heuristic puzzle detection using pure board pattern-matching with no
+    engine — fast, but producing roughly <strong>40% false positives</strong>: positions whose nominal
+    "solution" was not in fact the best move. That mode was removed entirely rather than tuned.
+  </p>
+  <p>
+    The current pipeline extracts puzzles exclusively from positions where the player themselves went
+    wrong, and subjects every candidate to four independent engine gates. This is a deliberate scope
+    decision worth stating precisely, because it differs from a generative framing: the system performs
+    <em>engine-verified extraction from the player's own history</em>. "Novel" here means new to this
+    player, not synthesised by a learned generative model. Stating this explicitly is preferable to
+    leaving a generative claim implied and unmet.
+  </p>
+
+  <h3>6.2 &nbsp; The four verification gates</h3>
+  <figure>
+    <svg viewBox="0 0 720 150" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+      <defs>
+        <marker id="a2" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#25674c"/>
+        </marker>
+        <marker id="a3" markerWidth="7" markerHeight="7" refX="6" refY="2.6" orient="auto">
+          <path d="M0,0 L6,2.6 L0,5.2 Z" fill="#96461a"/>
+        </marker>
+      </defs>
+      <rect x="4" y="40" width="86" height="46" rx="4" fill="#eef0f8" stroke="#ccd3e6"/>
+      <text x="47" y="60" text-anchor="middle" font-size="8.4" fill="#1a2340">Player move</text>
+      <text x="47" y="72" text-anchor="middle" font-size="7.4" fill="#4a5578">every ply</text>
+
+      <g>
+        <rect x="110" y="34" width="128" height="58" rx="4" fill="#fff" stroke="#151d38" stroke-width="1.2"/>
+        <text x="174" y="50" text-anchor="middle" font-size="8.6" font-weight="700" fill="#151d38">GATE 1 · Detection</text>
+        <text x="174" y="64" text-anchor="middle" font-size="7.6" fill="#4a5578">eval drop ≥ 150 cp</text>
+        <text x="174" y="78" text-anchor="middle" font-size="7" fill="#96461a">rejects: non-errors</text>
+      </g>
+      <g>
+        <rect x="258" y="34" width="128" height="58" rx="4" fill="#fff" stroke="#151d38" stroke-width="1.2"/>
+        <text x="322" y="50" text-anchor="middle" font-size="8.6" font-weight="700" fill="#151d38">GATE 2 · Clarity</text>
+        <text x="322" y="64" text-anchor="middle" font-size="7.6" fill="#4a5578">PV1 − PV2 ≥ 100 cp</text>
+        <text x="322" y="78" text-anchor="middle" font-size="7" fill="#96461a">rejects: dual solutions</text>
+      </g>
+      <g>
+        <rect x="406" y="34" width="128" height="58" rx="4" fill="#fff" stroke="#151d38" stroke-width="1.2"/>
+        <text x="470" y="50" text-anchor="middle" font-size="8.6" font-weight="700" fill="#151d38">GATE 3 · Forcing</text>
+        <text x="470" y="64" text-anchor="middle" font-size="7.6" fill="#4a5578">opp. reply gap ≥ 80 cp</text>
+        <text x="470" y="78" text-anchor="middle" font-size="7" fill="#96461a">rejects: branching lines</text>
+      </g>
+      <g>
+        <rect x="554" y="34" width="128" height="58" rx="4" fill="#e8f3ee" stroke="#25674c" stroke-width="1.2"/>
+        <text x="618" y="50" text-anchor="middle" font-size="8.6" font-weight="700" fill="#25674c">GATE 4 · Verify</text>
+        <text x="618" y="64" text-anchor="middle" font-size="7.6" fill="#25674c">re-analyse at depth 18</text>
+        <text x="618" y="78" text-anchor="middle" font-size="7" fill="#96461a">rejects: shallow errors</text>
+      </g>
+
+      <path d="M90,63 L110,63" stroke="#25674c" stroke-width="1.4" marker-end="url(#a2)"/>
+      <path d="M238,63 L258,63" stroke="#25674c" stroke-width="1.4" marker-end="url(#a2)"/>
+      <path d="M386,63 L406,63" stroke="#25674c" stroke-width="1.4" marker-end="url(#a2)"/>
+      <path d="M534,63 L554,63" stroke="#25674c" stroke-width="1.4" marker-end="url(#a2)"/>
+
+      <path d="M174,92 L174,112" stroke="#96461a" stroke-width="1.1" marker-end="url(#a3)" stroke-dasharray="3 2"/>
+      <path d="M322,92 L322,112" stroke="#96461a" stroke-width="1.1" marker-end="url(#a3)" stroke-dasharray="3 2"/>
+      <path d="M470,92 L470,112" stroke="#96461a" stroke-width="1.1" marker-end="url(#a3)" stroke-dasharray="3 2"/>
+      <path d="M618,92 L618,112" stroke="#96461a" stroke-width="1.1" marker-end="url(#a3)" stroke-dasharray="3 2"/>
+      <text x="396" y="128" text-anchor="middle" font-size="7.6" fill="#96461a">discarded — no puzzle emitted</text>
+
+      <path d="M618,20 L618,34" stroke="#25674c" stroke-width="0" />
+      <text x="618" y="24" text-anchor="middle" font-size="7.6" fill="#25674c" font-weight="600">→ accepted, classified, rated</text>
+    </svg>
+    <figcaption><b>Figure 2.</b> The four-gate mining pipeline. Each gate is an independent engine query;
+    a candidate must survive all four to be emitted as a puzzle.</figcaption>
+  </figure>
+
+  <table class="tight">
+    <thead><tr><th style="width:28%">Constant</th><th class="num" style="width:14%">Value</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><code>PUZZLE_THRESHOLD</code></td><td class="num">150 cp</td><td>Gate 1 — minimum eval drop to qualify as a puzzle-worthy error</td></tr>
+      <tr><td><code>MIN_CLARITY_CP</code></td><td class="num">100 cp</td><td>Gate 2 — PV1 must beat PV2 by this margin (uniqueness)</td></tr>
+      <tr><td><code>FORCED_OPP_MARGIN</code></td><td class="num">80 cp</td><td>Gate 3 — opponent's reply must be this much better than its alternative</td></tr>
+      <tr><td><code>VERIFY_DEPTH</code></td><td class="num">18 ply</td><td>Gate 4 — depth of the confirmatory re-analysis</td></tr>
+      <tr><td><code>DETECT_TIME</code></td><td class="num">0.10 s</td><td>Engine time per position during the detection sweep</td></tr>
+      <tr><td><code>SOLUTION_DEPTH</code></td><td class="num">16 ply</td><td>Depth used while constructing the continuation</td></tr>
+      <tr><td><code>CONTINUATION_MOVES</code></td><td class="num">6</td><td>Maximum half-moves appended after the player's first move</td></tr>
+      <tr><td><code>MIN_PLAYER_MOVES</code></td><td class="num">1</td><td>Minimum player moves the puzzle must require</td></tr>
+      <tr><td><code>MAX_PER_GAME</code></td><td class="num">5</td><td>Hard cap on puzzles extracted from a single game</td></tr>
+      <tr><td><code>SKIP_PLIES</code></td><td class="num">8</td><td>Opening half-moves ignored</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Gate 4 deserves particular note. Gates 1–3 operate at a fast detection time; a shallow search can be
+    wrong. Re-analysing surviving candidates at depth 18 catches cases where the engine changes its
+    assessment given more time — the single most important defence against emitting a puzzle whose
+    "solution" is not actually best.
+  </p>
+
+  <h3>6.3 &nbsp; Tactic classification and rating estimation</h3>
+  <p>
+    Accepted puzzles are labelled by a hand-written symbolic classifier that inspects the resulting position
+    through <code>python-chess</code><a href="#r13" class="cite">[13]</a>. It tests, in priority order, for
+    mate, promotion, fork (two or more opponent pieces attacked, at least one heavy or loose), hanging piece,
+    deflection, pin and skewer (a sliding piece attacking through an opponent piece toward the king),
+    discovered attack, king safety, sacrifice (capturing with a piece worth at least 100 cp more than its
+    target), X-ray, endgame types where twelve or fewer pieces remain, and quiet move (neither capture nor
+    check). "General" is the terminal fallback.
+  </p>
+  <p>
+    The <em>Quiet Move</em> class was added specifically because approximately a third of generated puzzles
+    were previously falling into the unlabelled "General" bucket — a category with no pedagogical meaning
+    and no corresponding bandit arm signal.
+  </p>
+  <p>Difficulty is estimated by a closed-form heuristic combining the severity of the error with the length
+  of the solution:</p>
+  <div class="eq">
+    rating = clamp( 800 + min(Δeval − 150, 700) × 0.6 + (len − 2) × 150 , &nbsp;700 , &nbsp;2400 )
+  </div>
+  <p>
+    This is uncalibrated by construction — it is computed once at mining time and never updated by how
+    players actually perform against the puzzle. That limitation is precisely what §8 addresses.
+  </p>
+</section>
+
+<!-- ══════════════════ 7. PIPELINE 3 ══════════════════ -->
+<section class="page-break">
+  <h2>7 &nbsp; Pipeline 3 — Adaptive Recommendation</h2>
+
+  <p class="lead">
+    This is the adaptive core of the system and its most defensible claim to being genuinely AI-driven:
+    an online Bayesian decision process that updates from every single observation.
+  </p>
+
+  <h3>7.1 &nbsp; Formalisation as a Bernoulli bandit</h3>
+  <p>
+    Each of the 23 categories is modelled as an independent Bernoulli process. Each time the player attempts
+    a puzzle in category <em>i</em>, the outcome is a solve (1) or a fail (0), governed by an unknown true
+    proficiency <em>p<sub>i</sub></em> = P(solve | category <em>i</em>). The system must estimate all 23
+    proficiencies online, while simultaneously using its current estimates to decide what to serve next.
+    There is no training phase; every observation is both evidence and a pedagogical act.
+  </p>
+
+  <h3>7.2 &nbsp; Beta–Bernoulli conjugacy</h3>
+  <p>
+    The Beta distribution is the conjugate prior for a Bernoulli likelihood. If the belief about
+    <em>p<sub>i</sub></em> is Beta(α, β), and <em>s</em> further successes and <em>f</em> further failures
+    are observed, then the posterior is exactly:
+  </p>
+  <div class="eq">
+    p<sub>i</sub> | data &nbsp;~&nbsp; Beta(α + s, &nbsp;β + f)
+  </div>
+  <p>
+    No numerical integration, no approximation, no gradient step — two integer additions. This is what makes
+    the update loop trivially cheap and exactly correct, and it is the entire content of the update routine:
+  </p>
+  <pre><code>if solved: arm.alpha += 1
+else:      arm.beta  += 1</code></pre>
+
+  <table class="tight">
+    <thead><tr><th style="width:24%">Quantity</th><th style="width:26%">Expression</th><th>Interpretation</th></tr></thead>
+    <tbody>
+      <tr><td>Effective successes</td><td><code>α − 1</code></td><td>Real solves plus whatever the prior contributed</td></tr>
+      <tr><td>Effective failures</td><td><code>β − 1</code></td><td>Real failures plus prior contribution</td></tr>
+      <tr><td>Total evidence</td><td><code>α + β</code></td><td>Larger ⇒ narrower, more confident posterior</td></tr>
+      <tr><td>Posterior mean</td><td>α / (α + β)</td><td>Best point estimate of the true solve rate</td></tr>
+      <tr><td>Posterior variance</td><td>αβ / [(α+β)²(α+β+1)]</td><td>Residual uncertainty; shrinks as evidence grows</td></tr>
+      <tr><td>Uninformative prior</td><td>Beta(1, 1)</td><td>Uniform on [0,1] — the default <code>ArmState</code></td></tr>
+    </tbody>
+  </table>
+
+  <h3>7.3 &nbsp; The selection rule and its deliberate inversion</h3>
+  <p>
+    Selection draws one independent sample from every arm's posterior and picks a single winner:
+  </p>
+  <div class="eq">
+    θ<sub>i</sub> ~ Beta(α<sub>i</sub>, β<sub>i</sub>) &nbsp;for all i, &nbsp;&nbsp;
+    select &nbsp;<b>arg min</b><sub>&thinsp;i</sub>&thinsp; θ<sub>i</sub>
+  </div>
+  <div class="callout key">
+    <h4>Why arg min rather than the standard arg max</h4>
+    <p>
+      Canonical Thompson Sampling maximises reward: it selects the arm with the <em>highest</em> sampled
+      value. This system inverts that, because θ estimates <em>proficiency</em>, and the pedagogical
+      objective is to spend scarce practice time where the player is weakest. Selecting the arg max would
+      produce a system that serves progressively more puzzles in the categories the player has already
+      mastered — a precise inversion of the intended behaviour. This is the one place the implementation
+      deliberately departs from the textbook formulation<a href="#r2" class="cite">[2]</a>, and it is worth
+      stating explicitly because it looks like an error until the objective is made clear.
+    </p>
+  </div>
+  <p>
+    Sampling rather than ranking by posterior mean is what makes exploration automatic. An arm the player
+    has barely attempted — say Beta(1,1), mean 0.5 but maximal variance — can be sampled at 0.15 purely by
+    chance and win selection, even though its mean looks unremarkable, precisely because the system does not
+    yet know that mean is trustworthy. As attempts accumulate, α + β grows, the posterior narrows, sampled
+    values concentrate around the true mean, and exploration fades into exploitation with no schedule and no
+    tunable ε<a href="#r1" class="cite">[1]</a><a href="#r20" class="cite">[20]</a>.
+  </p>
+
+  <h4>Worked example</h4>
+  <p>
+    Suppose "Fork" has been attempted 8 times and solved 3, from the default Beta(1,1). Then α = 4, β = 6,
+    with posterior mean 0.4. On any given selection round the sample might return 0.28 — making Fork look
+    weaker than its mean and likely to be chosen — or 0.55, making it look adequate so that a genuinely
+    weaker arm wins instead. Both are legitimate draws from Beta(4,6). The randomness is not noise to be
+    engineered away; it is the mechanism that keeps every arm in contention in proportion to how much
+    remains unknown about it.
+  </p>
+
+  <h3>7.4 &nbsp; Prior seeding from the weakness profile</h3>
+  <p>
+    The weakness scores from Pipeline 1 are converted into Beta priors under a fixed pseudo-observation
+    budget of α + β = 10:
+  </p>
+  <div class="eq">
+    α = round((1 − w) × 10), &nbsp;&nbsp; β = 10 − α
+  </div>
+  <p>
+    A weakness score of 0.8 becomes Beta(2, 8) — the bandit begins already believing this category is weak,
+    but with only the confidence of ten imaginary attempts, so five or six real outcomes can already
+    outweigh it. This is a deliberate calibration. The prior should orient the bandit without allowing a
+    possibly-mistaken upstream profiler to dominate genuine evidence for long, which matters especially
+    given that the profiler itself may have run in its degraded fallback mode (§5.5).
+  </p>
+
+  <h3>7.5 &nbsp; The serving cascade</h3>
+  <p>
+    Selecting a category is not the same as having a suitable puzzle available in it. Serving therefore
+    proceeds through an ordered cascade, preferring personally-relevant material and degrading gracefully:
+  </p>
+  <table class="tight">
+    <thead><tr><th class="num" style="width:8%">Level</th><th style="width:44%">Source</th><th>Condition</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>User-mined puzzles, target category</td><td>In rating band, previously unseen</td></tr>
+      <tr><td class="num">2</td><td>Any unseen mined puzzle</td><td>40% of the time when no in-category mined puzzle exists; session target relabelled</td></tr>
+      <tr><td class="num">3</td><td>Lichess pool, target category</td><td>Requested rating window</td></tr>
+      <tr><td class="num">4</td><td>Lichess pool, target category</td><td>Rating window widened by ±200</td></tr>
+      <tr><td class="num">5</td><td>Lichess pool, any category</td><td>Requested window; target relabelled to actual</td></tr>
+      <tr><td class="num">6</td><td>Lichess pool, any category</td><td>Full rating range</td></tr>
+      <tr><td class="num">7</td><td>Repeat an already-seen puzzle</td><td>Response flagged <code>poolExhausted: true</code> rather than silently repeating</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The rating window narrows to the player's known Elo ± 300 when available, implementing the
+    zone-of-proximal-development constraint<a href="#r18" class="cite">[18]</a> operationally. Every result
+    updates the bandit, appends a timestamped history record, and persists — and that history file is
+    precisely the input the Glicko-2 fitter consumes.
+  </p>
+
+  <figure>
+    <svg viewBox="0 0 620 190" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial, sans-serif">
+      <defs>
+        <marker id="a4" markerWidth="8" markerHeight="8" refX="7" refY="3" orient="auto">
+          <path d="M0,0 L7,3 L0,6 Z" fill="#151d38"/>
+        </marker>
+      </defs>
+      <rect x="14" y="66" width="132" height="56" rx="5" fill="#151d38"/>
+      <text x="80" y="86" text-anchor="middle" font-size="9" font-weight="700" fill="#c99a3c">SAMPLE</text>
+      <text x="80" y="100" text-anchor="middle" font-size="7.6" fill="#fff">θᵢ ~ Beta(αᵢ, βᵢ)</text>
+      <text x="80" y="112" text-anchor="middle" font-size="7.6" fill="#c3c9e6">for all 23 arms</text>
+
+      <rect x="184" y="66" width="132" height="56" rx="5" fill="#fff" stroke="#151d38" stroke-width="1.2"/>
+      <text x="250" y="86" text-anchor="middle" font-size="9" font-weight="700" fill="#151d38">SELECT</text>
+      <text x="250" y="100" text-anchor="middle" font-size="7.6" fill="#4a5578">arg min θᵢ</text>
+      <text x="250" y="112" text-anchor="middle" font-size="7.4" fill="#a8801f">= likeliest weakness</text>
+
+      <rect x="354" y="66" width="132" height="56" rx="5" fill="#f5f6fb" stroke="#d8ddea"/>
+      <text x="420" y="86" text-anchor="middle" font-size="9" font-weight="700" fill="#151d38">SERVE</text>
+      <text x="420" y="100" text-anchor="middle" font-size="7.6" fill="#4a5578">cascade levels 1–7</text>
+      <text x="420" y="112" text-anchor="middle" font-size="7.4" fill="#4a5578">rating band ± 300</text>
+
+      <rect x="512" y="52" width="94" height="38" rx="5" fill="#e8f3ee" stroke="#bcdccd"/>
+      <text x="559" y="68" text-anchor="middle" font-size="8" font-weight="700" fill="#25674c">SOLVED</text>
+      <text x="559" y="81" text-anchor="middle" font-size="7.6" fill="#25674c">α += 1</text>
+
+      <rect x="512" y="100" width="94" height="38" rx="5" fill="#fdf0e6" stroke="#eccdb6"/>
+      <text x="559" y="116" text-anchor="middle" font-size="8" font-weight="700" fill="#96461a">FAILED</text>
+      <text x="559" y="129" text-anchor="middle" font-size="7.6" fill="#96461a">β += 1</text>
+
+      <path d="M146,94 L184,94" stroke="#151d38" stroke-width="1.3" marker-end="url(#a4)"/>
+      <path d="M316,94 L354,94" stroke="#151d38" stroke-width="1.3" marker-end="url(#a4)"/>
+      <path d="M486,86 L512,74" stroke="#25674c" stroke-width="1.3" marker-end="url(#a4)"/>
+      <path d="M486,102 L512,114" stroke="#96461a" stroke-width="1.3" marker-end="url(#a4)"/>
+      <path d="M559,138 L559,162 L80,162 L80,122" stroke="#a8801f" stroke-width="1.5" fill="none" marker-end="url(#a4)"/>
+      <path d="M606,71 L616,71 L616,38 L80,38 L80,66" stroke="#a8801f" stroke-width="1.5" fill="none" marker-end="url(#a4)"/>
+      <text x="320" y="176" text-anchor="middle" font-size="7.6" fill="#a8801f" font-weight="600">posterior update — persisted to data/sessions/&lt;user&gt;.json after every attempt</text>
+    </svg>
+    <figcaption><b>Figure 3.</b> The online recommendation loop. The posterior is updated and persisted
+    after every single attempt; there is no batch training step.</figcaption>
+  </figure>
+</section>
+
+<!-- ══════════════════ 8. GLICKO-2 ══════════════════ -->
+<section class="page-break">
+  <h2>8 &nbsp; Difficulty Modelling with Glicko-2</h2>
+
+  <h3>8.1 &nbsp; Why a three-parameter rating system</h3>
+  <p>
+    Puzzle difficulty in the serving path currently comes from two sources, both static: the Lichess-supplied
+    rating for pool puzzles, and the closed-form heuristic of §6.3 for mined puzzles. Neither updates from
+    how players in <em>this</em> system actually perform. A mined puzzle rated 1400 by formula may in
+    practice be solved by every player who sees it, and nothing corrects that.
+  </p>
+  <p>
+    Glicko-2<a href="#r5" class="cite">[5]</a><a href="#r6" class="cite">[6]</a> tracks three quantities per
+    entity rather than one:
+  </p>
+  <table class="tight">
+    <thead><tr><th style="width:14%">Symbol</th><th style="width:22%">Name</th><th>Meaning in this application</th></tr></thead>
+    <tbody>
+      <tr><td><code>r</code></td><td>Rating</td><td>Elo-like scale; for a puzzle, higher means harder</td></tr>
+      <tr><td><code>RD</code></td><td>Rating deviation</td><td>Uncertainty; <code>r ± 2·RD</code> is approximately a 95% interval</td></tr>
+      <tr><td><code>σ</code></td><td>Volatility</td><td>How erratically true difficulty appears to move over time</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The practical value is that a freshly mined puzzle starts with high RD and is therefore permitted to move
+    quickly under the first few real outcomes, while an established rating resists revision — the exact
+    behaviour a bare Elo number cannot express.
+  </p>
+
+  <h3>8.2 &nbsp; The update algorithm in full</h3>
+  <p>
+    All computation occurs on an internal scale obtained by centring and dividing by the Glicko-2 constant
+    173.7178, which keeps the logistic arithmetic numerically well-behaved:
+  </p>
+  <div class="eq">
+    μ = (r − 1500) / 173.7178, &nbsp;&nbsp;&nbsp; φ = RD / 173.7178
+  </div>
+  <p>A single rating period, containing one or more results, proceeds through seven steps:</p>
+  <table class="tight">
+    <thead><tr><th class="num" style="width:7%">Step</th><th style="width:26%">Quantity</th><th>Purpose</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td><em>g</em>(φ<sub>j</sub>) = 1 / √(1 + 3φ<sub>j</sub>²/π²)</td><td>Discount each opponent's contribution by that opponent's own uncertainty — a result against a poorly-known opponent is weaker evidence</td></tr>
+      <tr><td class="num">2</td><td><em>E</em>(μ, μ<sub>j</sub>, φ<sub>j</sub>)</td><td>Expected outcome — a logistic function of the discounted rating gap; Glicko-2's analogue of the Elo expected score</td></tr>
+      <tr><td class="num">3</td><td><em>v</em></td><td>Estimated variance of the rating change: how much information this batch of results actually carries</td></tr>
+      <tr><td class="num">4</td><td>Δ</td><td>Naive implied rating change — actual outcomes versus expected, scaled by <em>v</em></td></tr>
+      <tr><td class="num">5</td><td>σ′</td><td>New volatility, solved numerically by the <strong>Illinois</strong> root-finding algorithm; the only step with no closed form</td></tr>
+      <tr><td class="num">6</td><td>φ′, μ′</td><td>Uncertainty shrinks in proportion to new evidence; the rating shifts toward observed results, weighted by updated uncertainty</td></tr>
+      <tr><td class="num">7</td><td>(r′, RD′)</td><td>Convert back to the public scale</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Step 5 is the implementation's principal hazard. The volatility update has no analytic solution and
+    requires iterative root-finding on an objective balancing how surprising Δ was against how volatile the
+    entity has historically been. It is the step most from-scratch implementations get subtly wrong — the
+    code carries an explicit comment distinguishing the fixed constant from the iterating bracket bounds,
+    which are easy to conflate.
+  </p>
+  <table class="tight">
+    <thead><tr><th style="width:38%">Constant</th><th class="num" style="width:18%">Value</th><th>Role</th></tr></thead>
+    <tbody>
+      <tr><td><code>GLICKO2_SCALE</code></td><td class="num">173.7178</td><td>Public ↔ internal scale conversion</td></tr>
+      <tr><td><code>DEFAULT_TAU</code></td><td class="num">0.5</td><td>System constant constraining volatility change (0.3–1.2 typical)</td></tr>
+      <tr><td><code>DEFAULT_PLAYER_RATING</code></td><td class="num">1500.0</td><td>Seed rating for an unseen entity</td></tr>
+      <tr><td><code>DEFAULT_PLAYER_RD</code></td><td class="num">350.0</td><td>Full uncertainty for a genuinely new entity</td></tr>
+      <tr><td><code>DEFAULT_VOLATILITY</code></td><td class="num">0.06</td><td>Glickman's own recommended default</td></tr>
+    </tbody>
+  </table>
+
+  <h3>8.3 &nbsp; Adaptation to puzzle rating</h3>
+  <p>
+    The adaptation treats each recorded attempt as a rating period containing exactly one game, in which the
+    <em>puzzle is the opponent</em>. A solve is a win for the player and a loss for the puzzle, which eases
+    its fitted difficulty downward; a failure is a win for the puzzle, raising it. Replaying the full
+    chronological event log through this update yields a self-consistent, evidence-driven calibration of
+    both player ability and puzzle difficulty on the same scale.
+  </p>
+  <p>
+    This is structurally the same idea Lichess itself uses to rate its puzzles from aggregate solver
+    performance<a href="#r14" class="cite">[14]</a>. The difference is the size of the evidence pool, and
+    that difference is currently decisive — see §8.5.
+  </p>
+
+  <h3>8.4 &nbsp; Validation against the published reference</h3>
+  <div class="callout good">
+    <h4>Reproduction of Glickman's canonical worked example</h4>
+    <p>
+      A player at rating 1500, RD 200, volatility 0.06 plays three opponents in one rating period: defeating
+      a 1400/RD30 opponent, then losing to 1550/RD100 and to 1700/RD300. Glickman's published
+      example<a href="#r6" class="cite">[6]</a> gives the post-period result as <strong>rating ≈ 1464.06,
+      RD ≈ 151.52, volatility ≈ 0.05999</strong>. The implementation reproduces these values to the tested
+      tolerance.
+    </p>
+  </div>
+  <p>
+    The result is also interpretable, which is a useful secondary check that the transcription is
+    semantically and not merely numerically correct. The rating falls, since two losses outweigh one win
+    against a weaker opponent. RD contracts sharply from 200 to 151.5, because three real games constitute
+    substantial evidence. Volatility barely moves, from 0.06 to 0.05999, because none of the three outcomes
+    was surprising given the player's prior rating — the system sees no reason to believe this competitor's
+    underlying strength is unusually unstable.
+  </p>
+  <p>
+    Matching an independent third-party published reference is the strongest available evidence that the
+    mathematics is correct, since it is entirely independent of anything else in this codebase.
+  </p>
+
+  <h3>8.5 &nbsp; Current yield and the honest limitation</h3>
+  <div class="grid3">
+    <div class="statbox"><div class="n">105</div><div class="l">Solve events available</div></div>
+    <div class="statbox"><div class="n">3</div><div class="l">Players with history</div></div>
+    <div class="statbox"><div class="n">61</div><div class="l">Puzzles fitted</div></div>
+  </div>
+  <p>
+    With 105 events spread across 3 players, most puzzles receive only one or two rating-period updates.
+    That is nowhere near enough for a fitted rating to have converged to something more reliable than the
+    static heuristic it would replace. The methodology is correct and validated; the data volume that would
+    make it <em>better</em> than the incumbent does not yet exist. This is why the fitter remains an offline
+    CLI producing a standalone artefact rather than a component of the serving path — a status this report
+    states rather than implying deployment.
+  </p>
+</section>
+
+<!-- ══════════════════ 9. EVALUATION ══════════════════ -->
+<section class="page-break">
+  <h2>9 &nbsp; Evaluation</h2>
+
+  <h3>9.1 &nbsp; A two-level evaluation strategy</h3>
+  <p>
+    The system has two independently-failing parts, and conflating them obscures which one is responsible
+    when results disappoint: the <strong>puzzle material</strong> (is the raw content sound?) and the
+    <strong>recommender</strong> (given sound material, does it select well?). Each requires its own ground
+    truth and its own acceptance criteria.
+  </p>
+
+  <h3>9.2 &nbsp; Puzzle quality: the five-dimension evaluator</h3>
+  <p>
+    A composite score is computed per puzzle across five weighted dimensions. This evaluator exists to
+    validate the <em>generator</em>, and is deliberately separate from the gates that admitted the puzzle in
+    the first place — it is a second, independent opinion rather than a restatement of the first.
+  </p>
+  <table class="tight">
+    <thead><tr><th style="width:26%">Dimension</th><th class="num" style="width:12%">Weight</th><th>Criterion</th></tr></thead>
+    <tbody>
+      <tr><td>Engine agreement</td><td class="num">0.30</td><td>Stockfish at depth 18 confirms the intended move is still best</td></tr>
+      <tr><td>Clarity</td><td class="num">0.25</td><td>PV1 − PV2 gap: full credit at ≥ 150 cp, partial at ≥ 80 cp</td></tr>
+      <tr><td>Solution depth</td><td class="num">0.20</td><td>At least 3 ply total</td></tr>
+      <tr><td>Non-triviality</td><td class="num">0.15</td><td>Not an undefended free capture with no follow-up</td></tr>
+      <tr><td>Difficulty fit</td><td class="num">0.10</td><td>|puzzle rating − player Elo| ≤ 300</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The CLI harness runs this over a user's mined puzzles and emits a per-metric pass-rate breakdown, a
+    per-category analysis, best and worst examples, tuning recommendations, and a timestamped JSON report
+    for cross-iteration comparison. Project targets are <code>avg_score ≥ 0.70</code> and
+    <code>engine_agrees ≥ 75%</code>.
+  </p>
+
+  <h3>9.3 &nbsp; Recommender validation methodology</h3>
+  <p>
+    A player's true per-category weakness is never directly observable; only noisy solve/fail outcomes are.
+    A controlled synthetic environment with known ground truth is therefore the only way to verify that the
+    bandit converges to the right answer — this is the standard validation posture for bandit algorithms
+    before deployment on live traffic<a href="#r20" class="cite">[20]</a>.
+  </p>
+  <p>
+    The protocol simulates a player with fixed known solve probabilities (three categories at 0.30, the
+    remainder at 0.80), across 200 independent Monte Carlo runs of 150 attempts each, so that results carry
+    confidence intervals rather than being single-run anecdotes. Baselines are uniform random category
+    selection and fixed round-robin cycling — both realistic non-adaptive alternatives rather than strawmen.
+  </p>
+  <div class="callout key">
+    <h4>Acceptance criteria, fixed in advance of running</h4>
+    <ol style="margin-bottom:0">
+      <li>Weak-category targeting rate ≥ 80% by trial 150, against ~13% expected by chance (3 of 23).</li>
+      <li>Posterior estimation error (MAE against true solve rate) ≤ 0.10 within 100 trials.</li>
+      <li>Statistically significant improvement over random selection — Welch's <em>t</em>-test,
+      <em>p</em> &lt; 0.01 — with a large effect size, Cohen's <em>d</em> &gt; 0.8.</li>
+    </ol>
+  </div>
+  <p>
+    Pre-registering these thresholds matters methodologically: it frames the evaluation as hypothesis-driven
+    rather than as charts selected after the fact. A stated and reasoned failure against a pre-declared
+    criterion is more credible than an unstated pass.
+  </p>
+
+  <h3>9.4 &nbsp; Classifier cross-validation results</h3>
+  <p>
+    Held-out-<em>player</em> five-fold cross-validation over 300 synthetic players (seed 42). Splitting by
+    player rather than by observation is the methodologically essential choice — splitting by move would
+    leak the same player's signal across folds and inflate results.
+  </p>
+  <table>
+    <thead><tr><th class="num" style="width:14%">Fold</th><th class="num" style="width:22%">Model MAE</th><th class="num" style="width:30%">Baseline MAE (training mean)</th><th class="num">True top weakness in predicted top-3</th></tr></thead>
+    <tbody>
+      <tr><td class="num">0</td><td class="num">0.1645</td><td class="num">0.1674</td><td class="num">30%</td></tr>
+      <tr><td class="num">1</td><td class="num">0.1628</td><td class="num">0.1649</td><td class="num">30%</td></tr>
+      <tr><td class="num">2</td><td class="num">0.1638</td><td class="num">0.1674</td><td class="num">27%</td></tr>
+      <tr><td class="num">3</td><td class="num">0.1642</td><td class="num">0.1677</td><td class="num">38%</td></tr>
+      <tr><td class="num">4</td><td class="num">0.1686</td><td class="num">0.1710</td><td class="num">40%</td></tr>
+      <tr style="font-weight:700; background:#f0f2f9"><td class="num">Mean</td><td class="num">0.1648</td><td class="num">0.1677</td><td class="num">33%</td></tr>
+    </tbody>
+  </table>
+  <p>
+    The model beats the naive baseline in every fold, and its top-3 hit rate of 33% is roughly 2.5× the
+    ~13% expected by chance. The most informative features are endgame error rate (0.087), blunders per game
+    (0.062), and the per-category Endgame error rate (0.052).
+  </p>
+  <p>
+    The honest reading is that this is a modest but real and consistent signal, not a dramatic one — and that
+    is an accurate reflection of the task's difficulty. Recovering which one to three of 23 fine-grained
+    motifs are genuinely weak, from 30 summary features, was never going to produce high accuracy. Reporting
+    the margin as small is more useful than presenting it as more than it is.
+  </p>
+
+  <h3>9.5 &nbsp; Test suite and reference validation</h3>
+  <div class="grid2">
+    <div class="statbox"><div class="n">128</div><div class="l">Passing tests across 8 files, fully offline</div></div>
+    <div class="statbox"><div class="n">5 / 5</div><div class="l">CV folds beating baseline</div></div>
+  </div>
+  <p>
+    The suite covers the bandit (prior seeding, update directionality, statistical arm preference under a
+    seeded RNG, state round-tripping through persistence), the generator, the evaluator, the data loader,
+    and the Flask routes. The Glicko-2 module is validated against Glickman's published example (§8.4).
+  </p>
+  <div class="callout warn">
+    <h4>What "128 passing tests" does not establish</h4>
+    <p>
+      The suite is deliberately engine-free so it runs offline and fast. That is a real constraint on what it
+      can catch: a defect that only manifests when a live Stockfish process is attached is invisible to it
+      by construction. Section 11.1 documents exactly such a defect, which passed the entire suite and was
+      caught only by a live smoke test. "The tests pass" and "it works against a real engine" are distinct
+      claims, and this report treats them as such.
+    </p>
+  </div>
+</section>
+
+<!-- ══════════════════ 10. AI-DRIVEN ══════════════════ -->
+<section class="page-break">
+  <h2>10 &nbsp; What Is Genuinely AI-Driven</h2>
+
+  <h3>10.1 &nbsp; Component-by-component breakdown</h3>
+  <p>
+    "Is this AI?" deserves a layered answer rather than a single label, because the system mixes genuine
+    online learning, supervised learning, statistical estimation, third-party search AI, and hand-written
+    symbolic logic. Conflating these would misrepresent the contribution in either direction.
+  </p>
+  <table>
+    <thead><tr><th style="width:28%">Component</th><th style="width:30%">Methodological category</th><th>Learned from data?</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Thompson Sampling bandit</strong></td>
+        <td>Bayesian reinforcement learning; sequential decision-making under uncertainty</td>
+        <td><span class="pill live">Yes — online</span> Posteriors update from every real attempt</td>
+      </tr>
+      <tr>
+        <td><strong>RandomForest weakness classifier</strong></td>
+        <td>Supervised machine learning (ensemble regression)</td>
+        <td><span class="pill live">Yes</span> Trained on simulated cohorts; opt-in, not default</td>
+      </tr>
+      <tr>
+        <td><strong>Glicko-2 difficulty fitter</strong></td>
+        <td>Bayesian statistical rating estimation</td>
+        <td><span class="pill live">Yes</span> Updates from real outcomes; data volume still small</td>
+      </tr>
+      <tr>
+        <td>Stockfish engine</td>
+        <td>Classical search AI — alpha-beta with NNUE evaluation<a href="#r11" class="cite">[11]</a></td>
+        <td><span class="pill ext">Yes, but third-party</span> A dependency, not a contribution of this work</td>
+      </tr>
+      <tr>
+        <td><code>_classify_tactic()</code></td>
+        <td>Symbolic reasoning over board state</td>
+        <td><span class="pill off">No</span> Hand-coded geometric heuristics</td>
+      </tr>
+      <tr>
+        <td>Rule-based weakness scorer</td>
+        <td>Hand-tuned threshold rules</td>
+        <td><span class="pill off">No</span> Hand-tuned conditionals</td>
+      </tr>
+      <tr>
+        <td>Heuristic fallback profiler</td>
+        <td>Coarse win/loss heuristic</td>
+        <td><span class="pill off">No</span> Coarser still — two buckets only</td>
+      </tr>
+      <tr>
+        <td>Pool filtering and enrichment</td>
+        <td>Deterministic data engineering</td>
+        <td><span class="pill off">No</span></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h3>10.2 &nbsp; The defensible claim</h3>
+  <div class="callout key">
+    <h4>Where the AI genuinely is</h4>
+    <p>
+      The strongest and most defensible claim is the <strong>Thompson Sampling bandit</strong>. It is live in
+      the application, it is online — updating from every single puzzle attempt with no batch training step —
+      it maintains full posterior distributions rather than point estimates, and it is a textbook instance of
+      Bayesian exploration/exploitation<a href="#r1" class="cite">[1]</a><a href="#r2" class="cite">[2]</a>
+      applied to a real sequential recommendation problem. The RandomForest classifier is a legitimate second
+      contribution, methodologically sound and validated, gated on data volume rather than on anything
+      unfinished in the model itself.
+    </p>
+  </div>
+  <p>
+    It is equally important to state what this is not. It is not deep reinforcement learning: there is no
+    neural policy network, no PPO or DQN, no learned value function. It is a <em>non-contextual</em> bandit —
+    arms do not condition on features of the current position or session state. Naming the RL family
+    precisely is more defensible than the looser claim, and it forecloses the obvious objection that the
+    architecture does not match a deep-RL description.
+  </p>
+</section>
+
+<!-- ══════════════════ 11. LIMITATIONS ══════════════════ -->
+<section class="page-break">
+  <h2>11 &nbsp; Limitations and Threats to Validity</h2>
+
+  <h3>11.1 &nbsp; Defects found and fixed</h3>
+  <p>
+    These were found by re-reading the live source against its own documentation. They are recorded here
+    because a system report that omits them would misrepresent what was actually running.
+  </p>
+
+  <div class="callout good">
+    <h4>Fixed — engine detection made the primary analysis path unreachable</h4>
+    <p>
+      The analysis entry point located Stockfish with <code>shutil.which("stockfish")</code>, which searches
+      only <code>PATH</code> for a binary of that exact name and never checked the project's own bundled
+      binary. The rest of the codebase used a dedicated resolver that does check it. Consequently the
+      Stockfish-verified rule-based scorer was <strong>never reached in the live application</strong>, and
+      every analysis silently fell through to the two-bucket heuristic fallback. Fixed by calling the same
+      resolver used elsewhere.
+    </p>
+  </div>
+
+  <div class="callout good">
+    <h4>Fixed — a second defect that the first fix exposed</h4>
+    <p>
+      Correcting engine detection meant real Stockfish calls ran against live games for the first time,
+      which immediately surfaced a latent bug: both analysis calls passed <code>multipv=1</code>, which
+      causes <code>python-chess</code> to return a <em>list</em> rather than a single info dictionary. The
+      subsequent subscript then raised a <code>TypeError</code> on every analysed move, failing every game
+      and falling through to the heuristic path again. Fixed by dropping the unnecessary argument.
+    </p>
+    <p>
+      This defect had zero test coverage, because the suite is deliberately engine-free and therefore never
+      invokes a real engine call. It was caught by a live smoke test. This is the concrete evidence behind
+      the caveat in §9.5.
+    </p>
+  </div>
+
+  <div class="callout good">
+    <h4>Fixed — all three scoring paths now genuinely reachable</h4>
+    <p>
+      A <code>WEAKNESS_MODEL</code> environment variable now selects between the rule-based default and the
+      trained classifier, with automatic fallback if the model file is missing or prediction raises. This was
+      implemented as opt-in rather than a default swap deliberately: the classifier is validated only against
+      simulated players, so making it the default before real-player evidence exists would substitute an
+      unproven path for a working one.
+    </p>
+  </div>
+
+  <h3>11.2 &nbsp; Open limitations</h3>
+  <table>
+    <thead><tr><th style="width:26%">Limitation</th><th>Consequence and current position</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Data volume</strong></td>
+        <td>Four real players, 105 solve events. This is the binding constraint on the entire research
+        programme: both the Glicko-2 fitter and the ML classifier are correctly built and validated but
+        cannot be shown to outperform the incumbent rule-based scorer on real users. The gap is data,
+        not methodology.</td></tr>
+      <tr><td><strong>No live baseline comparison</strong></td>
+        <td>Objective 4 requires an adaptive-versus-non-adaptive comparison on real users. The evaluation
+        harness computes everything needed except the baseline arm itself; the simulation protocol (§9.3)
+        is specified but is not a substitute for a live A/B.</td></tr>
+      <tr><td><strong>Simulated training data</strong></td>
+        <td>Classifier validation establishes methodological soundness, not real-world accuracy. Disclosed
+        wherever the results are quoted.</td></tr>
+      <tr><td><strong>Non-contextual bandit</strong></td>
+        <td>Arms do not condition on position features, time of day, session fatigue, or recent history. A
+        contextual bandit would use strictly more information; it would also require substantially more
+        data to fit.</td></tr>
+      <tr><td><strong>Independence assumption</strong></td>
+        <td>The 23 arms are modelled as independent, but tactical skills are plainly correlated — a player
+        weak at pins is likely weak at skewers, which share geometric structure. A hierarchical or
+        correlated prior would pool evidence across related motifs and learn faster from few observations.</td></tr>
+      <tr><td><strong>Two difficulty-tier schemes</strong></td>
+        <td>The Lichess pool uses seven tiers, mined puzzles five, with different boundaries and names. A
+        puzzle rated 1150 is "Easy" from the pool but has no equivalent mined label. Cosmetic, but visible
+        if two puzzles are compared side by side.</td></tr>
+      <tr><td><strong>Stale constant documentation</strong></td>
+        <td>The README and evaluation CLI docstring quote superseded tuning values (e.g. threshold 120 where
+        the code uses 150). Documentation-only, but the kind of discrepancy that undermines confidence in
+        other numbers.</td></tr>
+      <tr><td><strong>JSON file persistence</strong></td>
+        <td>Adequate at current scale; offers no concurrency control, no transactional integrity, and no
+        query capability. It would not survive meaningful multi-user load.</td></tr>
+      <tr><td><strong>Self-selected population</strong></td>
+        <td>Players are Chess.com users who opted in. Any performance claim generalises to that population
+        only, not to chess learners in general.</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════ 12–13. FUTURE + CONCLUSION ══════════════════ -->
+<section class="page-break">
+  <h2>12 &nbsp; Future Work</h2>
+  <p>In priority order, reflecting the fact that the binding constraint is evidence rather than engineering:</p>
+  <ol>
+    <li><strong>Collect real session data at volume.</strong> Everything else is gated on this. Both offline
+    research components become deployable the moment there are enough real solve events for their fitted
+    outputs to beat the static incumbents.</li>
+    <li><strong>Run the live A/B of the trained classifier against the rule-based scorer.</strong> Both paths
+    are now genuinely reachable in the application, so this is a data-collection exercise rather than an
+    engineering one — the comparison will be apples-to-apples now that the engine-detection defect is fixed.</li>
+    <li><strong>Wire Glicko-2 fitted ratings into the serving path,</strong> preferring a fitted rating where
+    its RD is below a confidence threshold and falling back to the static rating otherwise — so difficulty
+    reflects how puzzles behave in <em>this</em> system rather than on Lichess.</li>
+    <li><strong>Execute the pre-registered bandit simulation</strong> (§9.3) and report results against the
+    stated criteria, including the non-adaptive baselines, closing Objective 4's automatic-evaluation arm.</li>
+    <li><strong>Model inter-category correlation.</strong> A hierarchical prior over related motif families
+    would let evidence about pins inform beliefs about skewers, materially improving convergence in short
+    sessions — the regime that actually matters for a practice tool.</li>
+    <li><strong>Reconcile the two difficulty-tier schemes and refresh stale constant documentation</strong>
+    (§11.2) — small, and cheap relative to the credibility cost of leaving them.</li>
+  </ol>
+
+  <h2 style="margin-top:9mm">13 &nbsp; Conclusion</h2>
+  <p>
+    This report has documented a complete, working adaptive chess training system: from public game-history
+    ingestion, through engine-based error analysis and weakness profiling, through engine-verified puzzle
+    mining, to an online Bayesian recommendation loop that updates its beliefs after every attempt and
+    persists them across sessions.
+  </p>
+  <p>
+    The system's central technical claim is narrow and defensible. A Thompson Sampling bandit over 23
+    tactical categories, with priors seeded from Stockfish-derived error statistics and an inverted selection
+    rule that targets weakness rather than reward, is a genuine application of Bayesian sequential
+    decision-making<a href="#r1" class="cite">[1]</a><a href="#r2" class="cite">[2]</a> to a real
+    pedagogical problem. It is live, it is online, and its correctness is unit-tested. Around it sit two
+    further components — a from-scratch Glicko-2 fitter validated against Glickman's published
+    reference<a href="#r6" class="cite">[6]</a>, and a RandomForest weakness classifier validated by
+    held-out-player cross-validation — both methodologically sound and both explicitly gated on real-player
+    data volume rather than presented as deployed.
+  </p>
+  <p>
+    The most significant finding of the review that produced this report was not an algorithmic result but a
+    methodological one: two defects had made the system's primary analysis path unreachable, so the
+    sophisticated scorer being documented was not the one actually running. Recording that, along with the
+    fact that a 128-test offline suite could not have caught it, is more useful to the work than a cleaner
+    narrative would have been. The gap between what a system is designed to do and what it demonstrably does
+    is exactly the gap an academic system report exists to measure.
+  </p>
+</section>
+
+<!-- ══════════════════ REFERENCES ══════════════════ -->
+<section class="page-break">
+  <h2>14 &nbsp; References</h2>
+  <p style="font-size:9.4pt; color:#4a5578; font-style:italic; margin-bottom:5mm;">
+    Each entry notes where in the system it is applied. All bibliographic details were verified against the
+    publisher or primary source of record.
+  </p>
+
+  <div class="refs">
+    <ol>
+      <li id="r1">
+        Thompson, W. R. (1933). On the likelihood that one unknown probability exceeds another in view of
+        the evidence of two samples. <em>Biometrika</em>, 25(3–4), 285–294.
+        <a href="https://doi.org/10.1093/biomet/25.3-4.285">doi:10.1093/biomet/25.3-4.285</a>
+        <span class="where">Applied in: §7 — the originating formulation of the posterior-sampling rule used by the recommendation core.</span>
+      </li>
+      <li id="r2">
+        Russo, D. J., Van Roy, B., Kazerouni, A., Osband, I., &amp; Wen, Z. (2018). A tutorial on Thompson
+        sampling. <em>Foundations and Trends in Machine Learning</em>, 11(1), 1–96.
+        <a href="https://doi.org/10.1561/2200000070">doi:10.1561/2200000070</a>
+        <span class="where">Applied in: §2.2, §7.3 — modern regret analysis and the standard formulation from which this system's arg-min inversion departs.</span>
+      </li>
+      <li id="r3">
+        Auer, P., Cesa-Bianchi, N., &amp; Fischer, P. (2002). Finite-time analysis of the multiarmed bandit
+        problem. <em>Machine Learning</em>, 47(2–3), 235–256.
+        <a href="https://doi.org/10.1023/A:1013689704352">doi:10.1023/A:1013689704352</a>
+        <span class="where">Applied in: §2.2 — the UCB alternative against which Thompson Sampling was selected.</span>
+      </li>
+      <li id="r4">
+        Sutton, R. S., &amp; Barto, A. G. (2018). <em>Reinforcement Learning: An Introduction</em> (2nd ed.).
+        Cambridge, MA: MIT Press. ISBN 978-0-262-03924-6.
+        <span class="where">Applied in: §2.2, §10.2 — standard reference for the bandit formalism and for locating this work within the RL family.</span>
+      </li>
+      <li id="r5">
+        Glickman, M. E. (1999). Parameter estimation in large dynamic paired comparison experiments.
+        <em>Journal of the Royal Statistical Society: Series C (Applied Statistics)</em>, 48(3), 377–394.
+        <a href="https://doi.org/10.1111/1467-9876.00159">doi:10.1111/1467-9876.00159</a>
+        <span class="where">Applied in: §8 — the rating-deviation concept underpinning uncertainty-aware difficulty estimation.</span>
+      </li>
+      <li id="r6">
+        Glickman, M. E. (2012). <em>Example of the Glicko-2 system</em> [Technical note]. Boston University.
+        <a href="http://www.glicko.net/glicko/glicko2.pdf">glicko.net/glicko/glicko2.pdf</a>
+        <span class="where">Applied in: §8.2, §8.4 — the algorithm specification implemented from scratch, and the worked example used as the validation reference.</span>
+      </li>
+      <li id="r7">
+        Elo, A. E. (1978). <em>The Rating of Chessplayers, Past and Present</em>. New York: Arco Publishing.
+        <span class="where">Applied in: §2.1 — the baseline rating formulation whose single-parameter limitation motivates the Glicko-2 work.</span>
+      </li>
+      <li id="r8">
+        Breiman, L. (2001). Random forests. <em>Machine Learning</em>, 45(1), 5–32.
+        <a href="https://doi.org/10.1023/A:1010933404324">doi:10.1023/A:1010933404324</a>
+        <span class="where">Applied in: §5.4 — the ensemble method used by the trained weakness classifier.</span>
+      </li>
+      <li id="r9">
+        Pedregosa, F., Varoquaux, G., Gramfort, A., Michel, V., Thirion, B., Grisel, O., … Duchesnay, É.
+        (2011). Scikit-learn: Machine learning in Python. <em>Journal of Machine Learning Research</em>, 12,
+        2825–2830.
+        <span class="where">Applied in: §5.4, §9.4 — the implementation of the classifier and its cross-validation protocol.</span>
+      </li>
+      <li id="r10">
+        Silver, D., Hubert, T., Schrittwieser, J., Antonoglou, I., Lai, M., Guez, A., … Hassabis, D. (2018).
+        A general reinforcement learning algorithm that masters chess, shogi, and Go through self-play.
+        <em>Science</em>, 362(6419), 1140–1144.
+        <a href="https://doi.org/10.1126/science.aar6404">doi:10.1126/science.aar6404</a>
+        <span class="where">Applied in: §2.3, §10.2 — the contrasting deep-RL approach this project explicitly does not attempt, used to delimit the claim made here.</span>
+      </li>
+      <li id="r11">
+        Nasu, Y. (2018). <em>ƎUИИ: Efficiently updatable neural-network-based evaluation functions for
+        computer shogi</em>. Ziosoft Computer Shogi Club.
+        <span class="where">Applied in: §2.3 — the NNUE evaluation architecture later adopted by Stockfish, which supplies all engine ground truth in this system.</span>
+      </li>
+      <li id="r12">
+        Romstad, T., Costalba, M., Kiiski, J., Linscott, G., et al. <em>Stockfish: A free and strong UCI chess
+        engine</em> [Computer software]. <a href="https://stockfishchess.org">stockfishchess.org</a>
+        <span class="where">Applied in: §5.2, §6, §9.2 — the analysis oracle for centipawn loss, puzzle verification gates, and independent quality scoring.</span>
+      </li>
+      <li id="r13">
+        Fiekas, N. <em>python-chess: A chess library for Python</em> [Computer software].
+        <a href="https://python-chess.readthedocs.io">python-chess.readthedocs.io</a>
+        <span class="where">Applied in: §4.5, §5.1, §6.3 — board representation, legality, PGN parsing, and UCI engine communication.</span>
+      </li>
+      <li id="r14">
+        Lichess. <em>lichess.org open database — puzzles</em> [Dataset, CC0 1.0].
+        <a href="https://database.lichess.org/#puzzles">database.lichess.org/#puzzles</a>
+        <span class="where">Applied in: §4.1–4.3 — the ~6M-puzzle base corpus, its Glicko-2 ratings, and its theme tags.</span>
+      </li>
+      <li id="r15">
+        Chess.com. <em>Published-Data API documentation</em>.
+        <a href="https://www.chess.com/news/view/published-data-api">chess.com/news/view/published-data-api</a>
+        <span class="where">Applied in: §4.5 — player profile and game archive ingestion, including the rate-limit guidance followed by the client.</span>
+      </li>
+      <li id="r16">
+        McKinney, W. (2010). Data structures for statistical computing in Python. In
+        <em>Proceedings of the 9th Python in Science Conference</em> (pp. 56–61).
+        <a href="https://doi.org/10.25080/Majora-92bf1922-00a">doi:10.25080/Majora-92bf1922-00a</a>
+        <span class="where">Applied in: §4.2 — the chunked ETL and Parquet row-group streaming that bound memory over the 1.1 GB corpus.</span>
+      </li>
+      <li id="r17">
+        Corbett, A. T., &amp; Anderson, J. R. (1995). Knowledge tracing: Modeling the acquisition of
+        procedural knowledge. <em>User Modeling and User-Adapted Interaction</em>, 4(4), 253–278.
+        <a href="https://doi.org/10.1007/BF01099821">doi:10.1007/BF01099821</a>
+        <span class="where">Applied in: §1.2, §2.4 — the per-skill Bayesian mastery model this system's arm posteriors structurally parallel.</span>
+      </li>
+      <li id="r18">
+        Vygotsky, L. S. (1978). <em>Mind in Society: The Development of Higher Psychological Processes</em>.
+        Cambridge, MA: Harvard University Press.
+        <span class="where">Applied in: §1.2, §7.5 — the zone of proximal development, implemented operationally as the player-Elo ± 300 serving band.</span>
+      </li>
+      <li id="r19">
+        Ericsson, K. A., Krampe, R. T., &amp; Tesch-Römer, C. (1993). The role of deliberate practice in the
+        acquisition of expert performance. <em>Psychological Review</em>, 100(3), 363–406.
+        <a href="https://doi.org/10.1037/0033-295X.100.3.363">doi:10.1037/0033-295X.100.3.363</a>
+        <span class="where">Applied in: §1.2 — the pedagogical premise that practice must target current deficiency to produce expertise.</span>
+      </li>
+      <li id="r20">
+        Chapelle, O., &amp; Li, L. (2011). An empirical evaluation of Thompson sampling. In
+        <em>Advances in Neural Information Processing Systems 24</em> (pp. 2249–2257).
+        <span class="where">Applied in: §2.2, §9.3 — empirical justification for choosing Thompson Sampling over UCB, and the simulation-based validation posture.</span>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ══════════════════ APPENDICES ══════════════════ -->
+<section class="page-break">
+  <h2>15 &nbsp; Appendices</h2>
+
+  <h3>15.1 &nbsp; Appendix A — Literature-to-component mapping</h3>
+  <p>
+    A defence-oriented cross-reference: for each implemented component, the primary source that justifies
+    the design choice.
+  </p>
+  <table class="tight">
+    <thead><tr><th style="width:30%">Implemented component</th><th style="width:20%">Source file</th><th>Grounding reference</th></tr></thead>
+    <tbody>
+      <tr><td>Thompson Sampling bandit</td><td><code>recommender/bandit.py</code></td><td>Thompson 1933 <a href="#r1" class="cite">[1]</a>; Russo <em>et al.</em> 2018 <a href="#r2" class="cite">[2]</a>; Chapelle &amp; Li 2011 <a href="#r20" class="cite">[20]</a></td></tr>
+      <tr><td>Beta–Bernoulli conjugate update</td><td><code>recommender/bandit.py</code></td><td>Thompson 1933 <a href="#r1" class="cite">[1]</a>; Sutton &amp; Barto 2018 <a href="#r4" class="cite">[4]</a></td></tr>
+      <tr><td>Choice of TS over UCB / ε-greedy</td><td>Design decision, §2.2</td><td>Auer <em>et al.</em> 2002 <a href="#r3" class="cite">[3]</a>; Chapelle &amp; Li 2011 <a href="#r20" class="cite">[20]</a></td></tr>
+      <tr><td>Per-skill mastery posture</td><td><code>classifier/player_profiler.py</code></td><td>Corbett &amp; Anderson 1995 <a href="#r17" class="cite">[17]</a></td></tr>
+      <tr><td>Weakness-targeted practice rationale</td><td>Whole-system objective</td><td>Ericsson <em>et al.</em> 1993 <a href="#r19" class="cite">[19]</a></td></tr>
+      <tr><td>Elo ± 300 serving band</td><td><code>data/puzzle_difficulty_mapper.py</code></td><td>Vygotsky 1978 <a href="#r18" class="cite">[18]</a></td></tr>
+      <tr><td>Glicko-2 implementation</td><td><code>analysis/difficulty_fitter.py</code></td><td>Glickman 1999 <a href="#r5" class="cite">[5]</a>; Glickman 2012 <a href="#r6" class="cite">[6]</a></td></tr>
+      <tr><td>Glicko-2 validation fixture</td><td><code>tests/test_difficulty_fitter.py</code></td><td>Glickman 2012 worked example <a href="#r6" class="cite">[6]</a></td></tr>
+      <tr><td>Rating-system baseline critique</td><td>§2.1, §8.1</td><td>Elo 1978 <a href="#r7" class="cite">[7]</a></td></tr>
+      <tr><td>RandomForest classifier</td><td><code>classifier/ml_weakness_model.py</code></td><td>Breiman 2001 <a href="#r8" class="cite">[8]</a>; Pedregosa <em>et al.</em> 2011 <a href="#r9" class="cite">[9]</a></td></tr>
+      <tr><td>Engine analysis / verification</td><td><code>classifier/stockfish_analyzer.py</code>, <code>puzzles/generator.py</code></td><td>Stockfish <a href="#r12" class="cite">[12]</a>; Nasu 2018 <a href="#r11" class="cite">[11]</a></td></tr>
+      <tr><td>Board logic, PGN, UCI</td><td>Throughout</td><td>Fiekas, python-chess <a href="#r13" class="cite">[13]</a></td></tr>
+      <tr><td>Puzzle corpus</td><td><code>data/puzzle_loader.py</code></td><td>Lichess Open Database <a href="#r14" class="cite">[14]</a></td></tr>
+      <tr><td>Game-history ingestion</td><td><code>api/chess_com_fetcher.py</code></td><td>Chess.com Published-Data API <a href="#r15" class="cite">[15]</a></td></tr>
+      <tr><td>Chunked ETL</td><td><code>scripts/build_puzzle_dataset.py</code></td><td>McKinney 2010 <a href="#r16" class="cite">[16]</a></td></tr>
+      <tr><td>Scope boundary vs deep RL</td><td>§10.2</td><td>Silver <em>et al.</em> 2018 <a href="#r10" class="cite">[10]</a></td></tr>
+    </tbody>
+  </table>
+
+  <h3>15.2 &nbsp; Appendix B — Complete constants reference</h3>
+  <div class="grid2">
+    <table class="tight">
+      <thead><tr><th colspan="2">Engine analysis</th></tr></thead>
+      <tbody>
+        <tr><td><code>ANALYSIS_TIME</code></td><td class="num">0.05 s</td></tr>
+        <tr><td><code>INACCURACY_CP</code></td><td class="num">50</td></tr>
+        <tr><td><code>MISTAKE_CP</code></td><td class="num">100</td></tr>
+        <tr><td><code>BLUNDER_CP</code></td><td class="num">200</td></tr>
+      </tbody>
+    </table>
+    <table class="tight">
+      <thead><tr><th colspan="2">Glicko-2</th></tr></thead>
+      <tbody>
+        <tr><td><code>GLICKO2_SCALE</code></td><td class="num">173.7178</td></tr>
+        <tr><td><code>DEFAULT_TAU</code></td><td class="num">0.5</td></tr>
+        <tr><td><code>DEFAULT_PLAYER_RATING</code></td><td class="num">1500.0</td></tr>
+        <tr><td><code>DEFAULT_PLAYER_RD</code></td><td class="num">350.0</td></tr>
+        <tr><td><code>DEFAULT_VOLATILITY</code></td><td class="num">0.06</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="grid2">
+    <table class="tight">
+      <thead><tr><th colspan="2">Puzzle mining</th></tr></thead>
+      <tbody>
+        <tr><td><code>PUZZLE_THRESHOLD</code></td><td class="num">150 cp</td></tr>
+        <tr><td><code>MIN_CLARITY_CP</code></td><td class="num">100 cp</td></tr>
+        <tr><td><code>FORCED_OPP_MARGIN</code></td><td class="num">80 cp</td></tr>
+        <tr><td><code>DETECT_TIME</code></td><td class="num">0.10 s</td></tr>
+        <tr><td><code>VERIFY_DEPTH</code></td><td class="num">18 ply</td></tr>
+        <tr><td><code>SOLUTION_DEPTH</code></td><td class="num">16 ply</td></tr>
+        <tr><td><code>CONTINUATION_MOVES</code></td><td class="num">6</td></tr>
+        <tr><td><code>MIN_PLAYER_MOVES</code></td><td class="num">1</td></tr>
+        <tr><td><code>MAX_PER_GAME</code></td><td class="num">5</td></tr>
+        <tr><td><code>SKIP_PLIES</code></td><td class="num">8</td></tr>
+        <tr><td><code>MATE_CP</code></td><td class="num">9,000</td></tr>
+      </tbody>
+    </table>
+    <table class="tight">
+      <thead><tr><th colspan="2">Bandit &amp; serving</th></tr></thead>
+      <tbody>
+        <tr><td>Arms</td><td class="num">23</td></tr>
+        <tr><td>Default arm state</td><td class="num">Beta(1, 1)</td></tr>
+        <tr><td>Prior budget α + β</td><td class="num">10</td></tr>
+        <tr><td>Rating band</td><td class="num">Elo ± 300</td></tr>
+        <tr><td>Band widening</td><td class="num">± 200</td></tr>
+        <tr><td>Mined-puzzle blend</td><td class="num">40%</td></tr>
+        <tr><td>Opening phase</td><td class="num">≥ 28 pieces</td></tr>
+        <tr><td>Middlegame phase</td><td class="num">14–27 pieces</td></tr>
+        <tr><td>Endgame phase</td><td class="num">&lt; 14 pieces</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>15.3 &nbsp; Appendix C — Repository map</h3>
+  <pre><code>src/
+├── api/chess_com_fetcher.py      Chess.com client + disk cache
+├── data/
+│   ├── pgn_parser.py             PGN → structured dict; game-phase classification
+│   ├── puzzle_loader.py          Lichess load/enrich/clean; WEAKNESS_CATEGORIES
+│   ├── puzzle_difficulty_mapper.py   Rating-band targeting (ZPD)
+│   └── data_cleaner.py           Dedup, calibration and quality filters
+├── classifier/
+│   ├── stockfish_analyzer.py     Per-move analysis → MoveError / GameAnalysis
+│   ├── player_profiler.py        build_profile() — rule-based scorer (DEFAULT)
+│   └── ml_weakness_model.py      build_profile_ml() — RandomForest (opt-in)
+├── analysis/
+│   ├── style_profile.py          Engine-free archetype classification
+│   └── difficulty_fitter.py      Glicko-2 fitting (offline CLI)
+├── recommender/bandit.py         ThompsonBandit — the live adaptive core
+└── puzzles/generator.py          Four-gate Stockfish puzzle miner
+
+eval/
+├── puzzle_evaluator.py           Five-dimension composite quality score
+├── run_evaluation.py             CLI harness → timestamped JSON reports
+└── reports/                      Saved evaluation runs
+
+web/
+├── backend/app.py                Flask API; serves the frontend same-origin
+└── frontend/index.html           Vanilla JS SPA
+
+scripts/build_puzzle_dataset.py   One-shot streaming ETL
+tests/                            128 tests across 8 files, fully offline</code></pre>
+
+  <h3>15.4 &nbsp; Appendix D — Reproduction guide</h3>
+  <pre><code># Environment
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+
+# Build the puzzle pool (requires DataSets/lichess_db_puzzle.csv)
+python scripts/build_puzzle_dataset.py
+
+# Run the application — Flask serves API and frontend from one origin
+python web/backend/app.py            # → http://localhost:5000
+
+# Opt into the trained weakness classifier (PowerShell)
+$env:WEAKNESS_MODEL="ml"; python web/backend/app.py
+
+# Test suite — 128 tests, no engine or network required
+pytest tests/ -v
+
+# Offline research CLIs
+python -m src.analysis.difficulty_fitter      # Glicko-2 fit from data/sessions/*.json
+python -m src.classifier.ml_weakness_model    # train + cross-validate the classifier
+
+# Puzzle quality report for a user with mined puzzles
+python eval/run_evaluation.py --username &lt;name&gt; --elo &lt;elo&gt;</code></pre>
+
+  <div class="callout" style="margin-top:7mm;">
+    <h4>Verification note</h4>
+    <p>
+      Every constant, metric, category count and behavioural claim in this report was read directly from the
+      source tree at the time of writing, and every bibliographic entry in §14 was verified against the
+      publisher or primary source of record. Where the code and the project's earlier documentation
+      disagree, the code is treated as authoritative and the discrepancy is recorded in §11.2.
+    </p>
+  </div>
+</section>
+
+</body>
+</html>

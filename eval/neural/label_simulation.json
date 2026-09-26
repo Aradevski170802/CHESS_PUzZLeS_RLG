@@ -1,0 +1,290 @@
+{
+ "runs": 200,
+ "design": "paired by seed (common random numbers)",
+ "T": 60,
+ "labels": {
+  "perfect": {
+   "Beta-TS": {
+    "targeting_first30": {
+     "mean": 0.2388,
+     "ci95": [
+      0.2211,
+      0.2566
+     ]
+    },
+    "top3_recall_final": {
+     "mean": 0.4233,
+     "ci95": [
+      0.3892,
+      0.4575
+     ]
+    },
+    "cum_regret": {
+     "mean": 61.4736,
+     "ci95": [
+      59.6464,
+      63.3008
+     ]
+    }
+   },
+   "IRT-TS": {
+    "targeting_first30": {
+     "mean": 0.321,
+     "ci95": [
+      0.2933,
+      0.3487
+     ]
+    },
+    "top3_recall_final": {
+     "mean": 0.43,
+     "ci95": [
+      0.3972,
+      0.4628
+     ]
+    },
+    "cum_regret": {
+     "mean": 53.2437,
+     "ci95": [
+      51.0125,
+      55.4749
+     ]
+    }
+   }
+  },
+  "puzzlenet": {
+   "Beta-TS": {
+    "targeting_first30": {
+     "mean": 0.2448,
+     "ci95": [
+      0.2268,
+      0.2629
+     ]
+    },
+    "top3_recall_final": {
+     "mean": 0.4267,
+     "ci95": [
+      0.3933,
+      0.46
+     ]
+    },
+    "cum_regret": {
+     "mean": 61.7514,
+     "ci95": [
+      59.9947,
+      63.508
+     ]
+    }
+   },
+   "IRT-TS": {
+    "targeting_first30": {
+     "mean": 0.306,
+     "ci95": [
+      0.2788,
+      0.3332
+     ]
+    },
+    "top3_recall_final": {
+     "mean": 0.4217,
+     "ci95": [
+      0.3857,
+      0.4576
+     ]
+    },
+    "cum_regret": {
+     "mean": 55.2917,
+     "ci95": [
+      52.9468,
+      57.6366
+     ]
+    }
+   }
+  },
+  "rules": {
+   "Beta-TS": {
+    "targeting_first30": {
+     "mean": 0.1892,
+     "ci95": [
+      0.1734,
+      0.205
+     ]
+    },
+    "top3_recall_final": {
+     "mean": 0.3517,
+     "ci95": [
+      0.3149,
+      0.3884
+     ]
+    },
+    "cum_regret": {
+     "mean": 66.1943,
+     "ci95": [
+      64.3129,
+      68.0758
+     ]
+    }
+   },
+   "IRT-TS": {
+    "targeting_first30": {
+     "mean": 0.2258,
+     "ci95": [
+      0.2032,
+      0.2485
+     ]
+    },
+    "top3_recall_final": {
+     "mean": 0.3683,
+     "ci95": [
+      0.3359,
+      0.4007
+     ]
+    },
+    "cum_regret": {
+     "mean": 62.557,
+     "ci95": [
+      60.2386,
+      64.8753
+     ]
+    }
+   }
+  },
+  "none": {
+   "Beta-TS": {
+    "targeting_first30": {
+     "mean": 0.1478,
+     "ci95": [
+      0.1369,
+      0.1588
+     ]
+    },
+    "top3_recall_final": {
+     "mean": 0.32,
+     "ci95": [
+      0.2868,
+      0.3532
+     ]
+    },
+    "cum_regret": {
+     "mean": 70.5689,
+     "ci95": [
+      68.9565,
+      72.1813
+     ]
+    }
+   },
+   "IRT-TS": {
+    "targeting_first30": {
+     "mean": 0.1507,
+     "ci95": [
+      0.1397,
+      0.1616
+     ]
+    },
+    "top3_recall_final": {
+     "mean": 0.3683,
+     "ci95": [
+      0.3346,
+      0.4021
+     ]
+    },
+    "cum_regret": {
+     "mean": 70.0872,
+     "ci95": [
+      68.4621,
+      71.7123
+     ]
+    }
+   }
+  }
+ },
+ "paired_targeting_first30": {
+  "Beta-TS": {
+   "puzzlenet_vs_rules": {
+    "mean_diff": 0.0557,
+    "ci95": [
+     0.0367,
+     0.0748
+    ],
+    "p_paired_t": 3.793985601616436e-08,
+    "p_wilcoxon": 4.0061400414558543e-07,
+    "d_z": 0.405
+   },
+   "perfect_vs_puzzlenet": {
+    "mean_diff": -0.006,
+    "ci95": [
+     -0.026,
+     0.0143
+    ],
+    "p_paired_t": 0.562887413590399,
+    "p_wilcoxon": 0.26423986539781474,
+    "d_z": -0.041
+   },
+   "perfect_vs_rules": {
+    "mean_diff": 0.0497,
+    "ci95": [
+     0.0303,
+     0.0708
+    ],
+    "p_paired_t": 3.4466454828208645e-06,
+    "p_wilcoxon": 8.578346584059065e-05,
+    "d_z": 0.338
+   },
+   "puzzlenet_vs_none": {
+    "mean_diff": 0.097,
+    "ci95": [
+     0.0767,
+     0.117
+    ],
+    "p_paired_t": 4.339591761994429e-17,
+    "p_wilcoxon": 1.019122702917205e-14,
+    "d_z": 0.652
+   }
+  },
+  "IRT-TS": {
+   "puzzlenet_vs_rules": {
+    "mean_diff": 0.0802,
+    "ci95": [
+     0.0545,
+     0.105
+    ],
+    "p_paired_t": 6.873721888222345e-10,
+    "p_wilcoxon": 2.822899753869433e-09,
+    "d_z": 0.459
+   },
+   "perfect_vs_puzzlenet": {
+    "mean_diff": 0.015,
+    "ci95": [
+     -0.0148,
+     0.0438
+    ],
+    "p_paired_t": 0.30535767217802323,
+    "p_wilcoxon": 0.4923562373626308,
+    "d_z": 0.073
+   },
+   "perfect_vs_rules": {
+    "mean_diff": 0.0952,
+    "ci95": [
+     0.0667,
+     0.124
+    ],
+    "p_paired_t": 5.029958584880991e-10,
+    "p_wilcoxon": 1.4182032613419402e-09,
+    "d_z": 0.463
+   },
+   "puzzlenet_vs_none": {
+    "mean_diff": 0.1553,
+    "ci95": [
+     0.129,
+     0.1828
+    ],
+    "p_paired_t": 8.654520042934098e-23,
+    "p_wilcoxon": 9.883594194847835e-20,
+    "d_z": 0.79
+   }
+  }
+ },
+ "share_of_rules_to_perfect_gap_closed": {
+  "Beta-TS": 1.121,
+  "IRT-TS": 0.842
+ },
+ "seconds": 20
+}

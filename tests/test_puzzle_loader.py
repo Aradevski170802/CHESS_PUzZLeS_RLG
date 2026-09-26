@@ -8,6 +8,7 @@ from src.data.puzzle_loader import (
     _enrich,
     _tags_to_categories,
     get_puzzles_for_player,
+    load_puzzles,
     moves_to_length,
     rating_to_tier,
 )
@@ -97,6 +98,43 @@ class TestEnrich:
         df = _make_df([{"Rating": 1300}])
         enriched = _enrich(df)
         assert enriched.loc[0, "DifficultyTier"] == "Intermediate"
+
+
+def test_load_puzzles_chunked_csv_smoke(tmp_path):
+    csv_path = tmp_path / "mini.csv"
+    pd.DataFrame(
+        [
+            {
+                "PuzzleId": "P1",
+                "FEN": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                "Moves": "e2e4 e7e5",
+                "Rating": 1500,
+                "RatingDeviation": 75,
+                "Popularity": 80,
+                "NbPlays": 1000,
+                "Themes": "fork middlegame short",
+                "GameUrl": "https://lichess.org/abc",
+                "OpeningTags": "",
+            },
+            {
+                "PuzzleId": "P2",
+                "FEN": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+                "Moves": "e2e4",
+                "Rating": 1600,
+                "RatingDeviation": 75,
+                "Popularity": 80,
+                "NbPlays": 1000,
+                "Themes": "pin short",
+                "GameUrl": "https://lichess.org/def",
+                "OpeningTags": "",
+            },
+        ]
+    ).to_csv(csv_path, index=False)
+
+    df = load_puzzles(csv_path, chunksize=1)
+    assert len(df) == 2
+    assert "ThemeList" in df.columns
+    assert "Categories" in df.columns
 
 
 class TestGetPuzzlesForPlayer:

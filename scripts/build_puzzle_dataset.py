@@ -39,14 +39,16 @@ logger = logging.getLogger(__name__)
 
 RAW_CSV = Path("DataSets/lichess_db_puzzle.csv")
 OUT_DIR = Path("data/processed")
+CHUNKSIZE = 1_000_000
 
 
 def main() -> None:
     t0 = time.time()
 
-    # 1. Load full dataset (6M rows — takes ~30s)
-    logger.info("Step 1/4  Loading raw CSV ...")
-    df = load_puzzles(RAW_CSV)
+    # 1. Load full dataset in bounded chunks to avoid the full 6M-row
+    #    frame being materialised in memory during theme enrichment.
+    logger.info("Step 1/4  Loading raw CSV in chunks of %d rows ...", CHUNKSIZE)
+    df = load_puzzles(RAW_CSV, chunksize=CHUNKSIZE)
 
     # 2. Clean
     logger.info("Step 2/4  Cleaning ...")

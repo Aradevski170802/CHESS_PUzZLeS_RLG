@@ -1,0 +1,185 @@
+\section{PuzzleNet: a Neural Model of Tactic and Difficulty}\label{sec:puzzlenet}
+
+Two measured weaknesses motivate a learned model, and both are documented in
+Chapter~\ref{ch:results}. First, every weakness estimate in the system inherits the tactic labeller's
+errors, and the hand-written tagger of Section~\ref{sec:features} agrees with Lichess themes on only
+58\% of held-out puzzles ($\kappa = 0.52$), while never emitting five of the categories at all. The
+label-quality experiment (E3) shows that perfect labels would raise early targeting well beyond what
+the tagger achieves, so labelling is a real bottleneck rather than a cosmetic one. Second, a mined
+puzzle's difficulty is a closed-form guess from the size of the player's error and the length of the
+solution; it is uncalibrated, carries no uncertainty, and 67.5\% of all real attempts were on mined
+puzzles.
+
+Both are supervised learning problems for which a large, free, labelled dataset already exists: the
+5.88 million Lichess puzzles, each carrying theme tags and a Glicko-2 rating with its own deviation.
+\textbf{PuzzleNet} is a single multi-task network trained on that dataset. It reads a position and the
+line that follows it, and predicts the line's tactical category, its Lichess theme tags, and how
+difficult it is, with an uncertainty attached to that difficulty.
+
+\subsection{Task definition}
+
+Let $s_0$ be a position with the \emph{solver} to move and $L = (m_1, r_1, m_2, r_2, \dots)$ the
+principal line from it, alternating solver moves $m_i$ and replies $r_i$. The same pair $(s_0, L)$
+occurs in all three places the system needs a label: a Lichess puzzle (the solution line), a critical
+position in an analysed game (Stockfish's principal variation), and a mined puzzle (the forced
+continuation built by the miner). The network estimates three things:
+
+\begin{align}
+  P(\text{category} = c \mid s_0, L), \quad c \in \{1,\dots,24\}, \\
+  P(\text{theme}_j = 1 \mid s_0, L), \quad j \in \{1,\dots,66\}, \\
+  b \mid s_0, L \;\sim\; \mathcal{N}\!\left(\mu(s_0, L),\; \sigma^2(s_0, L)\right),
+\end{align}
+
+\noindent where $b$ is the puzzle's difficulty on the Lichess rating scale. The theme head is an
+auxiliary task: theme tags are a richer description of the same line, and predicting them gives the
+shared trunk more to learn from than a single label per puzzle.
+
+\subsection{Input representation}
+
+The input is a fixed vector of 3{,}329 features. Its design follows two principles: give the network
+the raw board, and also give it the relations a tactician would look for, so that it need not
+rediscover the rules of attack and defence from piece positions alone. Whether the second part earns
+its place is an ablation, not an assumption (Section~\ref{sec:ablations}).
+
+Everything is encoded \emph{from the solver's point of view}. When Black is to move, squares are
+mirrored ($a1 \leftrightarrow a8$) and colours swapped, so that the solver's pieces always occupy the
+first six planes and the solver's pawns always advance up the board. A position and its
+colour-mirrored twin therefore produce the identical vector, which halves what the network must learn
+and is checked by a unit test on real puzzles.
+
+\begin{itemize}
+  \item \textbf{Boards} (2{,}304 bits). Piece-square planes ($12 \times 64$) for three positions:
+        before the key move, after it, and after the solver's second move.
+  \item \textbf{Moves} (864 bits). Six move blocks: the opponent move that created the position, then
+        $m_1, r_1, m_2, r_2, m_3$. Each block holds the from-square, the to-square, the moving piece,
+        the captured piece, and flags for check, promotion, under-promotion, castling and en passant.
+  \item \textbf{Tactical relations} (90 bits). For each of the first three solver moves: which enemy
+        piece types the moved piece attacks, whether it attacks two or more valuable targets, whether
+        it is left en prise or defended, discovered and double checks, pins it creates and the types
+        of pinned pieces, a piece lined up behind an attacked king, queen or rook, whether the move is
+        quiet, a retreat, or captures a defender, and whether the position after it is checkmate.
+  \item \textbf{Replies} (6 bits) and \textbf{position facts} (43 bits): forced replies and recaptures;
+        hanging pieces on both sides; whether the key move is the only check or the only capture;
+        castling rights; the material signature of an endgame; a boxed-in king; the number of solver
+        moves in the line; and the mate verdict.
+  \item \textbf{Continuous features} (27). Material by piece type and the balance before and after the
+        line, the number of legal moves, captures and checks available, pressure on the squares around
+        the enemy king and its escape squares, and the number of replies the opponent had.
+\end{itemize}
+
+No engine evaluation enters the encoding, so all 5.88M puzzles can be encoded in under an hour on a
+laptop, and a position can be encoded during game analysis in about three milliseconds. The one
+exception is an optional mate flag, which lets game analysis pass Stockfish's mate verdict for a line
+that was cut off before the mate appears.
+
+\subsection{Architecture}
+
+A shared trunk of two fully connected ReLU layers ($3{,}329 \to 512 \to 256$) feeds three linear
+heads: a 24-way softmax for the category, 66 independent sigmoids for the themes, and two outputs
+$(\mu, s)$ for the difficulty, where $\sigma^2 = e^{s}$. The network has 1.86M parameters. Sharing a
+trunk across the three tasks is classical multi-task learning~\cite{caruana1997multitask}: the
+representation that says \emph{which} tactic a line contains is largely the representation that says
+how hard it is to find.
+
+\subsection{Loss: a noise-aware heteroscedastic objective}
+
+For a batch, with $y_c$ the category, $\mathbf{y}_t$ the theme indicators and $y_b$ the observed
+rating (standardised), the loss is
+
+\begin{equation}\label{eq:puzzlenet-loss}
+  \mathcal{L} = \underbrace{-\log p_{y_c}}_{\text{category}}
+  \;+\; \lambda_t \sum_{j} \mathrm{BCE}\bigl(\sigma(z_{t,j}), y_{t,j}\bigr)
+  \;+\; \lambda_r \, \underbrace{\mathrm{sg}\!\left(v^{\beta}\right)}_{\text{$\beta$-NLL weight}}
+  \cdot \tfrac{1}{2}\left[\log v + \frac{(y_b - \mu)^2}{v}\right],
+\end{equation}
+
+\begin{equation}\label{eq:puzzlenet-var}
+  v \;=\; \underbrace{e^{s}}_{\text{content uncertainty}} \;+\; \underbrace{\rho^2}_{\text{known rating noise}} .
+\end{equation}
+
+\noindent Two choices in this objective matter for how the model is used later.
+
+\paragraph{Known label noise.} A Lichess rating is not the truth about a puzzle; it is a Glicko-2
+estimate that comes with its own deviation $\rho$ (a median of 79 rating points, but far larger for
+rarely played puzzles). Equation~\eqref{eq:puzzlenet-var} adds that known measurement variance to the
+model's own, so that a noisy label pulls the fit less than a precise one, and so that $e^{s}$ is left
+to represent only what the content itself leaves uncertain: how hard this puzzle is, given what is on
+the board. That is exactly the quantity the recommender needs for a mined puzzle, which has no
+Lichess rating at all, and it is why the variance head is not decoration. Section~\ref{sec:integration-irt}
+shows where it enters the Bayesian update.
+
+\paragraph{$\beta$-NLL.} Training a Gaussian likelihood with a learned variance has a known failure
+mode: the network can reduce the loss on hard examples by inflating their variance, which in turn
+scales down their gradient for the mean, so the hardest examples end up teaching the mean the least.
+Seitzer et al.~\cite{seitzer2022pitfalls} correct this by weighting each example's loss by a
+stop-gradient copy of $v^\beta$. With $\beta = 1$ the mean receives exactly the plain squared-error
+gradient; with $\beta = 0$ the plain likelihood is recovered. This work uses the recommended
+$\beta = 0.5$, and both extremes are run as ablations.
+
+\subsection{Optimisation and calibration}
+
+The network, its gradients and its optimiser are written from first principles in
+NumPy~\cite{harris2020array}; no deep learning framework is used. Two reasons: the deployed
+application keeps no heavy dependency and answers in about a millisecond on a CPU, and every step of
+the learning algorithm stays visible and testable. Each hand-derived gradient is checked against
+central finite differences in the test suite, for every head and for the linear, single-task and
+multi-task configurations.
+
+Training uses AdamW~\cite{loshchilov2019decoupled} (decoupled weight decay on weight matrices only),
+gradient-norm clipping, and a learning rate that warms up linearly and then decays on a cosine
+schedule~\cite{loshchilov2017sgdr}, with batches of 2{,}048 and He initialisation for the ReLU
+layers~\cite{he2015delving}. Model selection keeps the checkpoint with the best validation score.
+
+Raw network outputs are then calibrated on the validation split by fitting two scalars: a softmax
+temperature $T$ for the category head~\cite{guo2017calibration}, and a variance scale $c$ such that
+$v = c\,e^{s} + \rho^2$ for the difficulty head, in the spirit of post-hoc recalibration for
+regression~\cite{kuleshov2018accurate}. Both are one-dimensional optimisations of the validation
+likelihood, and both are reported before and after in Chapter~\ref{ch:results}.
+
+\subsection{Data, splits and a fair comparison}
+
+Puzzles are split by a hash of their identifier: 2\% validation, 3\% test, the rest for training.
+One further set is carved out first. The rule-based tagger was scored in
+Section~\ref{sec:labeller-results} on a held-out sample of 30{,}000 uniformly drawn puzzles plus up to
+2{,}000 per category; those 59{,}668 puzzles are \emph{excluded from training and model selection
+entirely}, so that both labellers can be scored on exactly the same puzzles, neither having seen them.
+The tagger's development sample is not excluded, because the stratified draw takes up to 2{,}000 of
+each category and the rarest category has only about 2{,}100 puzzles in total; holding out both
+samples would have left the network almost no examples of them.
+
+\subsection{Where the network enters the system}\label{sec:integration-irt}
+
+\begin{enumerate}
+  \item \textbf{Labelling critical positions.} Game analysis labels the engine's principal variation
+        with PuzzleNet instead of the rule-based tagger. Because game analysis sees an engine line
+        rather than a puzzle solution, this shift of input distribution is measured separately
+        (Section~\ref{sec:nn-deployment}), and the number of plies the network is shown is chosen from
+        that measurement.
+  \item \textbf{Rating mined puzzles.} A mined puzzle takes $\mu$ as its rating and $\sigma$ as its
+        rating deviation, replacing the closed-form heuristic and the blanket deviation of 300 points.
+        The deviation is floored at 75 points, the deviation of a well-played Lichess puzzle: a puzzle
+        nobody has ever attempted cannot be known more precisely than that, and the model was
+        calibrated on Lichess puzzles rather than on puzzles mined from a player's own games.
+  \item \textbf{Feeding the Bayesian recommender.} That per-puzzle deviation is the term $v_b$ in the
+        IRT update of Section~\ref{sec:rl-setup}: $\kappa = (1 + 3 v_b / \pi^2)^{-1/2}$ scales how far
+        one attempt may move a player's ability and category offsets. An uncertain difficulty estimate
+        now moves the player's model less, instead of every mined puzzle being treated as equally
+        uncertain.
+\end{enumerate}
+
+Every one of these paths falls back to the previous behaviour when no model file is installed or when
+\code{PUZZLENET=off} is set, and the rule-based tagger remains available through \code{LABELLER=rules}.
+The application therefore still runs, unchanged, without the network.
+
+\subsection{What it is compared against}
+
+The category head is compared with the rule-based tagger on the held-out harness, with paired tests on
+the same puzzles (McNemar's exact test~\cite{mcnemar1947note} on per-puzzle correctness and bootstrap
+intervals for the differences in $\kappa$ and macro recall). The difficulty head is compared with the
+miner's formula, with a constant, with a least-squares fit on line length and the mate verdict, and
+with gradient-boosted trees~\cite{ke2017lightgbm} trained on the hand-built features alone. Ablations
+trained on a common one-million-puzzle subset isolate the contributions of depth, of the hand-built
+features, of the raw board, of multi-task learning and of the $\beta$-NLL exponent, and a
+learning-curve sweep from 30{,}000 to 5.5 million puzzles shows how much the data volume matters.
+Finally, the labels are carried downstream: into the label-quality simulation, into the 300-player
+cohort, and into the prequential replay of the real solve logs.

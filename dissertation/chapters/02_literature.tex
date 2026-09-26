@@ -1,0 +1,161 @@
+\chapter{Background and Literature Review}\label{ch:literature}
+
+\section{Chess Engines and Computer Chess}
+
+Classical chess engines combine alpha-beta search with an evaluation function. The landmark
+1997 match in which IBM's Deep Blue defeated Garry Kasparov showed that hand-crafted evaluation
+combined with massive search could beat the world champion. Modern engines retain that search
+architecture but have replaced the hand-written evaluation. Stockfish~\cite{stockfish}, the
+strongest open-source engine, evaluates positions with an \emph{efficiently updatable neural
+network} (NNUE), originally developed for computer shogi by Nasu~\cite{nasu2018nnue}. Because the
+network's first layer can be updated incrementally as pieces move, a neural evaluation becomes
+cheap enough to run inside a search visiting millions of positions per second. That property
+matters for this dissertation, which analyses about 18,000 games.
+
+A second line of work replaces search heuristics with learning altogether. AlphaZero learns a
+policy and a value function by self-play and combines them with Monte Carlo tree search, reaching
+superhuman strength from the rules alone~\cite{silver2017mastering,silver2018general}. Zahavy et
+al.~\cite{zahavy2023diversifying} show that a single AlphaZero policy is near-optimal but narrow. It
+fails on out-of-distribution positions, such as Penrose-style puzzles that are easy for humans.
+Their AZdb system trains a population of latent-conditioned policies with diversity bonuses; it
+solves more hard puzzles and plays in more varied styles.
+
+These systems are designed to \emph{play} well. Maia~\cite{mcilroyyoung2020aligning} takes the
+opposite view: it trains networks on human games to predict the move a human \emph{of a given
+rating} would play, rather than the best move. For a training system this distinction is central.
+The engine tells us what is correct; a human-behaviour model would tell us what a particular player
+is likely to find. This dissertation uses Stockfish as an oracle of correctness. Maia-based
+difficulty estimates are discussed as future work (Section~\ref{sec:future}).
+
+\section{Chess Puzzles and Tactics Training Platforms}
+
+The \textbf{Lichess puzzle generator}~\cite{lichesspuzzler} scans games from the Lichess database
+with Stockfish, finds positions where one side has a decisive and unique continuation, and tags each
+puzzle with themes such as \emph{fork}, \emph{pin} or \emph{backRankMate}. The resulting open
+database~\cite{lichessdb} contains about six million puzzles, each rated with Glicko-2 from the
+attempts of Lichess users. It is the main puzzle source for this project, and its themes serve as
+the reference labels in Section~\ref{sec:labeller-results}.
+
+\textbf{Chessity}~\cite{chessity} offers hand-crafted tactics and adapts difficulty to performance,
+keeping players challenged without discouraging them. \textbf{Aimchess}~\cite{aimchess} and
+\textbf{Noctie}~\cite{noctie} analyse a user's own games and build training material from their most
+instructive mistakes. Nie et al.~\cite{nie2026discovering} study the pedagogical value of puzzles
+directly. Using 1.5 billion puzzle-solving interactions, they apply offline reinforcement learning
+and off-policy evaluation to recommend puzzles, and report the largest benefit for beginners whose
+progress had stalled. Table~\ref{tab:tools} positions this project against these systems.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Related puzzle and training systems.}\label{tab:tools}
+\begin{tabularx}{\linewidth}{p{0.24\linewidth}Yp{0.13\linewidth}p{0.13\linewidth}}
+\toprule
+\textbf{System} & \textbf{Source of puzzles} & \textbf{Adaptive} & \textbf{Own games} \\
+\midrule
+Lichess puzzler~\cite{lichesspuzzler} & Engine-extracted from community games & No & Indirectly \\
+Feng et al.~\cite{feng2025generating} & Generative model and RL fine-tuning & No & No \\
+Chessity~\cite{chessity} & Hand-crafted, fixed pool & Difficulty & No \\
+Aimchess / Noctie~\cite{aimchess,noctie} & Mined from the user's games & Mistake-based & Yes \\
+Nie et al.~\cite{nie2026discovering} & Lichess pool, offline-RL selection & Yes (learned) & No \\
+\textbf{This work} & Lichess pool and engine-verified mining from own games & Category \emph{and}
+difficulty, online Bayesian & Yes \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Player Modelling and Decision-Making Style}
+
+Can a player's ``style'' be measured? McIlroy-Young et al.~\cite{mcilroyyoung2021detecting} introduce
+\emph{behavioural stylometry} for chess. A transformer over move sequences embeds a set of games
+into a style space, and a player can be identified among thousands of candidates from 100 labelled
+games with 98\% accuracy. The embeddings transfer from club players to grandmasters. The authors
+point out the privacy risk: a playing style can act as a behavioural fingerprint.
+
+Jayasekara~\cite{jayasekara2018classification} asks whether classical style labels (aggressive,
+positional, defensive) can be recovered without supervision. Using engine-derived features from the
+opening and middlegame, with PCA and Gaussian mixture models, some styles separate clearly and others
+(for example ``solid'' and ``tactical'') merge.
+
+Together these works treat style as latent structure in high-dimensional data rather than as a
+metaphor. This dissertation models the player with more modest, directly interpretable quantities:
+overall ability, per-category tactical offsets, and a rating-group prediction from engine-derived
+features. One of its findings is that per-category tactical differences between players are much
+harder to detect than overall strength (Section~\ref{sec:cohort-results}), which is itself relevant
+to the style-modelling literature.
+
+\section{Generative Models and Reinforcement Learning}
+
+\paragraph{Generative puzzle creation.} Feng et al.~\cite{feng2025generating} pre-train a discrete
+generative model on 4.4 million Lichess puzzles and fine-tune it with reinforcement learning. The
+reward is built from engine search statistics that measure uniqueness, counter-intuitiveness (the
+key move is hard for a shallow search to find), diversity and realism, and explicit filters prevent
+reward hacking. RL fine-tuning raises the rate of counter-intuitive puzzles tenfold, and human
+experts rated the output as more creative than composed book puzzles. This is the state of the art
+the portfolio aimed at. It is also the part of the plan this dissertation did \emph{not} implement
+(Section~\ref{sec:generation}).
+
+\paragraph{Bandits as reinforcement learning.} Choosing which category to practise next, from
+binary feedback, is a multi-armed bandit problem, the simplest setting of the exploration and
+exploitation trade-off in reinforcement learning~\cite{sutton2018reinforcement}. Thompson's rule of
+1933~\cite{thompson1933likelihood} keeps a posterior for each arm, draws one sample from each, and
+acts greedily on the samples. Exploration comes from posterior uncertainty rather than from a tuned
+parameter. Upper-confidence-bound methods achieve logarithmic regret through deterministic
+optimism~\cite{auer2002finite}. Chapelle and Li~\cite{chapelle2011empirical} found Thompson Sampling
+competitive with or better than UCB in practice, and Russo et al.~\cite{russo2018tutorial} give the
+modern analysis. When rewards change over time, discounted~\cite{raj2017taming} and
+sliding-window~\cite{garivier2011upper} variants forget old evidence.
+
+In education, Clement et al.~\cite{clement2015multi} used bandits to sequence exercises for learners,
+rewarding measured \emph{learning progress} rather than raw success. That distinction reappears in
+Chapter~\ref{ch:results}.
+
+\section{Difficulty Modelling and Educational Outcomes}
+
+Elo's rating system~\cite{elo1978rating} models a game's outcome as a logistic function of the
+rating difference. Glicko~\cite{glickman1999parameter} adds a \emph{rating deviation} that expresses
+uncertainty. Glicko-2~\cite{glickman2012example} adds a \emph{volatility} that expresses how
+erratically true strength moves. Lichess rates its puzzles with Glicko-2, treating each attempt as a
+game between the solver and the puzzle. Pelánek~\cite{pelanek2016applications} surveys the use of
+Elo-type models in adaptive educational systems. They estimate learner ability and item difficulty
+on one scale and update online, which is exactly the role they play in this project. The same
+logistic form is the Rasch model of item response theory.
+
+What makes a tactical problem hard for a human is not obvious. Hristova et
+al.~\cite{hristova2014assessing} find only a weak relation between players' strength and their
+ability to judge problem difficulty. Their eye-tracking results suggest that difficulty comes mainly
+from the depth and reliability of calculation, not from recognising the motif. This caution is
+relevant here, because the system's taxonomy is organised by motif.
+
+On the educational side, knowledge tracing~\cite{corbett1995knowledge} maintains a per-skill
+probability of mastery, updated by Bayes' rule from correct and incorrect answers. It is the direct
+ancestor of the per-category posteriors used here. Vygotsky's zone of proximal
+development~\cite{vygotsky1978mind} and Ericsson's account of deliberate practice~\cite{ericsson1993role}
+supply the pedagogical rationale. Material should be hard enough to require effort but not so hard
+that it only produces failure, and it should concentrate on current weaknesses.
+
+\paragraph{Predicting puzzle difficulty from content.} Estimating how hard a puzzle is \emph{before}
+anyone has attempted it became a shared task in 2024: the IEEE Big Data Cup asked entrants to predict
+Lichess puzzle ratings from the board and the solution alone, over a database of more than four
+million puzzles~\cite{zysko2024bigdatacup}. The published entries are neural: a network whose
+architecture imitates stages of human problem solving~\cite{schutt2024estimating}, and a transformer
+that predicts the Glicko-2 rating from a spatio-temporal encoding of position and moves~\cite{milosz2024transformers}.
+Earlier work in the cognitive-science tradition instead derived difficulty from properties of the search
+tree, such as how deep and how branching the winning line is~\cite{hristova2014assessing,bratko2021predicting}.
+What none of this work does is feed the estimate back into a training system: difficulty is predicted as
+an end in itself, and reported as a regression error. The present work reuses the same public labels but
+requires the estimate to carry a usable uncertainty, because a difficulty with no error bar cannot enter
+a Bayesian ability update in a principled way (Section~\ref{sec:puzzlenet}).
+
+\section{Summary and Research Gap}
+
+Existing systems cover complementary parts of the problem. Lichess shows that engine-based
+extraction scales. Feng et al.\ show that generative RL can create strong puzzles, but not for a
+particular learner. Chessity adapts difficulty over a fixed pool. Aimchess and Noctie mine the
+learner's own games. Nie et al.\ learn puzzle selection offline from enormous interaction logs.
+
+The portfolio identified the gap as learner-conditioned \emph{generative} puzzle creation. That gap
+remains. This dissertation addresses a narrower but related one that is more open to rigorous
+evaluation. It combines online, uncertainty-aware selection of \emph{both} tactical category
+\emph{and} difficulty for an individual learner, starting from their real games. It then tests,
+against real data, whether the assumption behind every mistake-based trainer holds: that a
+player's tactical weaknesses can be diagnosed from their games.

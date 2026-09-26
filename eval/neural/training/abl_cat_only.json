@@ -1,0 +1,329 @@
+{
+  "name": "abl_cat_only",
+  "config": {
+    "n_in": 3329,
+    "hidden": [
+      512,
+      256
+    ],
+    "n_cat": 24,
+    "n_theme": 66,
+    "theme_weight": 0.1,
+    "rating_weight": 1.0,
+    "beta": 0.5,
+    "heads": [
+      "cat"
+    ]
+  },
+  "args": {
+    "name": "abl_cat_only",
+    "hidden": "512,256",
+    "features": "all",
+    "heads": "cat",
+    "train_size": 1000000,
+    "epochs": 3.0,
+    "batch": 2048,
+    "lr": 0.002,
+    "warmup": 500,
+    "wd": 1e-05,
+    "beta": 0.5,
+    "theme_weight": 0.1,
+    "eval_every": 1000,
+    "val_size": 40000,
+    "seed": 0,
+    "export": false,
+    "data_dir": "data\\neural",
+    "models_dir": "data\\neural\\models",
+    "history_dir": "eval\\neural\\training"
+  },
+  "meta": {
+    "name": "abl_cat_only",
+    "encoding_version": 1,
+    "features": "all",
+    "categories": [
+      "Fork",
+      "Pin",
+      "Skewer",
+      "Discovered Attack",
+      "Hanging Piece",
+      "Sacrifice",
+      "Deflection",
+      "Attraction",
+      "Interference",
+      "Clearance",
+      "Quiet Move",
+      "Zugzwang",
+      "X-Ray Attack",
+      "King Safety",
+      "Mating Pattern",
+      "Endgame",
+      "Rook Endgame",
+      "Queen Endgame",
+      "Pawn Endgame",
+      "Bishop Endgame",
+      "Knight Endgame",
+      "Promotion",
+      "En Passant",
+      "General"
+    ],
+    "themes": [
+      "advancedPawn",
+      "advantage",
+      "anastasiaMate",
+      "arabianMate",
+      "attackingF2F7",
+      "attraction",
+      "backRankMate",
+      "balestraMate",
+      "bishopEndgame",
+      "blindSwineMate",
+      "bodenMate",
+      "capturingDefender",
+      "castling",
+      "clearance",
+      "collinearMove",
+      "cornerMate",
+      "crushing",
+      "defensiveMove",
+      "deflection",
+      "discoveredAttack",
+      "discoveredCheck",
+      "doubleBishopMate",
+      "doubleCheck",
+      "dovetailMate",
+      "enPassant",
+      "endgame",
+      "epauletteMate",
+      "equality",
+      "exposedKing",
+      "fork",
+      "hangingPiece",
+      "hookMate",
+      "interference",
+      "intermezzo",
+      "killBoxMate",
+      "kingsideAttack",
+      "knightEndgame",
+      "mate",
+      "mateIn1",
+      "mateIn2",
+      "mateIn3",
+      "mateIn4",
+      "mateIn5",
+      "middlegame",
+      "morphysMate",
+      "opening",
+      "operaMate",
+      "pawnEndgame",
+      "pillsburysMate",
+      "pin",
+      "promotion",
+      "queenEndgame",
+      "queenRookEndgame",
+      "queensideAttack",
+      "quietMove",
+      "rookEndgame",
+      "sacrifice",
+      "skewer",
+      "smotheredMate",
+      "swallowstailMate",
+      "trappedPiece",
+      "triangleMate",
+      "underPromotion",
+      "vukovicMate",
+      "xRayAttack",
+      "zugzwang"
+    ],
+    "rating_mean": 1474.0331066368522,
+    "rating_sd": 549.9982552109337,
+    "train_size": 1000000,
+    "epochs": 3.0,
+    "steps": 1467,
+    "best_step": 1467,
+    "batch": 2048,
+    "lr": 0.002,
+    "weight_decay": 1e-05,
+    "seed": 0,
+    "train_seconds": 486,
+    "n_parameters": 1859932
+  },
+  "temperature": 1.0813430907010342,
+  "var_scale": 1.0,
+  "val_uncalibrated": {
+    "cat": {
+      "accuracy": 0.8901048948050054,
+      "macro_f1": 0.7874366279047166,
+      "cohens_kappa": 0.8707806450286029,
+      "nll": 0.33025139570236206,
+      "ece": 0.0077872706732736415
+    },
+    "theme_bce_sum": 20.07264518737793,
+    "rating": {
+      "rmse": 969.5909423828125,
+      "mae": 773.9401245117188,
+      "bias": -708.8089599609375,
+      "r2": -2.09108829498291,
+      "pearson_r": 0.12973220013731313,
+      "spearman_rho": 0.146610815837521,
+      "nll": 13.540693283081055,
+      "coverage_50": 0.29287350012436425,
+      "coverage_80": 0.49352877102398945,
+      "coverage_95": 0.6487010369404681,
+      "mean_sd_content": 496.0014953613281
+    },
+    "selection_score": 0.33025139570236206
+  },
+  "val_calibrated": {
+    "cat": {
+      "accuracy": 0.8901048948050054,
+      "macro_f1": 0.7874366279047166,
+      "cohens_kappa": 0.8707806450286029,
+      "nll": 0.3288678228855133,
+      "ece": 0.0038540578057293627
+    },
+    "theme_bce_sum": 20.07264518737793,
+    "rating": {
+      "rmse": 969.5909423828125,
+      "mae": 773.9401245117188,
+      "bias": -708.8089599609375,
+      "r2": -2.09108829498291,
+      "pearson_r": 0.12973220013731313,
+      "spearman_rho": 0.146610815837521,
+      "nll": 13.540693283081055,
+      "coverage_50": 0.29287350012436425,
+      "coverage_80": 0.49352877102398945,
+      "coverage_95": 0.6487010369404681,
+      "mean_sd_content": 496.0014953613281
+    },
+    "selection_score": 0.3288678228855133
+  },
+  "history": {
+    "train": [
+      {
+        "step": 100,
+        "lr": 0.0013698630136986301,
+        "grad_norm": 1.0778,
+        "cat": 1.46359,
+        "total": 1.46359
+      },
+      {
+        "step": 200,
+        "lr": 0.0019922256000610215,
+        "grad_norm": 0.5509,
+        "cat": 0.72061,
+        "total": 0.72061
+      },
+      {
+        "step": 300,
+        "lr": 0.0019358382560451723,
+        "grad_norm": 0.5472,
+        "cat": 0.54022,
+        "total": 0.54022
+      },
+      {
+        "step": 400,
+        "lr": 0.0018278965967992767,
+        "grad_norm": 0.5067,
+        "cat": 0.47212,
+        "total": 0.47212
+      },
+      {
+        "step": 500,
+        "lr": 0.001674476868091062,
+        "grad_norm": 0.561,
+        "cat": 0.4294,
+        "total": 0.4294
+      },
+      {
+        "step": 600,
+        "lr": 0.001484215364598244,
+        "grad_norm": 0.3701,
+        "cat": 0.39799,
+        "total": 0.39799
+      },
+      {
+        "step": 700,
+        "lr": 0.0012678222760977471,
+        "grad_norm": 0.4328,
+        "cat": 0.35799,
+        "total": 0.35799
+      },
+      {
+        "step": 800,
+        "lr": 0.0010374787900694793,
+        "grad_norm": 0.3139,
+        "cat": 0.31794,
+        "total": 0.31794
+      },
+      {
+        "step": 900,
+        "lr": 0.0008061513889807365,
+        "grad_norm": 0.3349,
+        "cat": 0.30824,
+        "total": 0.30824
+      },
+      {
+        "step": 1000,
+        "lr": 0.0005868619417896643,
+        "grad_norm": 0.4447,
+        "cat": 0.27561,
+        "total": 0.27561
+      },
+      {
+        "step": 1100,
+        "lr": 0.00039195467763551044,
+        "grad_norm": 0.3737,
+        "cat": 0.23975,
+        "total": 0.23975
+      },
+      {
+        "step": 1200,
+        "lr": 0.00023240130519118087,
+        "grad_norm": 0.2878,
+        "cat": 0.22415,
+        "total": 0.22415
+      },
+      {
+        "step": 1300,
+        "lr": 0.00011718339386013328,
+        "grad_norm": 0.2894,
+        "cat": 0.26221,
+        "total": 0.26221
+      },
+      {
+        "step": 1400,
+        "lr": 5.2786783780296666e-05,
+        "grad_norm": 0.3432,
+        "cat": 0.24769,
+        "total": 0.24769
+      }
+    ],
+    "val": [
+      {
+        "step": 1000,
+        "epoch": 2.045,
+        "selection_score": 0.34478,
+        "cat_accuracy": 0.8857,
+        "cat_kappa": 0.8654,
+        "cat_nll": 0.3448,
+        "theme_bce_sum": 20.0737,
+        "rating_rmse": 942.1,
+        "rating_nll": 13.0858,
+        "seconds": 334
+      },
+      {
+        "step": 1467,
+        "epoch": 3.0,
+        "selection_score": 0.32947,
+        "cat_accuracy": 0.8912,
+        "cat_kappa": 0.8721,
+        "cat_nll": 0.3295,
+        "theme_bce_sum": 20.0773,
+        "rating_rmse": 967.4,
+        "rating_nll": 13.4876,
+        "seconds": 486
+      }
+    ]
+  },
+  "wall_seconds": 519
+}

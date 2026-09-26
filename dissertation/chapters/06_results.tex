@@ -1,0 +1,413 @@
+\chapter{Experiments and Results}\label{ch:results}
+
+\section{Experimental Design and Baselines}
+
+Table~\ref{tab:experiments} lists the experiments. The recommendation policies are compared with five
+baselines:
+\begin{itemize}
+  \item \textbf{Random}: a uniform choice of category;
+  \item \textbf{Round-robin}: cycling through all categories;
+  \item \textbf{Static profile}: rotating through the three categories that look weakest from game
+        history;
+  \item \textbf{Greedy}: always the lowest posterior mean, with no exploration;
+  \item \textbf{Oracle}: knows the player's true current $\delta$ and gives an upper bound.
+\end{itemize}
+The two adaptive policies are the original \textbf{Beta-TS} (with the Elo $\pm 300$ band) and the new
+\textbf{IRT-TS}.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Experiments and the research questions they address.}\label{tab:experiments}
+\begin{tabularx}{\linewidth}{p{0.27\linewidth}Yp{0.1\linewidth}}
+\toprule
+\textbf{Experiment} & \textbf{Data and design} & \textbf{RQ} \\
+\midrule
+Tactic-label validation & 30,000 uniform and 48,000 stratified Lichess puzzles; development and held-out seeds & RQ3 \\
+Puzzle-quality evaluation & 30 mined puzzles, five automatic criteria at depth 18 & RQ3 \\
+Rating-group classification & 300 real players, 5 bands, CV over players, permutation test & RQ1 \\
+Weakness diagnosis & 300 real players, temporal hold-out, 11,973 test opportunities & RQ2 \\
+Prequential calibration & 123 real attempts by 5 app users & RQ4 \\
+Simulation E1 & Pre-registered protocol, 200 runs & RQ5 \\
+Simulation E2--E7 & Semi-synthetic players, 200 paired runs per condition & RQ4, RQ5 \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Offline Evaluation of Puzzle Quality and Difficulty}
+
+\subsection{Quality of mined puzzles}
+
+The five-criterion evaluator re-analyses each mined puzzle with Stockfish at depth 18.
+Table~\ref{tab:quality} reports it for the 30 puzzles mined for one app user rated 1050.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Automatic quality of 30 mined puzzles (one player).}\label{tab:quality}
+\begin{tabular}{lr}
+\toprule
+\textbf{Criterion} & \textbf{Result} \\
+\midrule
+Engine agrees the intended move is best & 30 / 30 (100\%) \\
+No dual solution (gap $\geq 50$ cp) & 27 / 30 (90\%) \\
+Strong clarity (PV1 $-$ PV2 $\geq 150$ cp) & 11 / 30 (37\%) \\
+Solution depth $\geq 3$ ply & 30 / 30 (100\%) \\
+Trivial free capture & 0 / 30 \\
+Difficulty within $\pm 300$ of player rating & 25 / 30 (83\%) \\
+Mean composite score & 0.869 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The mining gates produce puzzles that are sound: engine agreement and depth are perfect, and 90\% have
+no second solution. Only 37\% reach the stricter clarity threshold, so many puzzles have a plausible
+second-best move. This is a single player's sample and indicative only.
+
+\subsection{Tactic-label validation}\label{sec:labeller-results}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Tactic labeller against Lichess themes, held-out sample (seed 11).}\label{tab:labeller}
+\begin{tabular}{lrr}
+\toprule
+\textbf{Metric} & \textbf{Original (first move)} & \textbf{New tagger (whole line)} \\
+\midrule
+Strict agreement & 31.2\% & \textbf{58.4\%} \\
+Lenient agreement & 37.4\% & \textbf{60.9\%} \\
+Cohen's $\kappa$ & 0.23 & \textbf{0.52} \\
+Macro recall (stratified) & 14.4\% & \textbf{32.0\%} \\
+Macro precision (uniform) & 30.3\% & \textbf{53.7\%} \\
+Categories never emitted & 8 & 5 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+On the development sample (seed 7) the new tagger scores 57.6\% ($\kappa=0.51$), almost the same as on
+the held-out sample. The improvement is therefore not an artefact of tuning. The largest per-class
+gains are for Mating Pattern (recall 0.46 to 0.998), Skewer (0.12 to 0.76), Discovered Attack (0.08
+to 0.69) and Promotion (0.08 to 0.64). The original's ``Fork'' was a catch-all, with recall 0.82 and
+precision only 0.25; the new tagger's Fork precision is 0.61. Agreement of $\kappa=0.52$ is
+``moderate''~\cite{landis1977measurement}. The tagger is much better than before, but still far from
+perfect, and its errors spread across related motifs (Figure~\ref{fig:labeller}).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/labeller_confusion_heldout.png}
+\caption{Row-normalised confusion matrices of the original and new taggers against Lichess themes
+(held-out sample).}\label{fig:labeller}
+\end{figure}
+
+\subsection{Difficulty calibration on real solve logs}
+
+Every model replays the 123 real attempts in time order and predicts each one before learning from it.
+Players solved \textbf{84.6\%} of attempts; 67.5\% of the puzzles were mined from their own games.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Prequential evaluation on real attempts ($n=123$, 5 players).}\label{tab:prequential}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Model} & \textbf{Log loss} & \textbf{Brier} & \textbf{AUC} & \textbf{Mean pred.} & $\boldsymbol{\Delta}$\textbf{LL vs Elo [95\% CI]} \\
+\midrule
+Base rate (running mean) & 0.451 & 0.139 & 0.51 & 0.77 & $-0.758$ [$-1.013$, $-0.513$] \\
+Static Elo (original) & 1.208 & 0.374 & 0.54 & 0.45 & reference \\
+Glicko-2, symmetric & 0.640 & 0.212 & 0.58 & 0.69 & $-0.569$ [$-0.759$, $-0.375$] \\
+Glicko-2, pool frozen & 0.714 & 0.242 & 0.46 & 0.69 & $-0.495$ [$-0.692$, $-0.296$] \\
+IRT, $\theta$ only & 0.652 & 0.222 & 0.49 & 0.70 & $-0.556$ [$-0.764$, $-0.348$] \\
+IRT, per category & 0.599 & 0.202 & 0.54 & 0.71 & $-0.609$ [$-0.812$, $-0.406$] \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{finding}
+The original assumption, comparing a player's Chess.com rating with a puzzle's Lichess rating (the
+basis of the Elo $\pm300$ band), is badly miscalibrated. It predicts a 45\% solve rate where players
+achieved 84.6\%, and its log loss (1.21) is worse than a coin flip (0.69). Every learned model corrects
+this, with confidence intervals that exclude zero, and the per-category IRT is the best of them. With
+only 123 events, however, no model yet discriminates \emph{which} puzzles will be solved (AUC close to
+0.5), so a constant base rate is still the best calibrated. This limit is set by the amount of data.
+\end{finding}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.62\linewidth]{figures/difficulty_calibration.png}
+\caption{Calibration of the prequential predictions on the real logs.}\label{fig:calibration}
+\end{figure}
+
+\input{sections/puzzlenet_results}
+
+\section{Evaluation of Style-Conditional Generation}\label{sec:rating-classifier}
+
+\begin{honest}[Honest status]
+Style-conditional puzzle generation could not be evaluated, because no generative model was built
+(Section~\ref{sec:generation}). This section instead evaluates the two player-modelling claims the
+system relies on, on real players: that a player's level can be read from how they play (RQ1), and
+that their tactical weaknesses can be diagnosed from their games (RQ2).
+\end{honest}
+
+\subsection{Rating-group classification (Objective O1)}
+
+\begin{table}[H]
+\centering
+\small
+\caption{Rating-band classification, 300 players, 5 bands, chance 20\%.}\label{tab:rating}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Model} & \textbf{Accuracy} & \textbf{Macro-F1} & \textbf{Within one band} & \textbf{Permutation $p$} \\
+\midrule
+Logistic regression & $59.1\% \pm 1.8$ & 0.588 & 93.1\% & 0.002 \\
+Random forest & $57.4\% \pm 1.9$ & 0.570 & 93.8\% & 0.002 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+A player's rating band is predicted from how they play at almost three times chance. The prediction
+is within one band 93\% of the time, and no information about ratings is used. The permutation $p$ of
+0.002 is the smallest attainable with 500 shuffles: no shuffled labelling reached the observed
+accuracy. Viewed as regression, the rating itself is predicted with a mean absolute error of 206
+rating points, against 490 for predicting the mean ($r = 0.895$). The most important features are mean
+win-probability loss, mean centipawn loss, median win-probability loss, the critical-position hit rate
+and blunders per game.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.58\linewidth]{figures/rating_band_confusion.png}
+\caption{Row-normalised confusion matrix of the logistic-regression classifier. Errors fall almost
+entirely in adjacent bands.}\label{fig:rating}
+\end{figure}
+
+\subsection{Diagnosing tactical weaknesses on real players}\label{sec:cohort-results}
+
+Each player's oldest two-thirds of games are used to predict the critical positions they miss in their
+newest third: 11,973 held-out opportunities in total. Population parameters are always fitted on other
+players (5-fold, grouped by player).
+
+\begin{table}[H]
+\centering
+\small
+\caption{Predicting future misses (300 players). $\Delta$LL is relative to the category base rate;
+negative is better.}\label{tab:cohort}
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Model} & \textbf{Log loss} & \textbf{AUC} & $\boldsymbol{\Delta}$\textbf{LL [95\% CI]} & \textbf{Top-3 recall} \\
+\midrule
+Global base rate & 0.6545 & 0.494 & $+0.0145$ [$+0.011$, $+0.018$] & 0.60 \\
+Category base rate & 0.6401 & 0.582 & reference & 0.71 \\
+Player base rate & 0.6491 & 0.568 & $+0.0091$ [$+0.004$, $+0.015$] & 0.60 \\
+Rule-based scorer (original) & 0.6547 & 0.474 & $+0.0147$ [$+0.011$, $+0.018$] & 0.59 \\
+RF trained on simulated players & 0.6529 & 0.505 & $+0.0128$ [$+0.009$, $+0.016$] & 0.62 \\
+EB, shrink to player rate & 0.6506 & 0.582 & $+0.0105$ [$+0.005$, $+0.016$] & 0.66 \\
+\textbf{EB, shrink to population norms} & \textbf{0.6326} & \textbf{0.620} & $\mathbf{-0.0074}$ [$-0.012$, $-0.003$] & 0.70 \\
+RF trained on real players & 0.6321 & 0.618 & $-0.0080$ [$-0.012$, $-0.005$] & 0.71 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three results stand out:
+\begin{enumerate}
+  \item \textbf{The original rule-based scorer and the random forest trained on simulated players carry
+        no usable information} about a real player's future misses (AUC 0.47 and 0.51). This is the
+        circularity risk from training on synthetic data, made concrete.
+  \item \textbf{Only two models beat population base rates}, and they are statistically tied:
+        shrinkage towards population norms (used in production, because it needs no training and is
+        interpretable) and a random forest trained on real players. The margins are small.
+  \item \textbf{Per-category weakness barely replicates within a player.} Cross-validation chose a
+        shrinkage strength of 128--256 pseudo-opportunities. Split-half reliability is near zero for
+        most categories: Fork $r=0.08$ ($n=227$ players), Quiet Move $0.03$ ($n=299$), Hanging Piece
+        $-0.06$ ($n=148$). The noise-corrected spread of personal category deviations is estimated at
+        zero. There is also no family structure: within-family correlation is $-0.08$, against $-0.12$
+        across families.
+\end{enumerate}
+
+\begin{finding}[Key finding: weakness diagnosis]
+With about 40 games of history (roughly 80 critical positions spread over 15 or more categories), a
+player's category-specific weaknesses cannot be separated from sampling noise. The reliable signals are
+the player's overall level and how hard each motif is for everyone. This directly challenges the
+premise of every ``mistakes from your games'' trainer. It also shows why the system must learn personal
+weaknesses \emph{online}, from targeted puzzle attempts.
+\end{finding}
+
+\section{Adaptive vs Non-Adaptive Training Comparison}
+
+\subsection{E1: pre-registered replication}
+
+The protocol was fixed before any results existed: three categories solved 30\% of the time, twenty at
+80\%, 200 runs of 150 attempts, uniform priors, and the original Beta-TS.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Pre-registered criteria for the original Beta-TS bandit.}\label{tab:e1}
+\begin{tabular}{llll}
+\toprule
+\textbf{Criterion} & \textbf{Threshold} & \textbf{Result [95\% CI]} & \\
+\midrule
+C1 targeting, trials 131--150 & $\geq 80\%$ & 71.4\% [69.5, 73.2] & \textbf{fail} \\
+C2 posterior MAE at trial 100 & $\leq 0.10$ & 0.111 [0.108, 0.114] & \textbf{fail} \\
+C3 vs random (Welch's $t$) & $p<0.01$, $d>0.8$ & $p<10^{-100}$, $d=5.4$ & pass \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The bandit is far better than random, but misses two thresholds that were set without accounting for
+the cost of exploration. Thompson Sampling keeps sampling the 20 strong arms, which lowers targeting
+and leaves their estimates noisy (Figure~\ref{fig:e1}). The greedy policy reaches 100\% targeting here,
+but only because the weak arms are unambiguous; it collapses once the player learns (E2).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/e1_preregistered.png}
+\caption{E1: targeting (left) and posterior MAE (right) over 150 attempts.}\label{fig:e1}
+\end{figure}
+
+\subsection{E2: semi-synthetic comparison}
+
+Synthetic players have a known $\theta$ and $\delta$. Three categories are weak by about 210 rating
+points. Puzzle difficulties are drawn from the real Lichess distribution for each category. The
+player's Elo is only a noisy guide to puzzle ability, and the evidence from games is mislabelled
+according to the measured confusion matrix of the new tagger.
+
+\begin{table}[H]
+\centering
+\small
+\caption{E2, no learning, 200 paired runs.}\label{tab:e2}
+\begin{tabular}{lrrrrr}
+\toprule
+\textbf{Policy} & \textbf{Targeting (last 50)} & \textbf{Regret} & \textbf{Frustrating} & \textbf{Productive} & \textbf{Top-3} \\
+\midrule
+Random & 0.130 & 189.2 & 33.8\% & 37\% & 0.40 \\
+Round-robin & 0.132 & 189.1 & 33.6\% & 37\% & 0.41 \\
+Static profile & 0.206 & 166.6 & 35.8\% & 36\% & 0.26 \\
+Greedy & 0.520 & 103.5 & 49.3\% & 25\% & 0.26 \\
+Beta-TS (original) & 0.404 & 145.9 & 44.1\% & 29\% & 0.45 \\
+Beta-TS, $\gamma=0.97$ & 0.244 & 164.9 & 39.8\% & 32\% & 0.35 \\
+IRT-TS, Elo band & 0.409 & 142.3 & 42.5\% & 31\% & 0.49 \\
+\textbf{IRT-TS (new)} & \textbf{0.445} & \textbf{135.9} & \textbf{3.2\%} & \textbf{72\%} & \textbf{0.49} \\
+Oracle & 1.000 & 0.0 & 0.0\% & 82\% & 1.00 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Paired against Beta-TS, IRT-TS reduces regret by 10.0 (95\% CI [$-15.3$, $-4.8$], $p_\text{Holm} <
+0.001$). It cuts the share of frustrating puzzles by 41 points ($d_z = -2.52$). Its targeting gain of
+$+0.041$ ([0.002, 0.081]) is \emph{not} significant after Holm correction ($p_\text{Holm}=0.089$). All
+adaptive policies beat random decisively (Beta-TS against random: $d_z = 1.19$ on targeting).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/e2_targeting_and_difficulty.png}
+\caption{E2: targeting over time (left) and the true solve probability of each served puzzle (right).
+IRT-TS matches the Oracle's difficulty inside the productive zone.}\label{fig:e2}
+\end{figure}
+
+\paragraph{Learning gain depends on the assumed learning mechanism.} A simulated learning gain follows
+from an \emph{assumed} learning model, so two are reported. Under ``zpd'', learning is greatest on
+puzzles near the edge of ability. Under ``error'', players learn from seeing the solution after a miss.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Gain in the initially weak categories (logits), with the paired difference against Beta-TS.}\label{tab:gain}
+\begin{tabular}{lrrrl}
+\toprule
+\textbf{Learning model} & \textbf{Random} & \textbf{Beta-TS} & \textbf{IRT-TS} & \textbf{IRT $-$ Beta [95\% CI]} \\
+\midrule
+zpd & 0.256 & 0.543 & 0.675 & $+0.133$ [0.092, 0.174], $d_z = 0.45$ \\
+error & 0.284 & 0.516 & 0.386 & $-0.130$ [$-0.163$, $-0.098$], $d_z = -0.53$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=\linewidth]{figures/e2_summary.png}
+\caption{Frustration, regret and learning gain by policy, with 95\% confidence intervals.}\label{fig:e2summary}
+\end{figure}
+
+\section{Analysis of Results and Ablation Studies}\label{sec:ablations}
+
+\paragraph{Where does the improvement come from?} The ablation \emph{IRT-TS, Elo band} uses the new
+category selection with the old difficulty band. It performs like Beta-TS on every metric. The new
+policy's benefit therefore comes almost entirely from \emph{difficulty targeting}, not from how it
+chooses categories. This also explains the sign flip in Table~\ref{tab:gain}: easier, well-pitched
+puzzles produce fewer failures, which helps under the zpd model and hurts under the error model.
+
+\paragraph{E3: does label quality matter?} Early targeting (first 30 attempts) for IRT-TS rises from
+0.151 with no game evidence, to 0.201 with the old labeller's errors, 0.226 with the new tagger's, and
+0.321 with perfect labels. In paired comparisons, game evidence helps (new against none $+0.075$,
+$p<10^{-9}$). Perfect labels would help much more (perfect against new $+0.095$, $p<10^{-9}$). The
+improvement from old to new tagger is small and not significant ($+0.025$, $p=0.06$). Better labels are
+necessary, but this tagger has not yet recovered most of the available gain.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.7\linewidth]{figures/e3_label_quality.png}
+\caption{E3: early targeting under four qualities of game evidence.}\label{fig:e3}
+\end{figure}
+
+\paragraph{E4: the player improves mid-session.} At attempt 75, the worst category improves by 1.5
+logits. Discounted Thompson Sampling~\cite{raj2017taming} \emph{raises} regret after the change: by 19.2
+at $\gamma=0.97$ ($d_z = 0.82$) and by 26.1 at $\gamma=0.93$ ($d_z = 1.01$). With 23 arms and few
+attempts on each, forgetting every arm costs more than forgetting the one that changed. Discounting
+therefore stays off. The IRT learner's random-walk drift is on a par with Beta-TS ($-1.4$, not
+significant).
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.75\linewidth]{figures/e4_changepoint.png}
+\caption{E4: per-attempt regret around the change point.}\label{fig:e4}
+\end{figure}
+
+\paragraph{E5: sensitivity.} Beta-TS is insensitive to prior strength; targeting ranges from 0.361 to
+0.406 across a tenfold range. For IRT-TS, targets of $p^\star=0.5$ and $0.65$ give the same targeting
+(0.446 and 0.445), while $0.8$ is worse (0.409), because puzzles that are too easy carry little
+information. Under the zpd model the gain is largest at $p^\star=0.5$. That is built into the
+assumption, and $0.65$ is a compromise with frustration.
+
+\paragraph{E6: family-structured prior.} A prior that correlates related motifs gives a small early
+targeting gain ($+0.018$, $p=0.003$) and a small reduction in regret when weaknesses really do cluster
+($-2.9$, $p=0.04$). The real cohort shows no clustering, so the option stays off.
+
+\paragraph{E7: realistic effect sizes.} Calibrated on the cohort, with subtle weaknesses of $-0.5$
+logits against a background of $0.15$, the advantage of Beta-TS over random shrinks from $+0.29$ to
+$+0.10$ ($d_z = 0.55$), and IRT-TS's extra targeting edge over Beta-TS disappears ($+0.001$,
+$p=0.95$). The reduction in frustrating puzzles holds in every world: from 35\% to 1.4\% with subtle
+weaknesses, and from 28\% to 0.9\% with none at all ($d_z$ between $-1.7$ and $-2.6$). It is the most
+robust result in the study.
+
+\section{Threats to Validity}\label{sec:validity}
+
+\paragraph{Internal validity.} No puzzle of the held-out harness entered PuzzleNet's training or its
+model selection, and the rule-based numbers recomputed on that harness reproduce the published ones
+exactly, which is evidence that both labellers were scored on identical data. Two gaps remain. The
+network is trained on puzzle solution lines but deployed on engine lines, so its labelling accuracy in
+the application is the engine-line figure of Section~\ref{sec:nn-deployment}, not the harness figure.
+And its difficulty head is calibrated on Lichess puzzles, while it is used on puzzles mined from a
+player's own games, for which no ground truth exists at all.
+
+\paragraph{Internal validity of the simulations.} The simulated players use the same logistic model family as the IRT
+learner, which favours it. The E2 ablation shows that the advantage comes from difficulty targeting,
+which any correctly specified model would provide, but the favour remains. Learning gains depend
+entirely on the assumed learning mechanism, which is why two are reported.
+
+\paragraph{Construct validity.} Targeting a weak category is not the same as learning. Lichess themes
+are an automatic reference, not ground truth, and this matters more now that a network is trained
+\emph{to reproduce them}: PuzzleNet's $\kappa$ of \KAPPANN{} says it has learned Lichess's own tagger
+almost exactly, not that either is right. Where the two taggers agree and both are wrong, nothing in
+this evaluation can see it. A human-labelled sample would be needed to separate the two claims, and
+none exists here. The opportunity definition (a gap of at least 10
+win-percentage points, no recaptures) is a design choice, and other thresholds would change the
+counts.
+
+\paragraph{External validity.} The cohort is not a uniform random sample. Snowball and titled-player
+sampling over-represent connected and titled players in the upper bands. Only rapid and blitz games
+from Chess.com are used. The real puzzle logs come from five users, two of whom contribute most of the
+attempts.
+
+\paragraph{Statistical conclusion validity.} Many comparisons are made. Holm correction is applied
+within each family of comparisons but not across experiments. The prequential analysis has only 123
+events, so its confidence intervals are wide. The permutation $p$ of 0.002 is the floor of a
+500-shuffle test, not an exact value.

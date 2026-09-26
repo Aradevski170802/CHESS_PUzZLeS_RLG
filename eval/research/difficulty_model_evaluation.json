@@ -1,0 +1,86 @@
+{
+  "events": 123,
+  "players": 5,
+  "solve_rate": 0.846,
+  "mined_share": 0.675,
+  "mined_rated_by_puzzlenet": 44,
+  "models": {
+    "Base rate": {
+      "log_loss": 0.4508,
+      "brier": 0.1387,
+      "auc": 0.508,
+      "mean_prediction": 0.77,
+      "logloss_minus_static_elo": -0.7577,
+      "ci95": [
+        -1.0132,
+        -0.5129
+      ]
+    },
+    "Static Elo": {
+      "log_loss": 1.2084,
+      "brier": 0.3741,
+      "auc": 0.542,
+      "mean_prediction": 0.449,
+      "logloss_minus_static_elo": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ]
+    },
+    "Glicko-2 (symmetric)": {
+      "log_loss": 0.6395,
+      "brier": 0.2122,
+      "auc": 0.575,
+      "mean_prediction": 0.686,
+      "logloss_minus_static_elo": -0.5689,
+      "ci95": [
+        -0.7585,
+        -0.3747
+      ]
+    },
+    "Glicko-2 (pool frozen)": {
+      "log_loss": 0.7136,
+      "brier": 0.2423,
+      "auc": 0.457,
+      "mean_prediction": 0.686,
+      "logloss_minus_static_elo": -0.4948,
+      "ci95": [
+        -0.6916,
+        -0.2955
+      ]
+    },
+    "IRT, \u03b8 only": {
+      "log_loss": 0.6523,
+      "brier": 0.2217,
+      "auc": 0.485,
+      "mean_prediction": 0.702,
+      "logloss_minus_static_elo": -0.5561,
+      "ci95": [
+        -0.7641,
+        -0.348
+      ]
+    },
+    "IRT, per category": {
+      "log_loss": 0.5992,
+      "brier": 0.2024,
+      "auc": 0.54,
+      "mean_prediction": 0.706,
+      "logloss_minus_static_elo": -0.6093,
+      "ci95": [
+        -0.8124,
+        -0.4058
+      ]
+    },
+    "IRT, per category + PuzzleNet": {
+      "log_loss": 0.7542,
+      "brier": 0.2492,
+      "auc": 0.531,
+      "mean_prediction": 0.653,
+      "logloss_minus_static_elo": -0.4543,
+      "ci95": [
+        -0.674,
+        -0.2367
+      ]
+    }
+  }
+}

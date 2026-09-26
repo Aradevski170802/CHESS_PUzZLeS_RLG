@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Adaptive Chess Puzzle Advisor — Presentation</title>
+<style>
+  :root{
+    --navy:#151d38; --navy2:#1c2747; --navy3:#232f57;
+    --ink:#1a2340; --slate:#4d5878; --line:#e3e6f0;
+    --tint:#f5f6fb; --white:#ffffff;
+    --gold:#c99a3c; --gold-soft:#f6ecd6;
+    --good:#2f7d5e; --good-soft:#e7f4ee;
+    --warn:#b3541e; --warn-soft:#fdf1e7;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:#0c1226;}
+  body{font-family:-apple-system,"Segoe UI",Calibri,Arial,sans-serif;color:var(--ink);}
+  .deck{scroll-snap-type:y mandatory; overflow-y:scroll; height:100vh;}
+  .slide{
+    scroll-snap-align:start;
+    width:100vw; height:100vh; min-height:560px;
+    padding:64px 84px; position:relative; overflow:hidden;
+    display:flex; flex-direction:column; justify-content:center;
+  }
+  .slide.dark{background:linear-gradient(160deg,var(--navy) 0%,#0f1730 100%); color:#eef0fa;}
+  .slide.light{background:var(--white); color:var(--ink);}
+  .slide.tint{background:var(--tint); color:var(--ink);}
+
+  .eyebrow{font-size:13px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; color:var(--gold); margin:0 0 14px;}
+  .dark .eyebrow{color:var(--gold);}
+  h1{font-size:46px; font-weight:800; margin:0 0 18px; line-height:1.14; letter-spacing:-0.01em;}
+  h2{font-size:30px; font-weight:750; margin:0 0 26px; letter-spacing:-0.01em;}
+  p.lead{font-size:18px; line-height:1.6; color:var(--slate); max-width:700px; margin:0 0 8px;}
+  .dark p.lead{color:#c3c9e6;}
+  .foot{position:absolute; bottom:26px; left:84px; right:84px; display:flex; justify-content:space-between; font-size:11.5px; color:#9aa3c2;}
+  .light .foot,.tint .foot{color:#8a91ab;}
+  .pagenum{position:absolute; bottom:26px; right:84px; font-size:11.5px; color:#9aa3c2;}
+  .light .pagenum,.tint .pagenum{color:#8a91ab;}
+
+  .nav{position:fixed; right:22px; bottom:22px; display:flex; flex-direction:column; gap:8px; z-index:50;}
+  .nav a{width:36px; height:36px; border-radius:50%; background:rgba(21,29,56,0.85); color:#fff; display:flex; align-items:center; justify-content:center; text-decoration:none; font-size:15px; box-shadow:0 4px 14px rgba(0,0,0,.25);}
+  .nav a:hover{background:var(--gold); color:#1a2340;}
+
+  .piece{font-size:340px; position:absolute; right:-40px; bottom:-90px; color:rgba(255,255,255,0.05); line-height:1;}
+  .piece.small{font-size:120px; opacity:.14; position:static; color:var(--navy);}
+
+  .grid-2{display:grid; grid-template-columns:1.05fr .95fr; gap:56px; align-items:center; width:100%;}
+  .grid-3{display:grid; grid-template-columns:repeat(3,1fr); gap:26px; width:100%;}
+  .grid-4{display:grid; grid-template-columns:repeat(4,1fr); gap:20px; width:100%;}
+
+  .icon-circle{width:50px; height:50px; border-radius:50%; background:var(--gold-soft); color:var(--gold); display:flex; align-items:center; justify-content:center; font-size:22px; flex:none;}
+  .dark .icon-circle{background:rgba(201,154,60,0.18); color:var(--gold);}
+  .row-icon{display:flex; gap:18px; align-items:flex-start; margin-bottom:22px;}
+  .row-icon h3{font-size:17px; margin:2px 0 6px; font-weight:700;}
+  .row-icon p{font-size:14.5px; color:var(--slate); margin:0; line-height:1.55;}
+  .dark .row-icon p{color:#c3c9e6;}
+
+  .card{background:var(--white); border-radius:14px; padding:22px 24px; box-shadow:0 2px 18px rgba(20,30,70,0.07);}
+  .dark .card{background:var(--navy2); box-shadow:none;}
+  .card h4{margin:0 0 8px; font-size:15.5px; font-weight:750;}
+  .card p{margin:0; font-size:14px; line-height:1.55; color:var(--slate);}
+  .dark .card p{color:#c3c9e6;}
+  .card.warn{background:var(--warn-soft);}
+  .card.warn h4{color:var(--warn);}
+  .card.good{background:var(--good-soft);}
+  .card.good h4{color:var(--good);}
+
+  .stat{display:flex; flex-direction:column;}
+  .stat .num{font-size:50px; font-weight:800; color:var(--gold); line-height:1;}
+  .light .stat .num,.tint .stat .num{color:var(--ink);}
+  .stat .lbl{font-size:12.5px; color:#9aa3c2; text-transform:uppercase; letter-spacing:.05em; margin-top:6px;}
+  .light .stat .lbl,.tint .stat .lbl{color:var(--slate);}
+
+  table{width:100%; border-collapse:collapse; font-size:14.5px;}
+  th,td{text-align:left; padding:10px 12px; border-bottom:1px solid var(--line); vertical-align:top;}
+  th{font-weight:700; background:rgba(0,0,0,0.02); font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; color:var(--slate);}
+  .dark table{color:#eef0fa;}
+  .dark th,.dark td{border-bottom:1px solid rgba(255,255,255,0.12);}
+  .dark th{background:rgba(255,255,255,0.04); color:#c3c9e6;}
+  code{font-family:Consolas,Menlo,monospace; background:rgba(0,0,0,0.05); border-radius:4px; padding:1px 5px; font-size:0.86em;}
+  .dark code{background:rgba(255,255,255,0.1); color:#f6ecd6;}
+  .mono-block{font-family:Consolas,Menlo,monospace; font-size:13px; background:var(--navy); color:#e8eaf4; padding:16px 18px; border-radius:10px; line-height:1.6;}
+
+  .bullets{list-style:none; margin:0; padding:0;}
+  .bullets li{position:relative; padding-left:24px; margin-bottom:11px; font-size:15px; line-height:1.55;}
+  .bullets li::before{content:"›"; position:absolute; left:0; color:var(--gold); font-weight:800;}
+
+  .diagram-wrap svg{display:block; width:100%; height:auto;}
+  .node-box{fill:var(--white); stroke:var(--ink); stroke-width:1.2;}
+  .tint .node-box, .light .node-box{fill:#ffffff;}
+  .node-box.accent{fill:var(--gold-soft); stroke:var(--gold);}
+  .node-box.warn{fill:var(--warn-soft); stroke:var(--warn);}
+  .node-box.navy{fill:var(--navy2); stroke:#3a4670;}
+  .node-title{font:700 12.5px -apple-system,"Segoe UI",sans-serif; fill:var(--ink); text-anchor:middle;}
+  .node-sub{font:11px Consolas,Menlo,monospace; fill:var(--slate); text-anchor:middle;}
+  .node-title.on-navy{fill:#eef0fa;} .node-sub.on-navy{fill:#aeb6d6;}
+  .edge{fill:none; stroke:#9aa3c2; stroke-width:1.4;}
+  .edge.gold{stroke:var(--gold);}
+  .edge-label{font:10.5px -apple-system,"Segoe UI",sans-serif; fill:var(--slate); text-anchor:middle;}
+  .edge-label.bg{fill:#ffffff;}
+
+  @media print{
+    .nav{display:none;}
+    .deck{overflow:visible; height:auto;}
+    .slide{page-break-after:always; height:100vh;}
+    html,body{background:#fff;}
+    @page{size:landscape; margin:0;}
+  }
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#9aa3c2"></path>
+    </marker>
+    <marker id="ag" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c99a3c"></path>
+    </marker>
+  </defs>
+</svg>
+
+<div class="nav">
+  <a href="#s1" title="First slide">⤒</a>
+</div>
+
+<div class="deck">
+
+<!-- ============ 1. TITLE ============ -->
+<section class="slide dark" id="s1">
+  <div class="piece">♞</div>
+  <div class="eyebrow">MSc AI &amp; Data Science Dissertation · City College, University of York</div>
+  <h1>Adaptive Chess Puzzle Advisor</h1>
+  <p class="lead">An adaptive, weakness-targeted chess puzzle recommender built on a Thompson Sampling bandit,<br>Stockfish-verified puzzle mining, and Glicko-2 difficulty calibration.</p>
+  <div class="foot"><span>Aleksandar Radevski</span><span>July – October 2026</span></div>
+</section>
+
+<!-- ============ 2. PITCH ============ -->
+<section class="slide light" id="s2">
+  <div class="eyebrow">Overview</div>
+  <h2>What the system does</h2>
+  <div class="row-icon"><div class="icon-circle">♟</div><div><h3>Analyse</h3><p>Pulls a player's Chess.com game history and estimates which of 23 tactical categories they're weakest in.</p></div></div>
+  <div class="row-icon"><div class="icon-circle">♞</div><div><h3>Recommend, adaptively</h3><p>A Thompson Sampling multi-armed bandit selects which category to practise next, updating in real time from every solve/fail.</p></div></div>
+  <div class="row-icon" style="margin-bottom:34px;"><div class="icon-circle">♛</div><div><h3>Mine &amp; calibrate</h3><p>Puzzles come from a 6M-row Lichess database plus puzzles mined directly from the player's own games; two offline models (Glicko-2, a trained classifier) extend the calibration further.</p></div></div>
+  <div class="grid-4">
+    <div class="stat"><div class="num">23</div><div class="lbl">Weakness categories</div></div>
+    <div class="stat"><div class="num">6M+</div><div class="lbl">Lichess puzzles</div></div>
+    <div class="stat"><div class="num">128</div><div class="lbl">Passing tests</div></div>
+    <div class="stat"><div class="num">4</div><div class="lbl">Real users so far</div></div>
+  </div>
+  <div class="pagenum">2 / 24</div>
+</section>
+
+<!-- ============ 3. ARCHITECTURE ============ -->
+<section class="slide tint" id="s3">
+  <div class="eyebrow">System design</div>
+  <h2>Architecture at a glance</h2>
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 980 300" xmlns="http://www.w3.org/2000/svg">
+      <path class="edge" d="M110,60 L110,90" marker-end="url(#a)"/>
+      <path class="edge" d="M110,150 L110,180" marker-end="url(#a)"/>
+      <path class="edge" d="M280,120 L340,120 L340,205" marker-end="url(#a)"/>
+      <path class="edge" d="M220,210 L340,210" marker-end="url(#a)"/>
+      <path class="edge" d="M540,210 L610,210" marker-end="url(#a)"/>
+      <path class="edge" d="M610,240 C560,260 540,260 470,235" marker-end="url(#a)"/>
+      <path class="edge gold" d="M700,240 L700,270 L560,270 L560,255" marker-end="url(#ag)" stroke-dasharray="5 3"/>
+      <path class="edge" d="M840,240 L840,270 L720,270 L720,255" marker-end="url(#a)"/>
+      <text class="edge-label" x="583" y="30">solve / fail loop</text>
+
+      <g><rect class="node-box" x="20" y="20" width="180" height="40" rx="8"/><text class="node-title" x="110" y="45">Chess.com API</text></g>
+      <g><rect class="node-box" x="20" y="90" width="180" height="60" rx="8"/><text class="node-title" x="110" y="115">Stockfish Analyzer</text><text class="node-sub" x="110" y="132">+ rule-based scorer</text></g>
+      <g><rect class="node-box" x="20" y="180" width="200" height="60" rx="8"/><text class="node-title" x="120" y="205">4-Gate Puzzle Miner</text><text class="node-sub" x="120" y="222">own-game mining</text></g>
+
+      <g><rect class="node-box accent" x="340" y="180" width="200" height="60" rx="8"/><text class="node-title" x="440" y="205">Thompson Sampling</text><text class="node-sub" x="440" y="222">Bandit · 23 arms</text></g>
+      <g><rect class="node-box accent" x="610" y="180" width="200" height="60" rx="8"/><text class="node-title" x="710" y="205">Adaptive session</text><text class="node-sub" x="710" y="222">/api/session/puzzle</text></g>
+
+      <g><rect class="node-box" x="480" y="20" width="220" height="60" rx="8"/><text class="node-title" x="590" y="45">Lichess Puzzle DB</text><text class="node-sub" x="590" y="62">~6M rows</text></g>
+
+      <g><rect class="node-box" x="440" y="255" width="200" height="45" rx="8" stroke-dasharray="4 3"/><text class="node-sub" x="540" y="282">Glicko-2 fitter (offline)</text></g>
+      <g><rect class="node-box accent" x="640" y="255" width="220" height="45" rx="8"/><text class="node-sub" x="750" y="282">ML classifier — opt-in flag</text></g>
+    </svg>
+  </div>
+  <p class="lead" style="margin-top:6px;">Solid = live in the app today — including the ML classifier, reachable via the <code>WEAKNESS_MODEL=ml</code> opt-in flag. Dashed gold = built and validated, not yet wired into the serving path (Glicko-2 fitter only).</p>
+  <div class="pagenum">3 / 24</div>
+</section>
+
+<!-- ============ 4. PIPELINE 1 ============ -->
+<section class="slide light" id="s4">
+  <div class="eyebrow">Pipeline 1</div>
+  <h2>Player analysis — from games to a weakness profile</h2>
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 960 170" xmlns="http://www.w3.org/2000/svg">
+      <path class="edge" d="M170,40 L210,40" marker-end="url(#a)"/>
+      <path class="edge" d="M370,40 L410,40" marker-end="url(#a)"/>
+      <path class="edge" d="M580,25 L620,25 L620,55" marker-end="url(#a)"/>
+      <path class="edge" d="M580,55 L620,55 L620,95" marker-end="url(#a)"/>
+      <path class="edge" d="M780,60 L820,60" marker-end="url(#a)"/>
+      <text class="edge-label" x="600" y="15">stockfish found (default)</text>
+      <text class="edge-label" x="600" y="112">not found / engine fails (last resort)</text>
+
+      <g><rect class="node-box" x="20" y="15" width="150" height="50" rx="8"/><text class="node-title" x="95" y="45">Chess.com API</text></g>
+      <g><rect class="node-box" x="210" y="15" width="160" height="50" rx="8"/><text class="node-title" x="290" y="40">Stockfish</text><text class="node-sub" x="290" y="55">analyze_game()</text></g>
+      <g><rect class="node-box accent" x="420" y="0" width="160" height="50" rx="8"/><text class="node-title" x="500" y="30">build_profile()</text></g>
+      <g><rect class="node-box warn" x="420" y="70" width="160" height="50" rx="8"/><text class="node-title" x="500" y="100">_heuristic_profile()</text></g>
+      <g><rect class="node-box accent" x="620" y="35" width="160" height="50" rx="8"/><text class="node-title" x="700" y="65">Bandit priors</text></g>
+      <g><rect class="node-box" x="820" y="35" width="120" height="50" rx="8"/><text class="node-title" x="880" y="55">Puzzle</text><text class="node-sub" x="880" y="72">session</text></g>
+    </svg>
+  </div>
+  <ul class="bullets" style="margin-top:26px;">
+    <li>Every player move is evaluated before and after with Stockfish — a ≥50cp drop is logged as an error, with severity and now also a tactical <strong>category</strong>.</li>
+    <li><code>build_profile()</code> converts error patterns into per-category weakness scores via hand-tuned thresholds (not learned — see slide 5).</li>
+    <li>A crude engine-free fallback exists for when Stockfish can't be located — more on that on slide 15.</li>
+  </ul>
+  <div class="pagenum">4 / 24</div>
+</section>
+
+<!-- ============ 5. RULE-BASED SCORER ============ -->
+<section class="slide tint" id="s5">
+  <div class="eyebrow">Pipeline 1, continued</div>
+  <h2>The rule-based weakness scorer</h2>
+  <table>
+    <tr><th>Signal</th><th>Rule</th><th>Effect</th></tr>
+    <tr><td>Middlegame error rate &gt; 0.5</td><td><code>boost = min(0.25, rate × 0.3)</code></td><td>Fork / Pin / Skewer / Sacrifice / Deflection / Hanging Piece / King Safety / Discovered Attack each +boost</td></tr>
+    <tr><td>Endgame error rate &gt; 0.25</td><td><code>boost = min(0.30, rate × 0.4)</code></td><td>All 6 endgame categories +boost</td></tr>
+    <tr><td>Blunders/game ≥ 2</td><td>fixed +0.25</td><td>Hanging Piece, Fork, Pin</td></tr>
+    <tr><td>Blunders/game ≥ 1</td><td>fixed +0.15</td><td>Hanging Piece, Fork</td></tr>
+    <tr><td>Accuracy estimate &lt; 70</td><td>fixed +0.10</td><td>Fork, Pin, Skewer, Discovered Attack</td></tr>
+  </table>
+  <div class="card warn" style="margin-top:26px; max-width:640px;">
+    <h4>Why this matters</h4>
+    <p>All 23 categories start at 0.5 and move via hard-coded if/else thresholds — not learned from data. This is exactly the gap the trained classifier on slide 12–13 was built to close.</p>
+  </div>
+  <div class="pagenum">5 / 24</div>
+</section>
+
+<!-- ============ 6. PIPELINE 2 ============ -->
+<section class="slide light" id="s6">
+  <div class="eyebrow">Pipeline 2</div>
+  <h2>Mining puzzles from the player's own games</h2>
+  <div class="diagram-wrap">
+    <svg viewBox="0 0 980 130" xmlns="http://www.w3.org/2000/svg">
+      <path class="edge" d="M150,40 L190,40" marker-end="url(#a)"/>
+      <path class="edge" d="M330,40 L370,40" marker-end="url(#a)"/>
+      <path class="edge" d="M510,40 L550,40" marker-end="url(#a)"/>
+      <path class="edge" d="M690,40 L730,40" marker-end="url(#a)"/>
+      <path class="edge" d="M150,60 L150,95" marker-end="url(#a)"/>
+      <path class="edge" d="M330,60 L330,95" marker-end="url(#a)"/>
+      <path class="edge" d="M510,60 L510,95" marker-end="url(#a)"/>
+      <path class="edge" d="M690,60 L690,95" marker-end="url(#a)"/>
+      <text class="edge-label" x="150" y="112">skip</text><text class="edge-label" x="330" y="112">skip</text>
+      <text class="edge-label" x="510" y="112">skip</text><text class="edge-label" x="690" y="112">skip</text>
+
+      <g><rect class="node-box accent" x="20" y="15" width="130" height="50" rx="8"/><text class="node-sub" x="85" y="35">Gate 1</text><text class="node-sub" x="85" y="50">Detection ≥150cp</text></g>
+      <g><rect class="node-box accent" x="200" y="15" width="130" height="50" rx="8"/><text class="node-sub" x="265" y="35">Gate 2</text><text class="node-sub" x="265" y="50">Clarity ≥100cp</text></g>
+      <g><rect class="node-box accent" x="380" y="15" width="130" height="50" rx="8"/><text class="node-sub" x="445" y="35">Gate 3</text><text class="node-sub" x="445" y="50">Forced continuation</text></g>
+      <g><rect class="node-box accent" x="560" y="15" width="130" height="50" rx="8"/><text class="node-sub" x="625" y="35">Gate 4</text><text class="node-sub" x="625" y="50">Depth-18 verify</text></g>
+      <g><rect class="node-box accent" x="740" y="15" width="220" height="50" rx="8"/><text class="node-title" x="850" y="38">Puzzle accepted</text><text class="node-sub" x="850" y="53">classify + estimate rating</text></g>
+    </svg>
+  </div>
+  <div class="grid-3" style="margin-top:30px;">
+    <div class="card"><h4>150cp</h4><p>Minimum eval-drop to count as a real blunder (<code>PUZZLE_THRESHOLD</code>)</p></div>
+    <div class="card"><h4>100cp</h4><p>PV1 must beat PV2 by this much — rejects dual-solution puzzles</p></div>
+    <div class="card"><h4>Depth 18</h4><p>Final re-verification pass before the puzzle is accepted</p></div>
+  </div>
+  <p class="lead" style="margin-top:20px;">An earlier heuristic-only (no-engine) mode was tried and <strong>removed</strong> — it produced ~40% false positives.</p>
+  <div class="pagenum">6 / 24</div>
+</section>
+
+<!-- ============ 7. PIPELINE 3 ============ -->
+<section class="slide tint" id="s7">
+  <div class="eyebrow">Pipeline 3</div>
+  <h2>The Thompson Sampling recommendation loop</h2>
+  <div class="grid-2">
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 420 380" xmlns="http://www.w3.org/2000/svg">
+        <path class="edge" d="M210,60 L210,100" marker-end="url(#a)"/>
+        <path class="edge" d="M210,160 L210,200" marker-end="url(#a)"/>
+        <path class="edge" d="M150,240 C90,260 90,60 150,40" marker-end="url(#a)"/>
+        <text class="edge-label" x="70" y="150">loop back</text>
+        <g><rect class="node-box accent" x="90" y="10" width="240" height="50" rx="8"/><text class="node-title" x="210" y="30">Sample θᵢ ~ Beta(αᵢ,βᵢ)</text><text class="node-sub" x="210" y="47">for all 23 arms</text></g>
+        <g><rect class="node-box accent" x="90" y="110" width="240" height="50" rx="8"/><text class="node-title" x="210" y="140">Pick argmin θᵢ = weakest</text></g>
+        <g><rect class="node-box" x="90" y="210" width="240" height="50" rx="8"/><text class="node-title" x="210" y="240">Serve puzzle in category</text></g>
+        <g><rect class="node-box" x="60" y="290" width="150" height="50" rx="8"/><text class="node-sub" x="135" y="312">solved</text><text class="node-sub" x="135" y="327">α += 1</text></g>
+        <g><rect class="node-box" x="220" y="290" width="150" height="50" rx="8"/><text class="node-sub" x="295" y="312">failed</text><text class="node-sub" x="295" y="327">β += 1</text></g>
+      </svg>
+    </div>
+    <div>
+      <p class="lead">Serving cascade order:</p>
+      <ol class="bullets" style="list-style:decimal; padding-left:20px;">
+        <li style="padding-left:2px;">User-mined puzzle, target category, unseen</li>
+        <li style="padding-left:2px;">Any unseen mined puzzle (40% of the time)</li>
+        <li style="padding-left:2px;">Lichess pool, target category, rating window</li>
+        <li style="padding-left:2px;">Lichess pool, widened rating window</li>
+        <li style="padding-left:2px;">Lichess pool, any category</li>
+        <li style="padding-left:2px;">Last resort: allow a repeat, flagged explicitly</li>
+      </ol>
+    </div>
+  </div>
+  <div class="pagenum">7 / 24</div>
+</section>
+
+<!-- ============ 8. TS MATH I ============ -->
+<section class="slide light" id="s8">
+  <div class="eyebrow">The mathematics</div>
+  <h2>Thompson Sampling — why Beta(α, β)?</h2>
+  <div class="grid-2">
+    <div>
+      <p class="lead">Each category is a <strong>Bernoulli process</strong>: every attempt is a solve (1) or fail (0) with unknown true probability <code>pᵢ</code>.</p>
+      <p class="lead">Beta is the <strong>conjugate prior</strong> for Bernoulli — the posterior after new evidence is exactly another Beta, in closed form:</p>
+      <div class="mono-block">if solved: arm.alpha += 1<br>else:      arm.beta  += 1</div>
+    </div>
+    <table>
+      <tr><th>Quantity</th><th>Meaning</th></tr>
+      <tr><td><code>α − 1</code></td><td>effective solves seen (real + prior)</td></tr>
+      <tr><td><code>β − 1</code></td><td>effective fails seen</td></tr>
+      <tr><td><code>α + β</code></td><td>total confidence — bigger = narrower posterior</td></tr>
+      <tr><td>mean</td><td><code>α / (α+β)</code> — best point estimate</td></tr>
+      <tr><td>variance</td><td><code>αβ / [(α+β)²(α+β+1)]</code> — shrinks with evidence</td></tr>
+    </table>
+  </div>
+  <div class="pagenum">8 / 24</div>
+</section>
+
+<!-- ============ 9. TS MATH II ============ -->
+<section class="slide tint" id="s9">
+  <div class="eyebrow">The mathematics, continued</div>
+  <h2>Sampling — not averaging — is what makes exploration free</h2>
+  <div class="grid-2">
+    <div class="diagram-wrap">
+      <svg viewBox="0 0 420 220" xmlns="http://www.w3.org/2000/svg">
+        <path class="edge" d="M20,190 L400,190" stroke="#c7cce0"/>
+        <path d="M40,190 C 90,190 100,40 150,40 C 200,40 210,190 260,190" fill="none" stroke="#c99a3c" stroke-width="2.5"/>
+        <path d="M40,190 C 110,190 150,120 220,120 C 290,120 330,190 390,190" fill="none" stroke="#4d5878" stroke-width="2.5" stroke-dasharray="1 0"/>
+        <text class="edge-label" x="150" y="30">confident</text>
+        <text class="edge-label" x="150" y="215">(many attempts — narrow)</text>
+        <text class="edge-label" x="300" y="105">uncertain</text>
+        <text class="edge-label" x="300" y="215" style="visibility:hidden">.</text>
+        <text class="edge-label" x="330" y="215">(few attempts — wide)</text>
+      </svg>
+    </div>
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <h4>Worked example</h4>
+        <p>"Fork" attempted 8×, solved 3× → α=4, β=6, mean=0.4. A sample might land at 0.28 (looks weaker) or 0.55 (looks fine) — both are legitimate draws. The randomness <em>is</em> the mechanism, not noise.</p>
+      </div>
+      <div class="card good">
+        <h4>The one deliberate inversion</h4>
+        <p><code>select_one()</code> picks the <strong>lowest</strong> sampled θ, not the highest — θ measures proficiency here, and the goal is to practise weaknesses, not strengths.</p>
+      </div>
+    </div>
+  </div>
+  <div class="pagenum">9 / 24</div>
+</section>
+
+<!-- ============ 10. GLICKO-2 I ============ -->
+<section class="slide light" id="s10">
+  <div class="eyebrow">Offline research component</div>
+  <h2>Glicko-2 — beyond a single Elo number</h2>
+  <table>
+    <tr><th>Symbol</th><th>Name</th><th>Meaning</th></tr>
+    <tr><td><code>r</code> / <code>rating</code></td><td>Rating</td><td>same interpretation as Elo — higher is stronger / harder</td></tr>
+    <tr><td><code>RD</code> / <code>rd</code></td><td>Rating Deviation</td><td>the system's <em>uncertainty</em> — <code>rating ± 2×RD</code> ≈ 95% confidence interval</td></tr>
+    <tr><td><code>σ</code> / <code>volatility</code></td><td>Volatility</td><td>how erratically true skill seems to move — real change vs normal noise</td></tr>
+  </table>
+  <p class="lead" style="margin-top:24px;">A bare Elo number can't tell "we're very sure" from "we just guessed." A new puzzle or player starts with high RD; it shrinks as real evidence accumulates.</p>
+  <div class="pagenum">10 / 24</div>
+</section>
+
+<!-- ============ 11. GLICKO-2 II ============ -->
+<section class="slide tint" id="s11">
+  <div class="eyebrow">Offline research component</div>
+  <h2>Update mechanics &amp; validation</h2>
+  <div class="grid-2">
+    <ol class="bullets" style="list-style:decimal; padding-left:20px;">
+      <li style="padding-left:2px;"><code>g(φⱼ)</code> — discount by the opponent's own uncertainty</li>
+      <li style="padding-left:2px;"><code>E(μ,μⱼ,φⱼ)</code> — expected outcome (logistic, like Elo)</li>
+      <li style="padding-left:2px;"><code>v</code> — variance of the rating change</li>
+      <li style="padding-left:2px;"><code>Δ</code> — actual vs expected outcome, scaled by v</li>
+      <li style="padding-left:2px;">Solve for new <code>σ′</code> via the Illinois root-finder</li>
+      <li style="padding-left:2px;">Update <code>φ′</code>, <code>μ′</code>; convert back to (rating, RD)</li>
+    </ol>
+    <div>
+      <div class="card good" style="margin-bottom:16px;">
+        <h4>Matches Glickman's own published example</h4>
+        <p>1500 / RD200 / vol0.06, three games → <strong>1464.06 / 151.52 / 0.05999</strong>, matched to tested tolerance.</p>
+      </div>
+      <div class="grid-3">
+        <div class="stat"><div class="num">105</div><div class="lbl">Events fitted</div></div>
+        <div class="stat"><div class="num">3</div><div class="lbl">Real players</div></div>
+        <div class="stat"><div class="num">61</div><div class="lbl">Puzzles fitted</div></div>
+      </div>
+    </div>
+  </div>
+  <div class="pagenum">11 / 24</div>
+</section>
+
+<!-- ============ 12. ML CLASSIFIER DESIGN ============ -->
+<section class="slide light" id="s12">
+  <div class="eyebrow">Offline research component</div>
+  <h2>Trained weakness classifier — build_profile_ml()</h2>
+  <ul class="bullets">
+    <li>Drop-in alternative to the rule-based scorer — same signature, same output shape, only <code>weakness_scores</code> differs.</li>
+    <li><strong>30 input features</strong>: 7 coarse summary stats + 23 per-category observed error rates (now measurable thanks to the new <code>MoveError.category</code> field).</li>
+    <li><code>RandomForestRegressor</code> predicts all 23 category weaknesses at once.</li>
+    <li>Trained on <strong>simulated players</strong> — only 4 real players have any mined-puzzle history, far too few for a statistically meaningful held-out-player split.</li>
+    <li>Synthetic data generated via a <strong>Dirichlet-multinomial</strong> process: true-weak categories get boosted concentration, so observed error counts are realistically noisy, not hand-tuned to look good.</li>
+  </ul>
+  <div class="pagenum">12 / 24</div>
+</section>
+
+<!-- ============ 13. ML CLASSIFIER RESULTS ============ -->
+<section class="slide tint" id="s13">
+  <div class="eyebrow">Offline research component</div>
+  <h2>Held-out-player cross-validation (300 synthetic players)</h2>
+  <table>
+    <tr><th>Fold</th><th>Model MAE</th><th>Baseline MAE</th><th>Top weakness in predicted top-3</th></tr>
+    <tr><td>0</td><td>0.1645</td><td>0.1674</td><td>30%</td></tr>
+    <tr><td>1</td><td>0.1628</td><td>0.1649</td><td>30%</td></tr>
+    <tr><td>2</td><td>0.1638</td><td>0.1674</td><td>27%</td></tr>
+    <tr><td>3</td><td>0.1642</td><td>0.1677</td><td>38%</td></tr>
+    <tr><td>4</td><td>0.1686</td><td>0.1710</td><td>40%</td></tr>
+    <tr><td><strong>Mean</strong></td><td><strong>0.1648</strong></td><td><strong>0.1677</strong></td><td><strong>33%</strong></td></tr>
+  </table>
+  <div class="grid-3" style="margin-top:22px;">
+    <div class="card good"><h4>Beats baseline</h4><p>In every single fold, consistently</p></div>
+    <div class="card good"><h4>~2.5× random</h4><p>33% top-3 hit rate vs ~13% chance</p></div>
+    <div class="card warn"><h4>Honest caveat</h4><p>Validates methodology, not yet real-world accuracy</p></div>
+  </div>
+  <div class="pagenum">13 / 24</div>
+</section>
+
+<!-- ============ 14. WHAT'S GENUINELY AI ============ -->
+<section class="slide dark" id="s14">
+  <div class="eyebrow">The honest answer</div>
+  <h2>What's genuinely AI-driven here</h2>
+  <table>
+    <tr><th>Component</th><th>Category</th><th>Learned from data?</th></tr>
+    <tr><td>Thompson Sampling bandit</td><td>Bayesian reinforcement learning</td><td><strong style="color:#8fd6b4">Yes — live, online</strong></td></tr>
+    <tr><td>RandomForest classifier</td><td>Supervised ML</td><td><strong style="color:#8fd6b4">Yes</strong> — trained, reachable opt-in (<code>WEAKNESS_MODEL=ml</code>), not the default</td></tr>
+    <tr><td>Glicko-2 fitter</td><td>Bayesian statistical estimation</td><td><strong style="color:#8fd6b4">Yes</strong> — data volume still small</td></tr>
+    <tr><td>Stockfish (3rd-party)</td><td>Classical search AI</td><td>Yes, but not this project's contribution</td></tr>
+    <tr><td><code>_classify_tactic()</code></td><td>Rule-based / symbolic</td><td>No — hand-coded</td></tr>
+    <tr><td>Rule-based scorer</td><td>Hand-tuned thresholds</td><td>No</td></tr>
+  </table>
+  <p class="lead" style="margin-top:22px; color:#c3c9e6;">The strongest claim: the live, online <strong style="color:#f6ecd6">Thompson Sampling bandit</strong> — a textbook Bayesian exploration/exploitation system, updating from every real puzzle attempt.</p>
+  <div class="pagenum">14 / 24</div>
+</section>
+
+<!-- ============ 15. LIMITATIONS ============ -->
+<section class="slide light" id="s15">
+  <div class="eyebrow">Found by re-reading the live code — and fixed</div>
+  <h2>Known limitations &amp; discovered bugs</h2>
+  <div class="card good" style="margin-bottom:16px;">
+    <h4>✓ Fixed — the real scorer now actually runs</h4>
+    <p><code>analysis_start()</code> used to look for Stockfish via <code>shutil.which("stockfish")</code>, which never checked the bundled binary — the app silently fell back to the crude heuristic scorer almost every time. Now calls <code>find_stockfish()</code> instead, the same resolver puzzle mining already used. <code>build_profile()</code> is the default path on every successful analysis.</p>
+  </div>
+  <div class="card good" style="margin-bottom:16px;">
+    <h4>✓ Fixed — all three weakness-scoring paths now wired together</h4>
+    <p>Rule-based <code>build_profile()</code> is the default (per the fix above). The trained ML classifier <code>build_profile_ml()</code> is now reachable too, via a new <code>WEAKNESS_MODEL=ml</code> opt-in flag — deliberately not the default, since it's only validated on simulated players so far. Heuristic remains the last-resort fallback.</p>
+  </div>
+  <div class="card good" style="margin-bottom:16px;">
+    <h4>✓ Found &amp; fixed live — a second bug the first fix exposed</h4>
+    <p>Fixing the scorer meant Stockfish ran against real games for the first time. That immediately surfaced <code>multipv=1</code> making <code>engine.analyse()</code> return a list, not a dict — crashing every move analysis. Caught in a live smoke test, fixed by dropping the unnecessary kwarg. Zero test coverage before this, since the unit tests are deliberately engine-free.</p>
+  </div>
+  <div class="card warn">
+    <h4>Still open: stale documentation &amp; two difficulty-tier schemes</h4>
+    <p>README and eval CLI docstrings quote outdated tuning constants; the Lichess pool and mined puzzles use two different tier boundaries. Cosmetic, not yet cleaned up — the honest remaining gap on this list.</p>
+  </div>
+  <div class="pagenum">15 / 24</div>
+</section>
+
+<!-- ============ 16. VALIDATION SUMMARY ============ -->
+<section class="slide tint" id="s16">
+  <div class="eyebrow">Evidence, not assertion</div>
+  <h2>Validation summary</h2>
+  <div class="grid-4">
+    <div class="stat"><div class="num">128</div><div class="lbl">Tests, 8 files, offline</div></div>
+    <div class="stat"><div class="num">✓</div><div class="lbl">Glicko-2 matches published paper</div></div>
+    <div class="stat"><div class="num">✓</div><div class="lbl">Bandit favours weaker arm (seeded test)</div></div>
+    <div class="stat"><div class="num">5/5</div><div class="lbl">CV folds beat baseline</div></div>
+  </div>
+  <ul class="bullets" style="margin-top:30px;">
+    <li>Every claim in this deck is traceable to a specific file, function, or test in the repository.</li>
+    <li>Where the code contradicts itself or the docs, it's called out explicitly (slide 15) rather than smoothed over.</li>
+  </ul>
+  <div class="pagenum">16 / 24</div>
+</section>
+
+<!-- ============ 17. QUICK-REFERENCE NUMBERS ============ -->
+<section class="slide light" id="s17">
+  <div class="eyebrow">Cheat sheet</div>
+  <h2>Numbers worth having ready</h2>
+  <div class="grid-4" style="row-gap:34px;">
+    <div class="stat"><div class="num">23</div><div class="lbl">Weakness categories (bandit arms)</div></div>
+    <div class="stat"><div class="num">6M+</div><div class="lbl">Lichess puzzles, filtered &amp; re-categorised</div></div>
+    <div class="stat"><div class="num">128</div><div class="lbl">Passing tests, 8 files, all offline</div></div>
+    <div class="stat"><div class="num">4</div><div class="lbl">Real players profiled so far</div></div>
+    <div class="stat"><div class="num">300</div><div class="lbl">Synthetic players, 5-fold CV</div></div>
+    <div class="stat"><div class="num">33%</div><div class="lbl">Top-3 weakness hit rate (~2.5× random)</div></div>
+    <div class="stat"><div class="num">10</div><div class="lbl">α + β prior budget per category (bandit)</div></div>
+    <div class="stat"><div class="num">4</div><div class="lbl">Stockfish verification gates per mined puzzle</div></div>
+  </div>
+  <p class="lead" style="margin-top:34px;">If a number gets asked for and isn't here, it's in <code>dissertation_documentation.md</code> §5–§7 with the exact line of code it came from.</p>
+  <div class="pagenum">17 / 24</div>
+</section>
+
+<!-- ============ 18. Q&amp;A CHEAT SHEET ============ -->
+<section class="slide tint" id="s18">
+  <div class="eyebrow">Prepared answers</div>
+  <h2>Anticipated questions — cheat sheet</h2>
+  <table>
+    <tr><th>If asked…</th><th>Short answer</th></tr>
+    <tr><td>Is this reinforcement learning?</td><td>Yes — a Bayesian multi-armed bandit (Thompson Sampling). Not deep RL: no neural policy network, no PPO/DQN.</td></tr>
+    <tr><td>How do you know the bandit actually works?</td><td>Unit-tested directly: priors seed correctly, <code>update()</code> moves α/β the right way, <code>select_one()</code> statistically favours the weaker arm under a seeded RNG.</td></tr>
+    <tr><td>Where does puzzle quality assurance come from?</td><td>Two independent layers: the 4-gate mining pipeline rejects bad extractions before saving; a separate 5-dimension evaluator re-scores whatever is kept.</td></tr>
+    <tr><td>What's the single biggest gap right now?</td><td>Data volume, not methodology — only 4 real players so far. The Stockfish-detection bug that used to compound this (slide 15) is fixed.</td></tr>
+    <tr><td>Why Thompson Sampling, not UCB or epsilon-greedy?</td><td>No separate tunable exploration parameter — posterior width does the exploring automatically, and it matches UCB-style performance for Bernoulli rewards.</td></tr>
+    <tr><td>What would you do with another month?</td><td>Collect more real data, run a real A/B of <code>build_profile_ml()</code> vs the rule-based scorer, wire the Glicko-2 fitter into serving, clean up stale docs.</td></tr>
+  </table>
+  <div class="pagenum">18 / 24</div>
+</section>
+
+<!-- ============ 19. TECH STACK ============ -->
+<section class="slide light" id="s19">
+  <div class="eyebrow">Implementation</div>
+  <h2>Technology stack</h2>
+  <table>
+    <tr><th>Layer</th><th>Technology</th></tr>
+    <tr><td>Core language</td><td>Python 3.13</td></tr>
+    <tr><td>Chess logic / engine</td><td>python-chess, Stockfish 18</td></tr>
+    <tr><td>Bandit / recommender</td><td>Custom Thompson Sampling (numpy.random.beta)</td></tr>
+    <tr><td>Difficulty rating</td><td>Custom from-scratch Glicko-2</td></tr>
+    <tr><td>Weakness classifier</td><td>scikit-learn RandomForestRegressor</td></tr>
+    <tr><td>Data processing</td><td>pandas, pyarrow (Parquet)</td></tr>
+    <tr><td>Backend / frontend</td><td>Flask + flask-cors · vanilla JS SPA, same origin</td></tr>
+    <tr><td>Testing</td><td>pytest — 128 tests, fully offline</td></tr>
+  </table>
+  <div class="pagenum">19 / 24</div>
+</section>
+
+<!-- ============ 20. NEXT ============ -->
+<section class="slide tint" id="s20">
+  <div class="eyebrow">Roadmap</div>
+  <h2>Priorities for the next iteration</h2>
+  <ol class="bullets" style="list-style:decimal; padding-left:22px; font-size:17px;">
+    <li style="padding-left:4px;">Collect more real puzzle-session data (currently 4 players, 105 events) so the Glicko-2 fitter and ML classifier have enough evidence to beat the rule-based scorer</li>
+    <li style="padding-left:4px;">Run a real A/B comparison of <code>build_profile_ml()</code> against <code>build_profile()</code> — both are now genuinely reachable in the live app, so this is a data-collection problem, not an engineering one</li>
+    <li style="padding-left:4px;">Load the Glicko-2 fitter's output into the live serving path the same way the ML classifier now is</li>
+    <li style="padding-left:4px;">Reconcile the two difficulty-tier schemes and refresh stale tuning-constant docs</li>
+  </ol>
+  <div class="pagenum">20 / 24</div>
+</section>
+
+<!-- ============ 21. LITERATURE FOUNDATIONS ============ -->
+<section class="slide light" id="s21">
+  <div class="eyebrow">Academic grounding</div>
+  <h2>What each component stands on</h2>
+  <table>
+    <tr><th>Component</th><th>Grounding source</th><th>What it justifies</th></tr>
+    <tr>
+      <td><strong>Thompson Sampling bandit</strong><br><code>recommender/bandit.py</code></td>
+      <td>Thompson (1933); Russo <em>et al.</em> (2018)</td>
+      <td>The posterior-sampling selection rule and its regret guarantees</td>
+    </tr>
+    <tr>
+      <td><strong>Choice of TS over UCB / ε-greedy</strong></td>
+      <td>Auer <em>et al.</em> (2002); Chapelle &amp; Li (2011)</td>
+      <td>Empirical case for TS under Bernoulli rewards, with no tuning parameter</td>
+    </tr>
+    <tr>
+      <td><strong>Per-skill mastery posture</strong><br><code>player_profiler.py</code></td>
+      <td>Corbett &amp; Anderson (1995)</td>
+      <td>Bayesian per-skill belief updated from binary evidence — the ITS template</td>
+    </tr>
+    <tr>
+      <td><strong>Glicko-2 fitter</strong><br><code>difficulty_fitter.py</code></td>
+      <td>Glickman (1999, 2012)</td>
+      <td>The algorithm itself <em>and</em> the worked example used as the test fixture</td>
+    </tr>
+    <tr>
+      <td><strong>RandomForest classifier</strong><br><code>ml_weakness_model.py</code></td>
+      <td>Breiman (2001); Pedregosa <em>et al.</em> (2011)</td>
+      <td>Ensemble regression and the cross-validation protocol</td>
+    </tr>
+    <tr>
+      <td><strong>Elo ± 300 serving band</strong></td>
+      <td>Vygotsky (1978); Ericsson <em>et al.</em> (1993)</td>
+      <td>Zone of proximal development; why practice must target current deficiency</td>
+    </tr>
+    <tr>
+      <td><strong>Engine ground truth</strong></td>
+      <td>Nasu (2018); Stockfish</td>
+      <td>NNUE evaluation — cheap enough to analyse tens of thousands of positions</td>
+    </tr>
+  </table>
+  <p class="lead" style="margin-top:18px;">Every design decision in this project traces to a primary source — including the one place the implementation deliberately <em>departs</em> from the literature (arg min, not arg max — slide 9).</p>
+  <div class="pagenum">21 / 24</div>
+</section>
+
+<!-- ============ 22. REFERENCES I ============ -->
+<section class="slide tint" id="s22">
+  <div class="eyebrow">Bibliography · 1 of 2</div>
+  <h2>References — algorithms &amp; methods</h2>
+  <table style="font-size:13.5px;">
+    <tr><th style="width:34px;">#</th><th>Reference</th></tr>
+    <tr><td><strong>1</strong></td><td>Thompson, W. R. (1933). On the likelihood that one unknown probability exceeds another in view of the evidence of two samples. <em>Biometrika</em>, 25(3–4), 285–294.</td></tr>
+    <tr><td><strong>2</strong></td><td>Russo, D. J., Van Roy, B., Kazerouni, A., Osband, I., &amp; Wen, Z. (2018). A tutorial on Thompson sampling. <em>Foundations and Trends in Machine Learning</em>, 11(1), 1–96.</td></tr>
+    <tr><td><strong>3</strong></td><td>Auer, P., Cesa-Bianchi, N., &amp; Fischer, P. (2002). Finite-time analysis of the multiarmed bandit problem. <em>Machine Learning</em>, 47(2–3), 235–256.</td></tr>
+    <tr><td><strong>4</strong></td><td>Chapelle, O., &amp; Li, L. (2011). An empirical evaluation of Thompson sampling. <em>Advances in Neural Information Processing Systems 24</em>, 2249–2257.</td></tr>
+    <tr><td><strong>5</strong></td><td>Sutton, R. S., &amp; Barto, A. G. (2018). <em>Reinforcement Learning: An Introduction</em> (2nd ed.). MIT Press.</td></tr>
+    <tr><td><strong>6</strong></td><td>Glickman, M. E. (1999). Parameter estimation in large dynamic paired comparison experiments. <em>JRSS: Series C (Applied Statistics)</em>, 48(3), 377–394.</td></tr>
+    <tr><td><strong>7</strong></td><td>Glickman, M. E. (2012). <em>Example of the Glicko-2 system</em> [Technical note]. Boston University.</td></tr>
+    <tr><td><strong>8</strong></td><td>Elo, A. E. (1978). <em>The Rating of Chessplayers, Past and Present</em>. Arco Publishing.</td></tr>
+    <tr><td><strong>9</strong></td><td>Breiman, L. (2001). Random forests. <em>Machine Learning</em>, 45(1), 5–32.</td></tr>
+    <tr><td><strong>10</strong></td><td>Silver, D., Hubert, T., Schrittwieser, J., <em>et al.</em> (2018). A general reinforcement learning algorithm that masters chess, shogi and Go through self-play. <em>Science</em>, 362(6419), 1140–1144.</td></tr>
+  </table>
+  <div class="pagenum">22 / 24</div>
+</section>
+
+<!-- ============ 23. REFERENCES II ============ -->
+<section class="slide light" id="s23">
+  <div class="eyebrow">Bibliography · 2 of 2</div>
+  <h2>References — data, tools &amp; pedagogy</h2>
+  <table style="font-size:13.5px;">
+    <tr><th style="width:34px;">#</th><th>Reference</th></tr>
+    <tr><td><strong>11</strong></td><td>Nasu, Y. (2018). <em>ƎUИИ: Efficiently updatable neural-network-based evaluation functions for computer shogi</em>. Ziosoft Computer Shogi Club.</td></tr>
+    <tr><td><strong>12</strong></td><td>Romstad, T., Costalba, M., Kiiski, J., Linscott, G., <em>et al.</em> <em>Stockfish: A free and strong UCI chess engine</em> [Software]. stockfishchess.org</td></tr>
+    <tr><td><strong>13</strong></td><td>Fiekas, N. <em>python-chess: A chess library for Python</em> [Software]. python-chess.readthedocs.io</td></tr>
+    <tr><td><strong>14</strong></td><td>Lichess. <em>lichess.org open database — puzzles</em> [Dataset, CC0 1.0]. database.lichess.org/#puzzles</td></tr>
+    <tr><td><strong>15</strong></td><td>Chess.com. <em>Published-Data API documentation</em>. chess.com/news/view/published-data-api</td></tr>
+    <tr><td><strong>16</strong></td><td>Pedregosa, F., Varoquaux, G., Gramfort, A., <em>et al.</em> (2011). Scikit-learn: Machine learning in Python. <em>JMLR</em>, 12, 2825–2830.</td></tr>
+    <tr><td><strong>17</strong></td><td>McKinney, W. (2010). Data structures for statistical computing in Python. <em>Proc. 9th Python in Science Conference</em>, 56–61.</td></tr>
+    <tr><td><strong>18</strong></td><td>Corbett, A. T., &amp; Anderson, J. R. (1995). Knowledge tracing: Modeling the acquisition of procedural knowledge. <em>User Modeling and User-Adapted Interaction</em>, 4(4), 253–278.</td></tr>
+    <tr><td><strong>19</strong></td><td>Vygotsky, L. S. (1978). <em>Mind in Society: The Development of Higher Psychological Processes</em>. Harvard University Press.</td></tr>
+    <tr><td><strong>20</strong></td><td>Ericsson, K. A., Krampe, R. T., &amp; Tesch-Römer, C. (1993). The role of deliberate practice in the acquisition of expert performance. <em>Psychological Review</em>, 100(3), 363–406.</td></tr>
+  </table>
+  <div class="pagenum">23 / 24</div>
+</section>
+
+<!-- ============ 24. CLOSING ============ -->
+<section class="slide dark" id="s24">
+  <div class="piece">♛</div>
+  <div class="eyebrow">Thank you</div>
+  <h1>Questions</h1>
+  <p class="lead">Full technical documentation, algorithms, evaluation and the complete annotated bibliography are in <code>docs/Adaptive_Chess_Puzzle_Advisor_Technical_Report.pdf</code> (37 pp.) and <code>dissertation_documentation.md</code>.</p>
+  <div class="mono-block" style="max-width:560px; margin-top:18px;">python web/backend/app.py<br>pytest tests/ -v&nbsp;&nbsp;&nbsp;&nbsp;# 128 tests</div>
+  <div class="foot"><span>Aleksandar Radevski</span><span>Adaptive Chess Puzzle Advisor</span></div>
+</section>
+
+</div>
+
+</body>
+</html>

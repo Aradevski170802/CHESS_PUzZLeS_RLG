@@ -1,0 +1,173 @@
+\chapter{Introduction}\label{ch:intro}
+
+\section{Background and Motivation}
+
+Chess is no longer only a board game. It has become a large-scale testbed for artificial
+intelligence, from hand-crafted alpha-beta searchers to self-taught reinforcement-learning systems
+such as AlphaZero~\cite{silver2018general}. Online platforms record hundreds of millions of games
+every year, and open databases such as the Lichess puzzle collection~\cite{lichessdb} turn that
+activity into millions of rated training positions. For the first time, the way ordinary club
+players make decisions can be studied statistically, at scale.
+
+The most popular training tool on these platforms is the tactical puzzle: a position with a single
+clearly best continuation, which the player must find. Research on expertise suggests that practice
+is effective in proportion to how precisely it targets a learner's current deficiencies, and that
+repeating skills that are already mastered adds little~\cite{ericsson1993role}. Puzzle platforms,
+however, mostly select puzzles by \emph{rating}. A player who handles forks well but repeatedly
+misses back-rank mates still receives mostly forks, because forks are common. The practice is
+comfortable, and largely redundant.
+
+The original motivation for this project, as set out in the portfolio, was more ambitious. It was to
+recognise a player's style of play (positional, attacking, defensive) from their move sequences,
+and to generate new puzzles for that player based on the mistakes in their recent games. Over the
+course of the project the emphasis shifted, in response to evidence gathered along the way, from
+\emph{style} and \emph{generation} towards \emph{diagnosis} and \emph{adaptive selection}: finding
+out what a player gets wrong, and serving the right puzzle at the right difficulty.
+Section~\ref{sec:scope} documents this shift explicitly.
+
+\section{Problem Statement}
+
+Given a player's recent game history and a large pool of candidate puzzles, choose a sequence of
+puzzles that maximises training value for that player. Four difficulties make this hard:
+
+\begin{enumerate}
+  \item \textbf{Weakness is not directly observable.} It must be inferred from noisy binary
+        evidence (a puzzle is solved or not; a critical move in a game is found or missed), and every
+        observation costs the learner time.
+  \item \textbf{Tactic labels are noisy.} Deciding automatically \emph{which} motif a missed move
+        belongs to is itself an unsolved classification problem.
+  \item \textbf{Difficulty scales do not match.} A player's game rating on Chess.com and a puzzle's
+        rating on Lichess are different scales, so ``puzzles near your rating'' is poorly defined.
+  \item \textbf{Data per player is scarce.} A typical analysis covers about 50 games and roughly 80
+        critical positions, spread across more than a dozen tactical categories.
+\end{enumerate}
+
+\section{Aim and Research Objectives}
+
+The aim stated in the portfolio was \emph{``to design and evaluate an adaptive puzzle generator for
+chess puzzles that helps players to enhance their skills by using reinforcement learning and player
+style classification.''} The four objectives, and their status at the time of writing, are listed
+in Table~\ref{tab:objectives}.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Portfolio objectives and their status.}\label{tab:objectives}
+\begin{tabularx}{\linewidth}{p{0.3\linewidth}Yp{0.13\linewidth}}
+\toprule
+\textbf{Objective (portfolio wording)} & \textbf{What was done} & \textbf{Status} \\
+\midrule
+O1. A classification model that predicts player rating group or style from gameplay data, with
+statistically significant performance on unseen players. &
+Rating-band classifier on 300 real players, cross-validated over players: 59.1\% accuracy over five
+bands (chance 20\%), permutation $p=0.002$ (Section~\ref{sec:rating-classifier}). Style is covered
+only by a rule-based archetype heuristic. & Met (rating group); style not met \\
+O2. An adaptive puzzle generator that creates legal, unique and novel puzzles, optimised for
+counter-intuitiveness and realism. &
+Engine-verified \emph{mining} of puzzles from the player's own games through four Stockfish gates
+(legal and unique by construction), plus a 5.9M-puzzle Lichess pool. No generative model, and no
+counter-intuitiveness optimisation. & Partially met (reframed) \\
+O3. A difficulty-matching module that selects puzzles according to player strength and prior
+interaction history. &
+An online Bayesian IRT learner that pitches each puzzle at a predicted 65\% solve probability, per
+category, updated after every attempt (Section~\ref{sec:rl-setup}). & Met \\
+O4. Evaluation with automatic puzzle-quality metrics and human assessment, showing improved fit
+compared with a non-adaptive baseline. &
+Automatic metrics, a pre-registered replication, a paired simulation study (seven experiments) and a
+300-player real-data evaluation. The human study is designed but has not been run. & Partially met \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Research Questions}
+
+The objectives lead to five research questions, each answered in Section~\ref{sec:answers}:
+
+\begin{description}
+  \item[RQ1] Can a player's rating group be predicted from \emph{how} they play, on players the model
+        has never seen, without access to any rating information? (O1)
+  \item[RQ2] Can a player's tactical weaknesses be diagnosed from their game history reliably
+        enough to personalise training? (O1, O3)
+  \item[RQ3] How reliably can the tactical motif of a position be labelled automatically, and does
+        label quality matter downstream? (O2)
+  \item[RQ4] Does difficulty-aware adaptive selection match puzzles to the player better than a
+        fixed rating band? (O3)
+  \item[RQ5] Does adaptive selection outperform non-adaptive baselines, and under which
+        assumptions? (O4)
+\end{description}
+
+\section{Scope and Assumptions}\label{sec:scope}
+
+\begin{honest}[Honest status: deviations from the portfolio plan]
+\begin{itemize}
+  \item \textbf{No generative model or RL fine-tuning of puzzles was built.} The portfolio's
+        research gap, ``style- and rating-aware puzzle generation from scratch using generative RL
+        conditioned on the learner'', remains open. The comparable published system (Feng et
+        al.~\cite{feng2025generating}) pre-trains on 4.4 million puzzles and fine-tunes with RL at
+        industrial-lab scale. Puzzles here are \emph{mined} from real games and verified by engine,
+        so ``novel'' means novel \emph{to the player}, not new to the world.
+  \item \textbf{Style classification was not built as a machine-learning model.} Objective O1 is met
+        through the alternative the portfolio allowed, the \emph{rating group}.
+  \item \textbf{No human assessment has yet been carried out.} Chapter~\ref{ch:discussion} and
+        Appendix~\ref{app:repro} refer to a pre-registered protocol with a power analysis (34 paired
+        participants are needed to detect a medium effect).
+\end{itemize}
+\end{honest}
+
+\noindent\textbf{Assumptions.}
+\begin{itemize}
+  \item Stockfish~\cite{stockfish} at the node budgets used here (75,000 nodes per position for game
+        analysis, depth 18 for puzzle verification) is treated as ground truth for move quality.
+  \item Lichess puzzle themes are treated as a \emph{reference} for tactic labels. They are produced
+        by an automatic tagger themselves, so agreement is not the same as accuracy.
+  \item The probability of solving a puzzle follows a logistic (Rasch-type) form in the gap between
+        ability and difficulty, as Elo and Glicko also assume~\cite{elo1978rating,glickman1999parameter}.
+  \item Publicly available Chess.com games may be analysed for research when they are pseudonymised
+        and reported only in aggregate (see the Declaration).
+\end{itemize}
+
+\section{Contributions of the Dissertation}
+
+\begin{enumerate}
+  \item \textbf{A working end-to-end system.} It covers Chess.com ingestion, deterministic Stockfish
+        analysis graded by win probability, critical-position (opportunity) logging, weakness
+        profiling, puzzle mining and adaptive serving, delivered as a Flask web application with 231
+        offline tests.
+  \item \textbf{A difficulty-aware Bayesian recommender.} An online item-response learner with a
+        full-covariance Laplace update that reduces exactly to Glicko's update in one dimension
+        (tested to $10^{-9}$). It combines Thompson Sampling over per-category ability offsets with
+        per-puzzle difficulty targeting.
+  \item \textbf{A validated line-level tactic tagger.} On a held-out sample, agreement with Lichess
+        themes rises from 31.2\% ($\kappa=0.23$) to 58.4\% ($\kappa=0.52$).
+  \item \textbf{PuzzleNet, a multi-task neural model of tactic and difficulty.} A network trained on
+        5.5M Lichess puzzles that reads a position and the line that follows it and predicts the
+        tactical category, the theme tags, and the difficulty \emph{with an uncertainty}. The rating
+        likelihood treats each puzzle's Lichess rating deviation as known measurement noise, so the
+        learned variance carries only what the content leaves uncertain, and that variance is then
+        consumed directly by the Bayesian recommender as a puzzle's difficulty uncertainty. On the same
+        held-out puzzles as the rule-based tagger, agreement rises to \AGREENN{} ($\kappa=\KAPPANN{}$), and
+        mined puzzles gain a calibrated difficulty estimate in place of a closed-form guess. The network,
+        its gradients and its optimiser are implemented from first principles in NumPy and checked
+        against finite differences.
+  \item \textbf{A rigorous comparative evaluation.} A pre-registered replication (reported
+        including its failures), seven paired simulation experiments with Holm-corrected tests, and a
+        prequential calibration on real solve logs.
+  \item \textbf{A 300-player real-data evaluation.} Rating group is predictable from play; per-category
+        weakness is almost entirely noise at typical data volumes; the rule-based and
+        synthetic-trained profilers carry no predictive information.
+  \item \textbf{Population category norms} fitted on the cohort. They separate ``this motif is hard for
+        everyone'' from ``this player is weak at it''.
+  \item \textbf{Documented engineering defects and fixes.} Several defects silently disabled or
+        corrupted parts of the system; they are reported in Section~\ref{sec:challenges} because they
+        bear on the validity of earlier results.
+\end{enumerate}
+
+\section{Dissertation Outline}
+
+Chapter~\ref{ch:literature} reviews computer chess, puzzle platforms, player modelling, generative
+models and RL, and difficulty modelling. Chapter~\ref{ch:problem} formalises the problem and presents
+the system architecture. Chapter~\ref{ch:method} describes the methodology, and
+Chapter~\ref{ch:implementation} the implementation. Chapter~\ref{ch:results} reports the experiments.
+Chapter~\ref{ch:discussion} discusses the findings, including an honest assessment of how
+sophisticated the AI in this system is. Chapter~\ref{ch:conclusion} answers the research questions
+and recommends future work.

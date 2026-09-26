@@ -1,0 +1,59 @@
+\subsection{The neural module}\label{sec:nn-implementation}
+
+PuzzleNet adds one package and one training pipeline; Table~\ref{tab:nn-modules} lists them.
+
+\begin{table}[H]
+\centering
+\small
+\caption{Neural components.}\label{tab:nn-modules}
+\begin{tabularx}{\linewidth}{p{0.36\linewidth}Y}
+\toprule
+\textbf{Module} & \textbf{Responsibility} \\
+\midrule
+\code{src/neural/encoding.py} & Position and line to a 3{,}329-feature vector; colour-canonical by construction \\
+\code{src/neural/network.py} & The network, its loss, hand-derived backpropagation, AdamW, save and load \\
+\code{src/neural/dataset.py} & Targets, splits, feature subsets, and a bounded-memory block loader \\
+\code{src/neural/metrics.py} & Calibration fitting, category, theme and rating metrics \\
+\code{src/neural/predictor.py} & The trained model as the analyzer, miner and app use it \\
+\code{src/puzzles/labeller.py} & Chooses the neural or the rule-based labeller \\
+\code{scripts/neural/build\_dataset.py} & Encodes all 5.88M puzzles in parallel \\
+\code{scripts/neural/train\_puzzlenet.py} & One training run; \code{run\_experiments.py} runs all of them \\
+\code{scripts/neural/evaluate\_puzzlenet.py} & Harness, test split, baselines and ablations \\
+\code{scripts/neural/engine\_pv\_check.py} & Deployment condition: labelling Stockfish lines \\
+\code{scripts/neural/relabel\_cohort.py} & Relabels the 300-player cohort's critical positions \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\paragraph{Data pipeline.} Encoding 5.88M puzzles is a pure-Python workload (python-chess move
+generation and attack maps), so it runs in twelve worker processes. Each puzzle becomes 3{,}302 bits,
+packed into 413 bytes, plus 27 half-precision values: 2.4\,GB for the whole database, small enough to
+keep on disk and read as needed. The whole build takes 48 minutes on the development laptop and is
+verified row by row against direct encoding.
+
+\paragraph{Bounded memory.} The development machine has 16\,GB of RAM, of which about 4\,GB were free
+in practice. Two designs had to be changed for that. The dataset builder originally held every FEN in
+the parent process and wrote through a memory map, which grew the working set to several gigabytes; it
+was rewritten to stream record batches from the Parquet file with a bounded number of chunks in
+flight, writing results with ordinary file writes. Training reads the feature file through a memory
+map, and the loader (\code{BlockLoader}) draws mini-batches by reading one contiguous block of rows at
+a time and shuffling within it, shuffling the block order between epochs. Rows are stored in puzzle-id
+order, which is random with respect to content, so block shuffling mixes the data well while touching
+only a small part of the 2.4\,GB file at once. Training never exceeds about 2\,GB.
+
+\paragraph{Correctness.} The backward pass is hand-derived, so it is tested rather than trusted: for
+every head and for the linear, single-task and multi-task configurations, each analytic gradient is
+compared with a central finite difference of an independently written reference loss, in double
+precision. The encoder is tested on real puzzles for colour symmetry (a position and its mirrored twin
+give identical vectors) and for individual features: a knight fork sets the double-attack bit, a
+back-rank mate sets the mate bits, a bishop move that creates an absolute pin sets the pin bits, and
+so on. In total the neural code adds 56 tests to the suite.
+
+\paragraph{Deployment.} The trained model is exported in half precision to
+\code{src/data/models/puzzlenet.npz}, 3.6\,MB, and loaded once per process. Inference is three matrix
+products and takes about a millisecond per position, on top of the three milliseconds needed to encode
+it; game analysis already spends far longer than that on the engine search for the same position. The
+application keeps no deep learning dependency: NumPy, which it already used, is enough. If the model
+file is absent, if it was trained with a different encoding version, or if \code{PUZZLENET=off} is
+set, every call site falls back to the previous rule-based behaviour, and the test suite runs with the
+network disabled by default so that it tests that fallback path.

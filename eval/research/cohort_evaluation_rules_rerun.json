@@ -1,0 +1,206 @@
+{
+  "players": 300,
+  "by_band": {
+    "0": 60,
+    "1": 60,
+    "2": 60,
+    "3": 60,
+    "4": 60
+  },
+  "family_correlation": {
+    "within": -0.09844633127247575,
+    "across": -0.11038507485365794,
+    "pairs_within": 7,
+    "pairs_across": 30
+  },
+  "test_opportunities": 11967,
+  "train_fraction": 0.6666666666666666,
+  "hier_eb_strength_chosen": [
+    256,
+    256,
+    128,
+    128,
+    128
+  ],
+  "reference_model": "Category base rate",
+  "models": {
+    "Global base rate": {
+      "log_loss": 0.6545,
+      "brier": 0.2309,
+      "auc": 0.4853,
+      "logloss_minus_category_base": 0.01337,
+      "ci95": [
+        0.01021,
+        0.01673
+      ],
+      "within_player_spearman": 0.044,
+      "top3_recall": 0.624
+    },
+    "Category base rate": {
+      "log_loss": 0.6411,
+      "brier": 0.225,
+      "auc": 0.5774,
+      "logloss_minus_category_base": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ],
+      "within_player_spearman": 0.294,
+      "top3_recall": 0.711
+    },
+    "Player base rate": {
+      "log_loss": 0.649,
+      "brier": 0.2283,
+      "auc": 0.5685,
+      "logloss_minus_category_base": 0.00784,
+      "ci95": [
+        0.00226,
+        0.0133
+      ],
+      "within_player_spearman": 0.044,
+      "top3_recall": 0.624
+    },
+    "Rule-based scorer": {
+      "log_loss": 0.6547,
+      "brier": 0.231,
+      "auc": 0.473,
+      "logloss_minus_category_base": 0.01359,
+      "ci95": [
+        0.01046,
+        0.01694
+      ],
+      "within_player_spearman": -0.053,
+      "top3_recall": 0.614
+    },
+    "RF (synthetic-trained)": {
+      "log_loss": 0.6531,
+      "brier": 0.2301,
+      "auc": 0.5034,
+      "logloss_minus_category_base": 0.01196,
+      "ci95": [
+        0.00867,
+        0.01557
+      ],
+      "within_player_spearman": 0.025,
+      "top3_recall": 0.624
+    },
+    "EB, shrink to player rate": {
+      "log_loss": 0.6506,
+      "brier": 0.2287,
+      "auc": 0.5823,
+      "logloss_minus_category_base": 0.00945,
+      "ci95": [
+        0.00337,
+        0.01591
+      ],
+      "within_player_spearman": 0.194,
+      "top3_recall": 0.66
+    },
+    "EB, shrink to population norms": {
+      "log_loss": 0.6335,
+      "brier": 0.2215,
+      "auc": 0.6187,
+      "logloss_minus_category_base": -0.00766,
+      "ci95": [
+        -0.01181,
+        -0.00355
+      ],
+      "within_player_spearman": 0.286,
+      "top3_recall": 0.711
+    },
+    "RF (real-data)": {
+      "log_loss": 0.6328,
+      "brier": 0.2214,
+      "auc": 0.6167,
+      "logloss_minus_category_base": -0.00835,
+      "ci95": [
+        -0.01189,
+        -0.00478
+      ],
+      "within_player_spearman": 0.282,
+      "top3_recall": 0.704
+    }
+  },
+  "reliability": [
+    {
+      "category": "Fork",
+      "players": 234,
+      "split_half_r": 0.02,
+      "spearman_brown": 0.039
+    },
+    {
+      "category": "Discovered Attack",
+      "players": 22,
+      "split_half_r": 0.369,
+      "spearman_brown": 0.54
+    },
+    {
+      "category": "Hanging Piece",
+      "players": 151,
+      "split_half_r": -0.066,
+      "spearman_brown": -0.141
+    },
+    {
+      "category": "Sacrifice",
+      "players": 39,
+      "split_half_r": -0.366,
+      "spearman_brown": -1.155
+    },
+    {
+      "category": "Deflection",
+      "players": 44,
+      "split_half_r": 0.002,
+      "spearman_brown": 0.003
+    },
+    {
+      "category": "Quiet Move",
+      "players": 299,
+      "split_half_r": 0.06,
+      "spearman_brown": 0.114
+    },
+    {
+      "category": "King Safety",
+      "players": 56,
+      "split_half_r": -0.166,
+      "spearman_brown": -0.397
+    },
+    {
+      "category": "Mating Pattern",
+      "players": 35,
+      "split_half_r": 0.16,
+      "spearman_brown": 0.277
+    }
+  ],
+  "simulator_calibration": {
+    "opportunities_per_player_train": 79.3,
+    "category_frequency": {
+      "Fork": 0.1366,
+      "Pin": 0.0354,
+      "Skewer": 0.0262,
+      "Discovered Attack": 0.044,
+      "Hanging Piece": 0.0988,
+      "Sacrifice": 0.0535,
+      "Deflection": 0.0566,
+      "Attraction": 0.0,
+      "Interference": 0.0,
+      "Clearance": 0.0,
+      "Quiet Move": 0.3948,
+      "Zugzwang": 0.0,
+      "X-Ray Attack": 0.0,
+      "King Safety": 0.0578,
+      "Mating Pattern": 0.0539,
+      "Endgame": 0.0085,
+      "Rook Endgame": 0.008,
+      "Queen Endgame": 0.0051,
+      "Pawn Endgame": 0.0024,
+      "Bishop Endgame": 0.002,
+      "Knight Endgame": 0.0014,
+      "Promotion": 0.0139,
+      "En Passant": 0.0013
+    },
+    "observed_sd_of_category_logit_deviation": 0.84,
+    "noise_corrected_delta_sd": 0.0,
+    "overall_hit_rate": 0.649
+  },
+  "analysis_dir": "data\\research\\cohort\\analysis_rules_rerun"
+}
