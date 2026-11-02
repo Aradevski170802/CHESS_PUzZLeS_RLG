@@ -1,0 +1,230 @@
+{
+  "players": 300,
+  "by_band": {
+    "0": 60,
+    "1": 60,
+    "2": 60,
+    "3": 60,
+    "4": 60
+  },
+  "family_correlation": {
+    "within": -0.08296519094068668,
+    "across": -0.1195201000191354,
+    "pairs_within": 7,
+    "pairs_across": 31
+  },
+  "test_opportunities": 11973,
+  "train_fraction": 0.6666666666666666,
+  "hier_eb_strength_chosen": [
+    256,
+    256,
+    256,
+    128,
+    128
+  ],
+  "reference_model": "Category base rate",
+  "models": {
+    "Global base rate": {
+      "log_loss": 0.6545,
+      "brier": 0.2309,
+      "auc": 0.494,
+      "logloss_minus_category_base": 0.01445,
+      "ci95": [
+        0.01114,
+        0.01783
+      ],
+      "within_player_spearman": 0.061,
+      "top3_recall": 0.604
+    },
+    "Category base rate": {
+      "log_loss": 0.6401,
+      "brier": 0.2245,
+      "auc": 0.5821,
+      "logloss_minus_category_base": 0.0,
+      "ci95": [
+        0.0,
+        0.0
+      ],
+      "within_player_spearman": 0.292,
+      "top3_recall": 0.706
+    },
+    "Player base rate": {
+      "log_loss": 0.6491,
+      "brier": 0.2284,
+      "auc": 0.5675,
+      "logloss_minus_category_base": 0.00907,
+      "ci95": [
+        0.0036,
+        0.01458
+      ],
+      "within_player_spearman": 0.061,
+      "top3_recall": 0.604
+    },
+    "Rule-based scorer": {
+      "log_loss": 0.6547,
+      "brier": 0.231,
+      "auc": 0.4737,
+      "logloss_minus_category_base": 0.01466,
+      "ci95": [
+        0.01133,
+        0.01802
+      ],
+      "within_player_spearman": -0.065,
+      "top3_recall": 0.587
+    },
+    "RF (synthetic-trained)": {
+      "log_loss": 0.6529,
+      "brier": 0.23,
+      "auc": 0.5046,
+      "logloss_minus_category_base": 0.01283,
+      "ci95": [
+        0.00944,
+        0.01643
+      ],
+      "within_player_spearman": 0.089,
+      "top3_recall": 0.615
+    },
+    "EB, shrink to player rate": {
+      "log_loss": 0.6506,
+      "brier": 0.2288,
+      "auc": 0.5817,
+      "logloss_minus_category_base": 0.01053,
+      "ci95": [
+        0.00469,
+        0.01633
+      ],
+      "within_player_spearman": 0.188,
+      "top3_recall": 0.663
+    },
+    "EB, shrink to population norms": {
+      "log_loss": 0.6326,
+      "brier": 0.2211,
+      "auc": 0.6203,
+      "logloss_minus_category_base": -0.00743,
+      "ci95": [
+        -0.01155,
+        -0.00336
+      ],
+      "within_player_spearman": 0.286,
+      "top3_recall": 0.701
+    },
+    "RF (real-data)": {
+      "log_loss": 0.6321,
+      "brier": 0.221,
+      "auc": 0.618,
+      "logloss_minus_category_base": -0.00796,
+      "ci95": [
+        -0.0115,
+        -0.00454
+      ],
+      "within_player_spearman": 0.284,
+      "top3_recall": 0.71
+    }
+  },
+  "reliability": [
+    {
+      "category": "Fork",
+      "players": 227,
+      "split_half_r": 0.083,
+      "spearman_brown": 0.153
+    },
+    {
+      "category": "Discovered Attack",
+      "players": 24,
+      "split_half_r": 0.369,
+      "spearman_brown": 0.539
+    },
+    {
+      "category": "Hanging Piece",
+      "players": 148,
+      "split_half_r": -0.057,
+      "spearman_brown": -0.121
+    },
+    {
+      "category": "Sacrifice",
+      "players": 41,
+      "split_half_r": -0.458,
+      "spearman_brown": -1.688
+    },
+    {
+      "category": "Deflection",
+      "players": 48,
+      "split_half_r": 0.019,
+      "spearman_brown": 0.037
+    },
+    {
+      "category": "Quiet Move",
+      "players": 299,
+      "split_half_r": 0.033,
+      "spearman_brown": 0.064
+    },
+    {
+      "category": "King Safety",
+      "players": 54,
+      "split_half_r": -0.081,
+      "spearman_brown": -0.177
+    },
+    {
+      "category": "Mating Pattern",
+      "players": 43,
+      "split_half_r": 0.091,
+      "spearman_brown": 0.166
+    }
+  ],
+  "simulator_calibration": {
+    "opportunities_per_player_train": 79.3,
+    "category_frequency": {
+      "Fork": 0.1362,
+      "Pin": 0.0357,
+      "Skewer": 0.0263,
+      "Discovered Attack": 0.0438,
+      "Hanging Piece": 0.0983,
+      "Sacrifice": 0.0545,
+      "Deflection": 0.0568,
+      "Attraction": 0.0,
+      "Interference": 0.0,
+      "Clearance": 0.0,
+      "Quiet Move": 0.3923,
+      "Zugzwang": 0.0,
+      "X-Ray Attack": 0.0,
+      "King Safety": 0.0571,
+      "Mating Pattern": 0.0571,
+      "Endgame": 0.0087,
+      "Rook Endgame": 0.0079,
+      "Queen Endgame": 0.0051,
+      "Pawn Endgame": 0.0024,
+      "Bishop Endgame": 0.0019,
+      "Knight Endgame": 0.0014,
+      "Promotion": 0.0134,
+      "En Passant": 0.0012
+    },
+    "observed_sd_of_category_logit_deviation": 0.853,
+    "noise_corrected_delta_sd": 0.0,
+    "overall_hit_rate": 0.649
+  },
+  "norms_written": {
+    "offsets": {
+      "Fork": -0.0804,
+      "Pin": -0.1601,
+      "Skewer": -0.1941,
+      "Discovered Attack": -0.333,
+      "Hanging Piece": 0.738,
+      "Sacrifice": -0.741,
+      "Deflection": 0.2567,
+      "Quiet Move": -0.106,
+      "King Safety": -0.0475,
+      "Mating Pattern": 0.2854,
+      "Endgame": 0.5377,
+      "Rook Endgame": 0.9776,
+      "Queen Endgame": 1.0677,
+      "Pawn Endgame": 1.7095,
+      "Promotion": 1.1464
+    },
+    "shrink_strength": 256.0,
+    "overall_hit_rate": 0.6486,
+    "players": 300,
+    "opportunities": 23796,
+    "fitted": "2026-09-22",
+    "source": "scripts/research/evaluate_weakness_models.py --write-norms"
+  }
+}

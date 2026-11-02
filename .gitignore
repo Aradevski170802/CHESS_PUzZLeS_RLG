@@ -78,6 +78,7 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 
+
 # IPython
 profile_default/
 ipython_config.py
@@ -216,3 +217,38 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Project-specific: large data files
+DataSets/
+data/raw/
+data/processed/
+data/cache/
+data/sessions/
+data/user_puzzles/
+# Research cohort: third-party public game data, kept local and pseudonymised
+data/research/
+# PuzzleNet training arrays (rebuilt by scripts/neural/build_dataset.py)
+data/neural/
+*.parquet
+*.csv
+
+# Dissertation text and drafts: this repository holds the code and the results
+report/
+report.zip
+dissertation/
+
+# Per-user puzzle evaluation reports (they name the user)
+eval/reports/
+
+# Stockfish binary (not .py files)
+stockfish
+stockfish.exe
+stockfish-*
+*.exe
+
+# Leela Chess Zero engine and Maia weights (downloaded; see src/neural/maia.py)
+lc0/
+
+# Environment / secrets
+.env
+*.key

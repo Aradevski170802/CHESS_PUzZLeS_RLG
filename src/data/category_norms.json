@@ -1,0 +1,25 @@
+{
+ "offsets": {
+  "Fork": -0.0804,
+  "Pin": -0.1601,
+  "Skewer": -0.1941,
+  "Discovered Attack": -0.333,
+  "Hanging Piece": 0.738,
+  "Sacrifice": -0.741,
+  "Deflection": 0.2567,
+  "Quiet Move": -0.106,
+  "King Safety": -0.0475,
+  "Mating Pattern": 0.2854,
+  "Endgame": 0.5377,
+  "Rook Endgame": 0.9776,
+  "Queen Endgame": 1.0677,
+  "Pawn Endgame": 1.7095,
+  "Promotion": 1.1464
+ },
+ "shrink_strength": 256.0,
+ "overall_hit_rate": 0.6486,
+ "players": 300,
+ "opportunities": 23796,
+ "fitted": "2026-09-22",
+ "source": "scripts/research/evaluate_weakness_models.py --write-norms"
+}

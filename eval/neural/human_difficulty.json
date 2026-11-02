@@ -1,0 +1,147 @@
+{
+  "positions": 40067,
+  "players": 300,
+  "hit_rate": 0.6537,
+  "folds": 5,
+  "model": "src\\data\\models\\puzzlenet.npz",
+  "pv_plies": 5,
+  "grouping": "GroupKFold over players: no player is in both train and test",
+  "models": {
+    "global base rate": {
+      "log_loss": 0.6451,
+      "brier": 0.2264,
+      "auc": 0.4983
+    },
+    "player rating only": {
+      "log_loss": 0.6381,
+      "brier": 0.2232,
+      "auc": 0.5713
+    },
+    "category base rate": {
+      "log_loss": 0.6311,
+      "brier": 0.2202,
+      "auc": 0.5858
+    },
+    "PuzzleNet puzzle difficulty": {
+      "log_loss": 2.0186,
+      "brier": 0.4243,
+      "auc": 0.5885
+    },
+    "trunk + rating (human difficulty)": {
+      "log_loss": 0.6066,
+      "brier": 0.2085,
+      "auc": 0.672
+    },
+    "Maia at the player's level": {
+      "log_loss": 0.5318,
+      "brier": 0.1781,
+      "auc": 0.7803
+    },
+    "Maia, all levels + rating": {
+      "log_loss": 0.5171,
+      "brier": 0.1722,
+      "auc": 0.7931
+    },
+    "trunk + rating + Maia": {
+      "log_loss": 0.5181,
+      "brier": 0.173,
+      "auc": 0.7905
+    }
+  },
+  "maia": {
+    "levels": [
+      1100,
+      1200,
+      1300,
+      1400,
+      1500,
+      1600,
+      1700,
+      1800,
+      1900
+    ],
+    "engine": "lc0 v0.32.1, nodes=1",
+    "positions_within_maia_range": 0.5153,
+    "mean_p_best_at_nearest_level": 0.4929
+  },
+  "paired_comparisons": {
+    "trunk + rating (human difficulty) vs category base rate": {
+      "log_loss_difference": -0.0245,
+      "ci95": [
+        -0.0286,
+        -0.0204
+      ]
+    },
+    "Maia, all levels + rating vs category base rate": {
+      "log_loss_difference": -0.114,
+      "ci95": [
+        -0.1188,
+        -0.1089
+      ]
+    },
+    "Maia, all levels + rating vs trunk + rating (human difficulty)": {
+      "log_loss_difference": -0.0895,
+      "ci95": [
+        -0.0946,
+        -0.0841
+      ]
+    },
+    "trunk + rating + Maia vs trunk + rating (human difficulty)": {
+      "log_loss_difference": -0.0885,
+      "ci95": [
+        -0.0936,
+        -0.083
+      ]
+    }
+  },
+  "by_rating_band": {
+    "0-1200": {
+      "n": 11703,
+      "hit_rate": 0.584,
+      "global base rate": 0.6895,
+      "player rating only": 0.6762,
+      "category base rate": 0.6744,
+      "PuzzleNet puzzle difficulty": 3.636,
+      "trunk + rating (human difficulty)": 0.641,
+      "Maia at the player's level": 0.5665,
+      "Maia, all levels + rating": 0.5462,
+      "trunk + rating + Maia": 0.5503
+    },
+    "1200-1600": {
+      "n": 8517,
+      "hit_rate": 0.645,
+      "global base rate": 0.6508,
+      "player rating only": 0.651,
+      "category base rate": 0.6352,
+      "PuzzleNet puzzle difficulty": 2.0531,
+      "trunk + rating (human difficulty)": 0.6277,
+      "Maia at the player's level": 0.5316,
+      "Maia, all levels + rating": 0.5219,
+      "trunk + rating + Maia": 0.5255
+    },
+    "1600-2000": {
+      "n": 9822,
+      "hit_rate": 0.673,
+      "global base rate": 0.6331,
+      "player rating only": 0.632,
+      "category base rate": 0.6182,
+      "PuzzleNet puzzle difficulty": 1.2353,
+      "trunk + rating (human difficulty)": 0.5941,
+      "Maia at the player's level": 0.512,
+      "Maia, all levels + rating": 0.5057,
+      "trunk + rating + Maia": 0.504
+    },
+    "2000-3000": {
+      "n": 10025,
+      "hit_rate": 0.724,
+      "global base rate": 0.6003,
+      "player rating only": 0.5885,
+      "category base rate": 0.5897,
+      "PuzzleNet puzzle difficulty": 0.8685,
+      "trunk + rating (human difficulty)": 0.5605,
+      "Maia at the player's level": 0.5108,
+      "Maia, all levels + rating": 0.4901,
+      "trunk + rating + Maia": 0.4881
+    }
+  }
+}

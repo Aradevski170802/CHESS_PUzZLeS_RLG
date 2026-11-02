@@ -1,0 +1,36 @@
+{
+  "n": 2000,
+  "nodes": 75000,
+  "engine_best_move_matches_solution": 0.993,
+  "conditions": {
+    "rules_solution": {
+      "strict_agreement": 0.5685,
+      "cohens_kappa": 0.5043
+    },
+    "rules_engine_7": {
+      "strict_agreement": 0.5545,
+      "cohens_kappa": 0.489
+    },
+    "puzzlenet_solution": {
+      "strict_agreement": 0.9185,
+      "cohens_kappa": 0.9049
+    },
+    "puzzlenet_engine_1": {
+      "strict_agreement": 0.6635,
+      "cohens_kappa": 0.6024
+    },
+    "puzzlenet_engine_3": {
+      "strict_agreement": 0.803,
+      "cohens_kappa": 0.7692
+    },
+    "puzzlenet_engine_5": {
+      "strict_agreement": 0.8085,
+      "cohens_kappa": 0.7766
+    },
+    "puzzlenet_engine_7": {
+      "strict_agreement": 0.7645,
+      "cohens_kappa": 0.7261
+    }
+  },
+  "note": "The engine's first move equals the puzzle's first solution move in 99.3% of positions; the rest are alternative wins or engine errors at 75,000 nodes, which neither labeller can fix."
+}

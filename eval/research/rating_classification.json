@@ -1,0 +1,165 @@
+{
+  "players": 300,
+  "classes": [
+    "<1000",
+    "1000\u20131399",
+    "1400\u20131799",
+    "1800\u20132199",
+    "2200+"
+  ],
+  "features": [
+    "mean_wp_loss",
+    "median_wp_loss",
+    "mean_cp_loss",
+    "blunders_pg",
+    "mistakes_pg",
+    "inaccuracies_pg",
+    "err_share_opening",
+    "err_share_middlegame",
+    "err_share_endgame",
+    "opportunities_pg",
+    "hit_rate_all",
+    "hit_rate_tactical",
+    "hit_rate_mating",
+    "hit_rate_endgame",
+    "hit_rate_quiet",
+    "mean_moves",
+    "win_rate",
+    "share_blitz"
+  ],
+  "leakage_guard": "PGN WhiteElo/BlackElo excluded from every feature",
+  "cv": "stratified 5-fold over players, 10 repeats; permutation test 500 shuffles",
+  "models": {
+    "Logistic regression": {
+      "accuracy_mean": 0.5913,
+      "accuracy_sd": 0.0177,
+      "macro_f1_mean": 0.5883,
+      "within_one_band": 0.9307,
+      "chance_accuracy": 0.2,
+      "permutation_p": 0.001996007984031936,
+      "permutation_null_mean": 0.1996,
+      "confusion_matrix": [
+        [
+          51,
+          7,
+          2,
+          0,
+          0
+        ],
+        [
+          8,
+          31,
+          14,
+          7,
+          0
+        ],
+        [
+          1,
+          15,
+          27,
+          10,
+          7
+        ],
+        [
+          0,
+          3,
+          12,
+          30,
+          15
+        ],
+        [
+          0,
+          1,
+          2,
+          12,
+          45
+        ]
+      ]
+    },
+    "Random forest": {
+      "accuracy_mean": 0.5737,
+      "accuracy_sd": 0.0191,
+      "macro_f1_mean": 0.5698,
+      "within_one_band": 0.9377,
+      "chance_accuracy": 0.2,
+      "permutation_p": 0.001996007984031936,
+      "permutation_null_mean": 0.1979,
+      "confusion_matrix": [
+        [
+          49,
+          10,
+          1,
+          0,
+          0
+        ],
+        [
+          10,
+          28,
+          14,
+          8,
+          0
+        ],
+        [
+          2,
+          14,
+          27,
+          11,
+          6
+        ],
+        [
+          0,
+          1,
+          15,
+          23,
+          21
+        ],
+        [
+          0,
+          0,
+          2,
+          15,
+          43
+        ]
+      ]
+    }
+  },
+  "top_features_rf": [
+    {
+      "feature": "mean_wp_loss",
+      "importance": 0.16
+    },
+    {
+      "feature": "mean_cp_loss",
+      "importance": 0.1577
+    },
+    {
+      "feature": "median_wp_loss",
+      "importance": 0.1011
+    },
+    {
+      "feature": "hit_rate_all",
+      "importance": 0.0588
+    },
+    {
+      "feature": "blunders_pg",
+      "importance": 0.0546
+    },
+    {
+      "feature": "mean_moves",
+      "importance": 0.0543
+    },
+    {
+      "feature": "hit_rate_quiet",
+      "importance": 0.0512
+    },
+    {
+      "feature": "inaccuracies_pg",
+      "importance": 0.0483
+    }
+  ],
+  "rating_regression": {
+    "mae": 205.6,
+    "baseline_mae": 490.2,
+    "pearson_r": 0.8945
+  }
+}
