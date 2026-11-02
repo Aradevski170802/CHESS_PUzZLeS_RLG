@@ -3,11 +3,11 @@ CLI puzzle quality evaluator — iterate until the generator produces good puzzl
 
 Usage
 -----
-python eval/run_evaluation.py --username chescam_sakcs
-python eval/run_evaluation.py --username chescam_sakcs --elo 1050
-python eval/run_evaluation.py --username chescam_sakcs --elo 1050 --depth 20
-python eval/run_evaluation.py --username chescam_sakcs --no-engine   # structural only
-python eval/run_evaluation.py --username chescam_sakcs --top 10      # show 10 best/worst
+python eval/run_evaluation.py --username <name>
+python eval/run_evaluation.py --username <name> --elo 1050
+python eval/run_evaluation.py --username <name> --elo 1050 --depth 20
+python eval/run_evaluation.py --username <name> --no-engine   # structural only
+python eval/run_evaluation.py --username <name> --top 10      # show 10 best/worst
 
 The report is also saved to eval/reports/{username}_{timestamp}.json so you
 can compare quality across generator iterations without re-running.
@@ -106,7 +106,6 @@ def main() -> None:
 
     # ── Run evaluation ────────────────────────────────────────────────────────
     evals: list[PuzzleEvaluation] = []
-    total = len(puzzles)
 
     if sf_path:
         with chess.engine.SimpleEngine.popen_uci(sf_path) as engine:

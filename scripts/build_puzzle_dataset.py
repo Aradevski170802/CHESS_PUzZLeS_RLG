@@ -24,7 +24,6 @@ import pandas as pd
 from src.data.data_cleaner import clean, report
 from src.data.puzzle_loader import (
     DIFFICULTY_TIERS,
-    WEAKNESS_CATEGORIES,
     load_puzzles,
     save_processed,
     split_by_category,

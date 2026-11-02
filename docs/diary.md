@@ -385,9 +385,9 @@ Additional flags: `has_dual_solution` (clarity gap < 50cp), `is_tactical` (captu
 ##### `eval/run_evaluation.py` — CLI test harness
 
 ```
-python eval/run_evaluation.py --username chescam_sakcs --elo 1050
-python eval/run_evaluation.py --username chescam_sakcs --no-engine   # structural only
-python eval/run_evaluation.py --username chescam_sakcs --depth 20 --top 10
+python eval/run_evaluation.py --username <name> --elo 1050
+python eval/run_evaluation.py --username <name> --no-engine   # structural only
+python eval/run_evaluation.py --username <name> --depth 20 --top 10
 ```
 
 Outputs:
@@ -425,7 +425,7 @@ Changes:
 
 ### Immediate
 - [ ] Start Flask backend before each web app session (`python web/backend/app.py`)
-- [ ] Run `python eval/run_evaluation.py --username chescam_sakcs --elo 1050` after next generation to baseline quality score
+- [ ] Run `python eval/run_evaluation.py --username <name> --elo 1050` after next generation to baseline quality score
 
 ### Short Term
 - [ ] Re-generate puzzles now that Stockfish path is fixed — compare Stockfish vs heuristic quality scores

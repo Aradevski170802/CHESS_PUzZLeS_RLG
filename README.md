@@ -31,7 +31,8 @@ per-category skill) → puzzle pool (Lichess DB + own-game miner) → web UI.
 | Weakness profiler | `src/classifier/player_profiler.py` | Per-category hit rate = found / opportunities. Recent games are weighted more (25-game half-life) and bullet less, then shrunk toward the **population norm for that category** at the player's level (`src/data/category_norms.json`, fitted on the cohort; cross-validated strength ≈ 256). Priors for both policies come from this. |
 | Glicko-2 fitter | `src/analysis/difficulty_fitter.py` | From-scratch Glicko-2, validated against Glickman's published example; `freeze_pool` mode; prequential hook. |
 | RandomForest weakness model | `src/classifier/ml_weakness_model.py` | Opt-in (`WEAKNESS_MODEL=ml`); trained on simulated players. |
-| Puzzle miner | `src/puzzles/generator.py` | Four-gate Stockfish extraction of puzzles from the player's own games. |
+| Puzzle miner | `src/puzzles/generator.py` | Four-gate Stockfish extraction of puzzles from the player's own games. **Every** player move must beat the engine's second choice by 100 cp (a single solution), and the first move is re-checked at depth 18. |
+| Maia (human move model) | `src/neural/maia.py` | Maia-1100 … 1900 (McIlroy-Young et al., 2020) run through Leela Chess Zero (lc0) with a one-node search: the probability that a player of a given rating plays a given move. Used to compare and combine with PuzzleNet's difficulty estimates. Optional: needs the downloads under **Data** below. |
 
 ### Configuration (environment variables)
 
@@ -62,6 +63,7 @@ checks and off-policy evaluation.
 | `classify_rating_band.py` | Objective 1: predict a player's rating band from how they play (300 players, rating fields excluded) | 59.1% accuracy over 5 bands (chance 20%), 93% within one band, permutation p = 0.002; rating predicted within 206 points (r = 0.90) |
 | `fetch_cohort.py` → `analyze_cohort.py` → `evaluate_weakness_models.py` | Which weakness model predicts a real player's *future* misses? (300 players, 60 per rating band) | Shrinking toward **population category norms** (production) and a real-data RF tie for best. The original rule-based scorer has no predictive value (AUC 0.47). Per-category reliability from ~40 games is near zero, so personal weaknesses must be learned online from puzzles. |
 | `make_figures.py` | Figures | `eval/research/figures/` |
+| `../revalidate_mined_puzzles.py` | Do stored mined puzzles meet the single-solution rule at every move? | 39 of 151 did not (26%): 15 had a second good first move at depth 18 (retired to `data/user_puzzles/retired/`), and 24 of the 48 multi-move puzzles had a second solution later in the line (cut there; the served line is kept in `originalMoves`) |
 
 ### PuzzleNet (`scripts/neural/`, results in `eval/neural/`)
 
@@ -73,9 +75,33 @@ checks and off-policy evaluation.
 | `engine_pv_check.py` | Does it hold up on Stockfish lines, as in game analysis? | On Stockfish lines, as in game analysis, kappa **0.78** vs **0.49** for the rules; 5 plies is the best cut, so that is what the analyzer now passes |
 | `run_label_simulation.py` | Does better labelling help the recommender downstream? | Yes: early weak-category targeting 0.226 (rules) -> **0.306** (PuzzleNet) -> 0.321 (perfect labels); the gap to perfect is no longer significant (p = 0.31) |
 | `relabel_cohort.py` | Do better labels make 300 real players' weaknesses measurable? | No: the labels change a lot (the two labellers agree on only 37% of real game positions) but split-half reliability stays ~0. Label noise was **not** why weaknesses looked like noise |
+| `human_difficulty.py` | Will a player of rating R find the move? (40,067 real positions, 300 players, folds split by player) | PuzzleNet's population difficulty used as-is fails (log loss 2.02). PuzzleNet's trunk + rating: log loss 0.607, AUC **0.672**, beating every baseline (best 0.631 / 0.586). **Maia** (all levels + rating): log loss 0.517, AUC **0.793**, better by 0.090 log loss (player-bootstrap 95% CI 0.084–0.095). Adding PuzzleNet to Maia adds nothing |
+| `maia_puzzle_difficulty.py` | How hard is a puzzle for players in general? (10,000 held-out test puzzles) | PuzzleNet RMSE **267** (R² 0.77) vs Maia 403 (R² 0.47); PuzzleNet + Maia **258** (R² 0.78), 9.1 points better than PuzzleNet alone (paired bootstrap 95% CI 7.5–10.7) |
+| `../annotate_maia.py` | Maia's chance that the owner finds each stored mined puzzle's first move | 127 puzzles annotated; median 27%, and 19% are below 10% (counter-intuitive for that player). New puzzles are annotated when mined |
 
 The design for a live study is in `docs/USER_STUDY_PROTOCOL.md`: a
 pre-registered crossover with a power analysis (34 paired players for d = 0.5).
+
+---
+
+## Results notebooks
+
+The notebooks in `notebooks/` present every result with tables, figures and written
+observations. They read the saved files in `eval/`, so all of them except the first
+run without the raw data, and GitHub shows their outputs.
+
+| Notebook | Objective | What it shows |
+|---|---|---|
+| `01_lichess_dataset` | Data | The cleaned puzzle dataset: columns, ratings, categories (needs the raw data to re-run) |
+| `02_player_modelling` | O1 | Rating-band classifier, and why weaknesses cannot be measured from a few dozen games |
+| `03_puzzle_generation` | O2 | Single-solution re-check, the mined puzzles, Maia's view of them |
+| `04_puzzlenet` | O3 | Labelling against rules, calibration, difficulty, design variants, engine lines |
+| `05_difficulty_for_a_player` | O3 | PuzzleNet against Maia on 40,067 real positions |
+| `06_selector_simulation` | O4, O5 | Policies compared, learning assumptions, realistic effect sizes |
+| `07_real_use` | O5 | Forecasting the 131 real attempts |
+
+Raw user data is never read by the notebooks: `scripts/research/summarise_mined_puzzles.py`
+reduces it to totals first.
 
 ---
 
@@ -84,25 +110,31 @@ pre-registered crossover with a power analysis (34 paired players for d = 0.5).
 ```
 ├── data/                    # all gitignored: raw, processed, cache, sessions,
 │                            #   user_puzzles, research (pseudonymised cohort)
-├── docs/                    # technical report, presentation, study protocol
+├── docs/                    # study protocol, project diary, archive of earlier reports
 ├── eval/
 │   ├── puzzle_evaluator.py  # per-puzzle quality metrics
 │   ├── run_evaluation.py    # CLI evaluation harness
+│   ├── neural/              # PuzzleNet and Maia results
 │   └── research/            # labeller, simulation, calibration, cohort results
+├── notebooks/               # results and observations, one notebook per objective
 ├── scripts/
 │   ├── build_puzzle_dataset.py
+│   ├── demo.py              # narrated walkthrough for a live demonstration
+│   ├── neural/              # PuzzleNet: dataset, training, evaluation, Maia comparison
+│   ├── report_figures/      # the figures of the dissertation
 │   └── research/            # evaluation and data-collection scripts
 ├── src/
 │   ├── api/                 # chess_com_fetcher
 │   ├── analysis/            # difficulty_fitter (Glicko-2), style_profile
 │   ├── classifier/          # stockfish_analyzer, player_profiler, ml_weakness_model
-│   ├── data/                # puzzle_loader, difficulty_mapper, pgn_parser
+│   ├── data/                # puzzle_loader, data_cleaner, pgn_parser, trained models
 │   ├── evaluation/          # simulation environment (policies, synthetic players)
-│   ├── puzzles/             # generator (miner), tactic_tagger
+│   ├── neural/              # PuzzleNet (encoding, network, predictor), Maia wrapper
+│   ├── puzzles/             # generator (miner), labeller, tactic_tagger
 │   └── recommender/         # irt_model (default), bandit
 ├── web/
 │   ├── backend/app.py       # Flask API (port 5000)
-│   └── frontend/index.html  # vanilla JS SPA
+│   └── frontend/            # single-page interface
 └── tests/                   # pytest suite, fully offline
 ```
 
@@ -118,6 +150,9 @@ pip install -r requirements.txt
 python scripts/build_puzzle_dataset.py   # needs DataSets/lichess_db_puzzle.csv
 python web/backend/app.py                # → http://localhost:5000
 pytest tests/ -v                         # offline test suite
+
+# Without activating the venv (Python is not on PATH on the development laptop)
+.venv313\Scripts\python.exe web\backend\app.py
 
 # Research evaluation
 python -m scripts.research.validate_labeller --seed 11 --tag _heldout
@@ -155,6 +190,12 @@ solution depth, non-triviality and difficulty fit. Reports are saved to
 - **Lichess puzzle DB** (~1.1 GB CSV, CC0): https://database.lichess.org/#puzzles → `DataSets/lichess_db_puzzle.csv`
 - **Chess.com games:** fetched from the public API and cached in `data/cache/`.
 - **Stockfish 18** (Windows x86-64): `stockfish/stockfish-windows-x86-64-avx2.exe`
+- **Leela Chess Zero + Maia** (optional, gitignored under `lc0/`):
+  - `lc0-v0.32.1-windows-cpu-dnnl.zip` from https://github.com/LeelaChessZero/lc0/releases/tag/v0.32.1,
+    unzipped into `lc0/` (SHA-256 `b9cfcfbd3dabffbfd452f6e8e087c22273721bef48eba19640b6d92006c142f5`)
+  - `maia-1100.pb.gz` … `maia-1900.pb.gz` from https://github.com/CSSLab/maia-chess/releases/tag/v1.0,
+    into `lc0/maia/`
+  - `LC0_PATH` and `MAIA_DIR` override the locations.
 - **Research cohort:** publicly available Chess.com games collected through the
   published-data API, stored pseudonymised under `data/research/` (gitignored).
   Public availability is not consent, so check your institution's research-ethics

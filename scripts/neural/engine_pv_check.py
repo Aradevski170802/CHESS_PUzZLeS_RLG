@@ -102,7 +102,6 @@ def main() -> None:
     from scripts.neural.evaluate_puzzlenet import read_positions
     from sklearn.metrics import cohen_kappa_score
     from src.data.puzzle_loader import resolve_primary_category
-    from src.neural.dataset import CATEGORIES
     from src.neural.predictor import PuzzleNetPredictor
     from src.puzzles.tactic_tagger import tag_line
 

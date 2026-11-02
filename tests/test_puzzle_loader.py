@@ -1,7 +1,6 @@
 """Unit tests for puzzle_loader — no CSV required."""
 
 import pandas as pd
-import pytest
 
 from src.data.puzzle_loader import (
     WEAKNESS_CATEGORIES,

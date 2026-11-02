@@ -186,7 +186,6 @@ def find_stockfish() -> Optional[str]:
         str(Path(__file__).resolve().parents[2] / "stockfish" / "stockfish-windows-x86-64-avx2.exe"),
         str(Path(__file__).resolve().parents[2] / "stockfish" / "stockfish.exe"),
         r"C:\stockfish\stockfish.exe",
-        r"C:\Users\frogo\stockfish\stockfish.exe",
         "/usr/bin/stockfish",
         "/usr/local/bin/stockfish",
         "/opt/homebrew/bin/stockfish",

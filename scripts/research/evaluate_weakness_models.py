@@ -45,7 +45,6 @@ from __future__ import annotations
 
 import json
 import math
-from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
@@ -55,7 +54,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import GroupKFold
 
 from src.classifier.ml_weakness_model import DEFAULT_MODEL_PATH, _profile_to_features, load_model
-from src.classifier.player_profiler import SHRINK_STRENGTH, build_profile
+from src.classifier.player_profiler import build_profile
 from src.classifier.stockfish_analyzer import GameAnalysis, MoveError, Opportunity
 from src.data.puzzle_loader import WEAKNESS_CATEGORIES
 

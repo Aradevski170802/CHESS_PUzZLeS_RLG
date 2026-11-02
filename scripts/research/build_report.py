@@ -215,7 +215,7 @@ def section_sim(sim):
             rows.append([world, tg, beta_rand, irt_beta,
                          f"{pct(t['Beta-TS']['frac_frustrating']['mean'], 1)} → {pct(t['IRT-TS']['frac_frustrating']['mean'], 1)} "
                          f"(d<sub>z</sub> {fr['d_z']:+.2f})"])
-        (w0, d0), (w1, d1) = worlds[0], worlds[1]
+        (_, d0), (_, d1) = worlds[0], worlds[1]
         fr_dz = [d["IRT_vs_Beta"]["frac_frustrating"]["d_z"] for _, d in worlds]
         e7_html = f"""<h3>E7 · Realistic effect sizes (calibrated on the real cohort)</h3>
 <p>E2 assumed large, well-separated weaknesses, but the real cohort (§4) found far subtler category

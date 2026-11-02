@@ -77,8 +77,6 @@ target/
 
 # Jupyter Notebook
 .ipynb_checkpoints
-# Strip outputs before committing — outputs are too large for GitHub
-# Run: python -c "import json,pathlib; ..."  or use nbstripout
 
 
 # IPython
@@ -234,11 +232,22 @@ data/neural/
 *.parquet
 *.csv
 
+# Dissertation text and drafts: this repository holds the code and the results
+report/
+report.zip
+dissertation/
+
+# Per-user puzzle evaluation reports (they name the user)
+eval/reports/
+
 # Stockfish binary (not .py files)
 stockfish
 stockfish.exe
 stockfish-*
 *.exe
+
+# Leela Chess Zero engine and Maia weights (downloaded; see src/neural/maia.py)
+lc0/
 
 # Environment / secrets
 .env

@@ -34,7 +34,6 @@ from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import confusion_matrix, f1_score
 from sklearn.model_selection import (
-    RepeatedStratifiedKFold,
     StratifiedKFold,
     cross_val_predict,
     permutation_test_score,
@@ -101,7 +100,6 @@ def main() -> None:
         "Logistic regression": make_pipeline(StandardScaler(), LogisticRegression(max_iter=5000, C=1.0)),
         "Random forest": RandomForestClassifier(n_estimators=500, min_samples_leaf=3, random_state=0, n_jobs=-1),
     }
-    rskf = RepeatedStratifiedKFold(n_splits=5, n_repeats=10, random_state=0)
     results = {}
     for name, model in models.items():
         accs, f1s, adj = [], [], []

@@ -72,7 +72,7 @@ def _cached_games(username: str) -> list[str]:
     return out
 
 
-def act_measurement(username: str = "radevski1708", tries: int = 6) -> None:
+def act_measurement(username: str = "", tries: int = 6) -> None:
     head(1, "MEASURING WEAKNESS", "How do you know what a player is bad at?")
     from src.classifier.stockfish_analyzer import analyze_game, find_stockfish
     from src.puzzles.labeller import active_labeller
@@ -82,7 +82,7 @@ def act_measurement(username: str = "radevski1708", tries: int = 6) -> None:
         print("  Stockfish not found - skipping.")
         return
 
-    games = _cached_games(username)
+    games = _cached_games(username) if username else []
     subject, analysis, fallback = None, None, None
     if games:
         print(f"  Analysing {username}'s own recent Chess.com games.")
@@ -111,7 +111,7 @@ def act_measurement(username: str = "radevski1708", tries: int = 6) -> None:
         for e in a.errors[:5]:
             print(f"  {e.severity:<14}{e.wp_loss:>13.1f}   {e.phase}")
     if a.opportunities:
-        print(f"\n  The critical positions - moments where one move was clearly best:\n")
+        print("\n  The critical positions - moments where one move was clearly best:\n")
         print(f"  {'ply':>4}  {'tactic':<22}{'found it?':<11}{'lost (win-%)':>13}")
         for o in a.opportunities:
             print(f"  {o.ply:>4}  {o.category:<22}{'yes' if o.hit else 'no':<11}{o.wp_loss:>13.1f}")
@@ -138,7 +138,6 @@ def act_labeller(n: int = 8) -> None:
         print("  No trained model installed - skipping.")
         return
     ev = load(EVAL / "neural" / "puzzlenet_evaluation.json")
-    ids = None
     if ev:
         hz = ev["harness"]
         print(f"  Held out: {hz['uniform_n']:,} puzzles neither labeller saw in development.\n")
@@ -148,14 +147,14 @@ def act_labeller(n: int = 8) -> None:
             print(f"  {label:<22}{r['strict_agreement']:>10.1%}{r['cohens_kappa']:>8.2f}"
                   f"{r['macro_recall_stratified']:>14.2f}")
         p = hz["paired"]["mcnemar_uniform"]
-        print(f"\n  Paired on the same puzzles: the network is right on "
+        print("\n  Paired on the same puzzles: the network is right on "
               f"{p['only_second_correct']:,} that the")
         print(f"  rules get wrong, and wrong on {p['only_first_correct']} that the rules get right.")
 
     table = pq.read_table("data/processed/puzzles_full.parquet",
                           columns=["PuzzleId", "FEN", "Moves", "Themes", "Rating"]).slice(0, 4000)
     df = table.to_pandas().sample(n, random_state=7)
-    print(f"\n  A few puzzles, side by side:\n")
+    print("\n  A few puzzles, side by side:\n")
     print(f"  {'Lichess says':<20}{'rules say':<20}{'PuzzleNet says':<20}{'p':>6}")
     for _, row in df.iterrows():
         truth = resolve_primary_category(row.Themes)
@@ -190,7 +189,7 @@ def act_difficulty() -> None:
         if "miner_formula" in base:
             print(f"  The formula it replaces: RMSE {base['miner_formula']['rmse']:.0f}, "
                   f"R2 {base['miner_formula']['r2']:.2f}.")
-        print(f"  Its error bars are honest: the 50/80/95% intervals contain the true rating "
+        print("  Its error bars are honest: the 50/80/95% intervals contain the true rating "
               f"{r['coverage_50']:.0%}/{r['coverage_80']:.0%}/{r['coverage_95']:.0%} of the time.\n")
 
     table = pq.read_table("data/processed/puzzles_full.parquet",
@@ -208,8 +207,8 @@ def act_difficulty() -> None:
         mined = json.loads(user_puzzles[0].read_text(encoding="utf-8"))
         mined = [p for p in mined if p.get("FEN")][:3]
         if mined:
-            print(f"\n  And puzzles mined from a real player's own games, which have no rating"
-                  f"\n  anywhere in the world:\n")
+            print("\n  And puzzles mined from a real player's own games, which have no rating"
+                  "\n  anywhere in the world:\n")
             print(f"  {'formula':>10}{'PuzzleNet':>12}{'uncertainty':>13}   tactic")
             for p in mined:
                 pred = net.predict_puzzle(p["FEN"], p["Moves"])
@@ -223,7 +222,7 @@ def act_difficulty() -> None:
 
 def act_recommender(n_attempts: int = 60) -> None:
     head(4, "THE RECOMMENDER", "How does it decide what to serve next?")
-    from src.recommender.irt_model import IRTLearner, logit_to_rating
+    from src.recommender.irt_model import IRTLearner
 
     rng = np.random.default_rng(4)
     learner = IRTLearner.new(elo=1400)
@@ -233,7 +232,7 @@ def act_recommender(n_attempts: int = 60) -> None:
 
     # A player who is genuinely weak at forks and pins, and fine elsewhere.
     truth = {"Fork": -0.9, "Pin": -0.7}
-    print(f"  Simulated truth: weak at Fork and Pin, average elsewhere.\n")
+    print("  Simulated truth: weak at Fork and Pin, average elsewhere.\n")
     served: dict[str, int] = {}
     print(f"  {'attempt':>7}   {'served':<20}{'target':>8}{'predicted':>11}{'result':>9}")
     for t in range(n_attempts):
@@ -258,12 +257,12 @@ def act_recommender(n_attempts: int = 60) -> None:
         flag = "   <-- correctly identified" if w["category"] in truth else ""
         print(f"  {w['category']:<20}{rating:>9.0f}{rd:>7.0f}{flag}")
     top = sorted(served.items(), key=lambda kv: -kv[1])[:5]
-    print(f"\n  Most-served categories over the session: "
+    print("\n  Most-served categories over the session: "
           + ", ".join(f"{c} ({n})" for c, n in top))
-    print(f"  Thompson Sampling on the WEAKEST arm, so the categories it is least sure")
-    print(f"  the player can handle are the ones it keeps coming back to. Difficulty is")
-    print(f"  pitched where the model expects a 65% success rate: hard enough to be worth")
-    print(f"  solving, easy enough to keep solving.")
+    print("  Thompson Sampling on the WEAKEST arm, so the categories it is least sure")
+    print("  the player can handle are the ones it keeps coming back to. Difficulty is")
+    print("  pitched where the model expects a 65% success rate: hard enough to be worth")
+    print("  solving, easy enough to keep solving.")
 
 
 # ── Act 5 ─────────────────────────────────────────────────────────────────────
@@ -324,18 +323,18 @@ def act_evidence() -> None:
     if coh and cohn:
         def mean_abs(rep):
             return float(np.mean([abs(r["split_half_r"]) for r in rep["reliability"]]))
-        print(f"   Per-category weakness from games is noise: split-half reliability "
+        print("   Per-category weakness from games is noise: split-half reliability "
               f"{mean_abs(coh):.2f} with rule")
         print(f"     labels, {mean_abs(cohn):.2f} with neural labels, across 300 real players. "
-              f"Better labels did not fix it.")
+              "Better labels did not fix it.")
     if diff:
         m = diff["models"]
         if "IRT, per category + PuzzleNet" in m:
-            print(f"   The network's difficulty does NOT transfer to a player's own positions: "
-                  f"log loss")
+            print("   The network's difficulty does NOT transfer to a player's own positions: "
+                  "log loss")
             print(f"     {m['IRT, per category']['log_loss']:.3f} with the old formula, "
                   f"{m['IRT, per category + PuzzleNet']['log_loss']:.3f} with the network. "
-                  f"So it ships off.")
+                  "So it ships off.")
     print("\n  Every number above is regenerated by a script in scripts/ and stored in eval/.")
 
 
@@ -346,7 +345,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--act", type=int, choices=sorted(ACTS), help="run a single act")
     ap.add_argument("--no-engine", action="store_true", help="skip the act that needs Stockfish")
-    ap.add_argument("--user", default="radevski1708", help="whose cached games Act 1 analyses")
+    ap.add_argument("--user", default="", help="Chess.com username whose cached games Act 1 analyses")
     args = ap.parse_args()
 
     print(f"\n{RULE}\n  ADAPTIVE CHESS PUZZLE ADVISOR - live demonstration\n{RULE}")
