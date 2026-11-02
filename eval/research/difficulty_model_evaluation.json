@@ -1,26 +1,26 @@
 {
-  "events": 123,
+  "events": 131,
   "players": 5,
-  "solve_rate": 0.846,
-  "mined_share": 0.675,
-  "mined_rated_by_puzzlenet": 44,
+  "solve_rate": 0.855,
+  "mined_share": 0.695,
+  "mined_rated_by_puzzlenet": 47,
   "models": {
     "Base rate": {
-      "log_loss": 0.4508,
-      "brier": 0.1387,
-      "auc": 0.508,
-      "mean_prediction": 0.77,
-      "logloss_minus_static_elo": -0.7577,
+      "log_loss": 0.4336,
+      "brier": 0.1317,
+      "auc": 0.543,
+      "mean_prediction": 0.775,
+      "logloss_minus_static_elo": -0.8319,
       "ci95": [
-        -1.0132,
-        -0.5129
+        -1.0827,
+        -0.5868
       ]
     },
     "Static Elo": {
-      "log_loss": 1.2084,
-      "brier": 0.3741,
-      "auc": 0.542,
-      "mean_prediction": 0.449,
+      "log_loss": 1.2655,
+      "brier": 0.3919,
+      "auc": 0.528,
+      "mean_prediction": 0.434,
       "logloss_minus_static_elo": 0.0,
       "ci95": [
         0.0,
@@ -28,58 +28,58 @@
       ]
     },
     "Glicko-2 (symmetric)": {
-      "log_loss": 0.6395,
-      "brier": 0.2122,
-      "auc": 0.575,
-      "mean_prediction": 0.686,
-      "logloss_minus_static_elo": -0.5689,
+      "log_loss": 0.6266,
+      "brier": 0.2079,
+      "auc": 0.577,
+      "mean_prediction": 0.688,
+      "logloss_minus_static_elo": -0.6389,
       "ci95": [
-        -0.7585,
-        -0.3747
+        -0.8308,
+        -0.4471
       ]
     },
     "Glicko-2 (pool frozen)": {
-      "log_loss": 0.7136,
-      "brier": 0.2423,
-      "auc": 0.457,
-      "mean_prediction": 0.686,
-      "logloss_minus_static_elo": -0.4948,
+      "log_loss": 0.6983,
+      "brier": 0.2369,
+      "auc": 0.456,
+      "mean_prediction": 0.685,
+      "logloss_minus_static_elo": -0.5672,
       "ci95": [
-        -0.6916,
-        -0.2955
+        -0.7614,
+        -0.3718
       ]
     },
     "IRT, \u03b8 only": {
-      "log_loss": 0.6523,
-      "brier": 0.2217,
-      "auc": 0.485,
-      "mean_prediction": 0.702,
-      "logloss_minus_static_elo": -0.5561,
+      "log_loss": 0.6353,
+      "brier": 0.2154,
+      "auc": 0.487,
+      "mean_prediction": 0.704,
+      "logloss_minus_static_elo": -0.6302,
       "ci95": [
-        -0.7641,
-        -0.348
+        -0.8356,
+        -0.4249
       ]
     },
     "IRT, per category": {
-      "log_loss": 0.5992,
-      "brier": 0.2024,
-      "auc": 0.54,
-      "mean_prediction": 0.706,
-      "logloss_minus_static_elo": -0.6093,
+      "log_loss": 0.586,
+      "brier": 0.1975,
+      "auc": 0.543,
+      "mean_prediction": 0.707,
+      "logloss_minus_static_elo": -0.6795,
       "ci95": [
-        -0.8124,
-        -0.4058
+        -0.8793,
+        -0.4793
       ]
     },
     "IRT, per category + PuzzleNet": {
-      "log_loss": 0.7542,
-      "brier": 0.2492,
-      "auc": 0.531,
-      "mean_prediction": 0.653,
-      "logloss_minus_static_elo": -0.4543,
+      "log_loss": 0.7474,
+      "brier": 0.2436,
+      "auc": 0.522,
+      "mean_prediction": 0.651,
+      "logloss_minus_static_elo": -0.5181,
       "ci95": [
-        -0.674,
-        -0.2367
+        -0.7438,
+        -0.2982
       ]
     }
   }

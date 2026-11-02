@@ -1,0 +1,1342 @@
+{
+  "rule": "every player move beats the second choice by 100 cp (first move at depth 18, later moves at depth 16)",
+  "users": {
+    "user_1": {
+      "stats": {
+        "puzzles": 9,
+        "multi_move": 9,
+        "unchanged": 5,
+        "cut": 4,
+        "first_move_fails": 0
+      },
+      "puzzles": [
+        {
+          "id": "gen_a61163e7",
+          "moves": 8,
+          "keep": 2,
+          "margins": [
+            481,
+            41
+          ]
+        },
+        {
+          "id": "gen_000f146b",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            400,
+            161
+          ]
+        },
+        {
+          "id": "gen_a2a085f1",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            348,
+            83
+          ]
+        },
+        {
+          "id": "gen_517a7ef4",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            387,
+            357
+          ]
+        },
+        {
+          "id": "gen_5efc70dd",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            197,
+            322
+          ]
+        },
+        {
+          "id": "gen_ea7fecd3",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            973,
+            null
+          ]
+        },
+        {
+          "id": "gen_85d1da1e",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            211,
+            230
+          ]
+        },
+        {
+          "id": "gen_1b3b6c17",
+          "moves": 8,
+          "keep": 2,
+          "margins": [
+            260,
+            42
+          ]
+        },
+        {
+          "id": "gen_7cfd860e",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            379,
+            1259
+          ]
+        }
+      ]
+    },
+    "user_2": {
+      "stats": {
+        "puzzles": 33,
+        "multi_move": 8,
+        "unchanged": 28,
+        "cut": 4,
+        "first_move_fails": 1
+      },
+      "puzzles": [
+        {
+          "id": "gen_2ccea2e4",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            162,
+            47
+          ]
+        },
+        {
+          "id": "gen_380c59cd",
+          "moves": 6,
+          "keep": 4,
+          "margins": [
+            214,
+            140,
+            null
+          ]
+        },
+        {
+          "id": "gen_bf9b9ebe",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            254,
+            719
+          ]
+        },
+        {
+          "id": "gen_130b1f21",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            8236,
+            282
+          ]
+        },
+        {
+          "id": "gen_65b2c3ab",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            204
+          ]
+        },
+        {
+          "id": "gen_f973e1c5",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            239
+          ]
+        },
+        {
+          "id": "gen_e3262f1a",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            113
+          ]
+        },
+        {
+          "id": "gen_d38424b8",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            164
+          ]
+        },
+        {
+          "id": "gen_ffde310c",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            100
+          ]
+        },
+        {
+          "id": "gen_483aa3a4",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            276,
+            8934
+          ]
+        },
+        {
+          "id": "gen_e0f17ca1",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            164
+          ]
+        },
+        {
+          "id": "gen_1fada730",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            242,
+            190
+          ]
+        },
+        {
+          "id": "gen_9d3dba51",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            266,
+            11
+          ]
+        },
+        {
+          "id": "gen_3ce1d351",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            390
+          ]
+        },
+        {
+          "id": "gen_1a0a894d",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            249
+          ]
+        },
+        {
+          "id": "gen_38876c41",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            117
+          ]
+        },
+        {
+          "id": "gen_f612fb49",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            452
+          ]
+        },
+        {
+          "id": "gen_9bec9471",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            136
+          ]
+        },
+        {
+          "id": "gen_355c5155",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            210
+          ]
+        },
+        {
+          "id": "gen_22719ecd",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            131
+          ]
+        },
+        {
+          "id": "gen_55436f88",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            271
+          ]
+        },
+        {
+          "id": "gen_95df3b85",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            112,
+            43
+          ]
+        },
+        {
+          "id": "gen_268243d8",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            345
+          ]
+        },
+        {
+          "id": "gen_0ccfdfdc",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            118
+          ]
+        },
+        {
+          "id": "gen_d12a63b7",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            165
+          ]
+        },
+        {
+          "id": "gen_8b625db2",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            55
+          ]
+        },
+        {
+          "id": "gen_81910492",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            190
+          ]
+        },
+        {
+          "id": "gen_b01b426d",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            218
+          ]
+        },
+        {
+          "id": "gen_79548403",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            161
+          ]
+        },
+        {
+          "id": "gen_dd273c10",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            127
+          ]
+        },
+        {
+          "id": "gen_9e204ce5",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            220
+          ]
+        },
+        {
+          "id": "gen_bcf54bea",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            691
+          ]
+        },
+        {
+          "id": "gen_6f6a3868",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            281
+          ]
+        }
+      ]
+    },
+    "user_3": {
+      "stats": {
+        "puzzles": 30,
+        "multi_move": 10,
+        "unchanged": 22,
+        "cut": 3,
+        "first_move_fails": 5
+      },
+      "puzzles": [
+        {
+          "id": "gen_b399df25",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            387
+          ]
+        },
+        {
+          "id": "gen_d1496a67",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            191
+          ]
+        },
+        {
+          "id": "gen_bd399176",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            148,
+            383
+          ]
+        },
+        {
+          "id": "gen_ecb8d7e4",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            392,
+            null
+          ]
+        },
+        {
+          "id": "gen_abcb6bfc",
+          "moves": 6,
+          "keep": 6,
+          "margins": [
+            1036,
+            307,
+            205
+          ]
+        },
+        {
+          "id": "gen_ea4c8e68",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            208
+          ]
+        },
+        {
+          "id": "gen_15b56e94",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            227
+          ]
+        },
+        {
+          "id": "gen_fc532ca2",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            182
+          ]
+        },
+        {
+          "id": "gen_16993e7b",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            232
+          ]
+        },
+        {
+          "id": "gen_52034fcb",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            151
+          ]
+        },
+        {
+          "id": "gen_c9990b0e",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            760,
+            0
+          ]
+        },
+        {
+          "id": "gen_12e15a16",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            545
+          ]
+        },
+        {
+          "id": "gen_22c40d33",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            173,
+            257
+          ]
+        },
+        {
+          "id": "gen_7fc66844",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            458,
+            462
+          ]
+        },
+        {
+          "id": "gen_1172da60",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            420,
+            507
+          ]
+        },
+        {
+          "id": "gen_54753854",
+          "moves": 6,
+          "keep": 6,
+          "margins": [
+            627,
+            8540,
+            8367
+          ]
+        },
+        {
+          "id": "gen_3eb43bf7",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            56
+          ]
+        },
+        {
+          "id": "gen_c637a5af",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            152
+          ]
+        },
+        {
+          "id": "gen_91629802",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            16
+          ]
+        },
+        {
+          "id": "gen_7952cfa9",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            160
+          ]
+        },
+        {
+          "id": "gen_f546b4f9",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            77
+          ]
+        },
+        {
+          "id": "gen_b01e30ef",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            169
+          ]
+        },
+        {
+          "id": "gen_4eda5609",
+          "moves": 8,
+          "keep": 8,
+          "margins": [
+            133,
+            111,
+            160,
+            420
+          ]
+        },
+        {
+          "id": "gen_612600bb",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            260
+          ]
+        },
+        {
+          "id": "gen_b1ccb4cf",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            575
+          ]
+        },
+        {
+          "id": "gen_3537f5fe",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            97
+          ]
+        },
+        {
+          "id": "gen_47992cff",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            174
+          ]
+        },
+        {
+          "id": "gen_339ab32a",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            66
+          ]
+        },
+        {
+          "id": "gen_3eb14b87",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            110,
+            35
+          ]
+        },
+        {
+          "id": "gen_4d85f858",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            141
+          ]
+        }
+      ]
+    },
+    "user_4": {
+      "stats": {
+        "puzzles": 19,
+        "multi_move": 4,
+        "unchanged": 15,
+        "cut": 3,
+        "first_move_fails": 1
+      },
+      "puzzles": [
+        {
+          "id": "gen_b4947a61",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            137
+          ]
+        },
+        {
+          "id": "gen_dab62f36",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            137
+          ]
+        },
+        {
+          "id": "gen_f154c781",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            155,
+            null
+          ]
+        },
+        {
+          "id": "gen_3c4d0118",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            251
+          ]
+        },
+        {
+          "id": "gen_ee51d489",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            565,
+            80
+          ]
+        },
+        {
+          "id": "gen_f636b6c4",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            202
+          ]
+        },
+        {
+          "id": "gen_16ac84d0",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            380
+          ]
+        },
+        {
+          "id": "gen_adee1942",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            255,
+            120
+          ]
+        },
+        {
+          "id": "gen_9f87b88d",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            5
+          ]
+        },
+        {
+          "id": "gen_3f91d79d",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            520
+          ]
+        },
+        {
+          "id": "gen_62c5df27",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            362
+          ]
+        },
+        {
+          "id": "gen_766c692c",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            185
+          ]
+        },
+        {
+          "id": "gen_38daff5a",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            489
+          ]
+        },
+        {
+          "id": "gen_2e80006e",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            307
+          ]
+        },
+        {
+          "id": "gen_a84502cd",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            129
+          ]
+        },
+        {
+          "id": "gen_601a606d",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            232
+          ]
+        },
+        {
+          "id": "gen_718ab4bb",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            219
+          ]
+        },
+        {
+          "id": "gen_0418867a",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            260,
+            66
+          ]
+        },
+        {
+          "id": "gen_b66cb931",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            189
+          ]
+        }
+      ]
+    },
+    "user_5": {
+      "stats": {
+        "puzzles": 30,
+        "multi_move": 9,
+        "unchanged": 22,
+        "cut": 6,
+        "first_move_fails": 2
+      },
+      "puzzles": [
+        {
+          "id": "gen_68f71999",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            434
+          ]
+        },
+        {
+          "id": "gen_8fa1f080",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            153
+          ]
+        },
+        {
+          "id": "gen_dac83e31",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            191
+          ]
+        },
+        {
+          "id": "gen_3cf90696",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            128,
+            16
+          ]
+        },
+        {
+          "id": "gen_cd618a64",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            106,
+            166
+          ]
+        },
+        {
+          "id": "gen_1a73b3c0",
+          "moves": 6,
+          "keep": 2,
+          "margins": [
+            167,
+            25
+          ]
+        },
+        {
+          "id": "gen_d0111be1",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            241
+          ]
+        },
+        {
+          "id": "gen_09185e3e",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            174
+          ]
+        },
+        {
+          "id": "gen_677aa0f6",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            255
+          ]
+        },
+        {
+          "id": "gen_c6a65b5e",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            321
+          ]
+        },
+        {
+          "id": "gen_32cea0b6",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            156,
+            46
+          ]
+        },
+        {
+          "id": "gen_95241fcd",
+          "moves": 8,
+          "keep": 0,
+          "margins": [
+            null
+          ]
+        },
+        {
+          "id": "gen_bcd7f8c7",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            133
+          ]
+        },
+        {
+          "id": "gen_efde8ff6",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            274
+          ]
+        },
+        {
+          "id": "gen_63fff88d",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            370
+          ]
+        },
+        {
+          "id": "gen_2226b993",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            444
+          ]
+        },
+        {
+          "id": "gen_ced8b76f",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            189
+          ]
+        },
+        {
+          "id": "gen_9a6b4ae3",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            360
+          ]
+        },
+        {
+          "id": "gen_098d9957",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            317
+          ]
+        },
+        {
+          "id": "gen_7313fd27",
+          "moves": 6,
+          "keep": 6,
+          "margins": [
+            269,
+            160,
+            434
+          ]
+        },
+        {
+          "id": "gen_94418404",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            205
+          ]
+        },
+        {
+          "id": "gen_612ecb96",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            172,
+            41
+          ]
+        },
+        {
+          "id": "gen_699b6aa5",
+          "moves": 4,
+          "keep": 2,
+          "margins": [
+            164,
+            null
+          ]
+        },
+        {
+          "id": "gen_140e26b5",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            135
+          ]
+        },
+        {
+          "id": "gen_d03c770b",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            249
+          ]
+        },
+        {
+          "id": "gen_46467835",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            68
+          ]
+        },
+        {
+          "id": "gen_33390f52",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            214
+          ]
+        },
+        {
+          "id": "gen_983580bc",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            274
+          ]
+        },
+        {
+          "id": "gen_f54aafda",
+          "moves": 8,
+          "keep": 4,
+          "margins": [
+            326,
+            205,
+            null
+          ]
+        },
+        {
+          "id": "gen_78a2b708",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            121
+          ]
+        }
+      ]
+    },
+    "user_6": {
+      "stats": {
+        "puzzles": 30,
+        "multi_move": 8,
+        "unchanged": 20,
+        "cut": 4,
+        "first_move_fails": 6
+      },
+      "puzzles": [
+        {
+          "id": "gen_085b82e9",
+          "moves": 8,
+          "keep": 4,
+          "margins": [
+            180,
+            391,
+            33
+          ]
+        },
+        {
+          "id": "gen_0ea02479",
+          "moves": 4,
+          "keep": 0,
+          "margins": [
+            62
+          ]
+        },
+        {
+          "id": "gen_0055a9e9",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            550
+          ]
+        },
+        {
+          "id": "gen_d14aa3aa",
+          "moves": 6,
+          "keep": 6,
+          "margins": [
+            455,
+            359,
+            203
+          ]
+        },
+        {
+          "id": "gen_15ece0ba",
+          "moves": 6,
+          "keep": 2,
+          "margins": [
+            8225,
+            22
+          ]
+        },
+        {
+          "id": "gen_6764ffec",
+          "moves": 8,
+          "keep": 2,
+          "margins": [
+            195,
+            15
+          ]
+        },
+        {
+          "id": "gen_42a018ef",
+          "moves": 4,
+          "keep": 4,
+          "margins": [
+            306,
+            381
+          ]
+        },
+        {
+          "id": "gen_269c7272",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            236
+          ]
+        },
+        {
+          "id": "gen_e2b35cde",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            8054
+          ]
+        },
+        {
+          "id": "gen_b1936328",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            361
+          ]
+        },
+        {
+          "id": "gen_64d4ca15",
+          "moves": 8,
+          "keep": 4,
+          "margins": [
+            314,
+            321,
+            null
+          ]
+        },
+        {
+          "id": "gen_0affaa69",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            206
+          ]
+        },
+        {
+          "id": "gen_e89d9ea8",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            91
+          ]
+        },
+        {
+          "id": "gen_529db7ff",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            16
+          ]
+        },
+        {
+          "id": "gen_b4741f7a",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            13
+          ]
+        },
+        {
+          "id": "gen_df614b6b",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            241
+          ]
+        },
+        {
+          "id": "gen_28977cc0",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            193
+          ]
+        },
+        {
+          "id": "gen_d8772fc9",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            288
+          ]
+        },
+        {
+          "id": "gen_6177c5e5",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            262
+          ]
+        },
+        {
+          "id": "gen_4c763b67",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            134
+          ]
+        },
+        {
+          "id": "gen_2f12b420",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            362
+          ]
+        },
+        {
+          "id": "gen_d09b3c96",
+          "moves": 2,
+          "keep": 0,
+          "margins": [
+            69
+          ]
+        },
+        {
+          "id": "gen_14d95e5e",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            108
+          ]
+        },
+        {
+          "id": "gen_0a3c0167",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            134
+          ]
+        },
+        {
+          "id": "gen_b990070b",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            9000
+          ]
+        },
+        {
+          "id": "gen_2787b18e",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            9000
+          ]
+        },
+        {
+          "id": "gen_313fa158",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            291
+          ]
+        },
+        {
+          "id": "gen_e4470dfa",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            410
+          ]
+        },
+        {
+          "id": "gen_88f7d12c",
+          "moves": 2,
+          "keep": 2,
+          "margins": [
+            232
+          ]
+        },
+        {
+          "id": "gen_b648a6b4",
+          "moves": 4,
+          "keep": 0,
+          "margins": [
+            null
+          ]
+        }
+      ]
+    }
+  },
+  "totals": {
+    "puzzles": 151,
+    "multi_move": 48,
+    "unchanged": 112,
+    "cut": 24,
+    "first_move_fails": 15
+  },
+  "applied": true
+}

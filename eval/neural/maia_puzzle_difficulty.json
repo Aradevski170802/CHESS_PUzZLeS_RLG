@@ -1,0 +1,104 @@
+{
+  "puzzles": 10000,
+  "split": "test (never used to train PuzzleNet)",
+  "seed": 11,
+  "solver_moves": 23181,
+  "maia": {
+    "levels": [
+      1100,
+      1200,
+      1300,
+      1400,
+      1500,
+      1600,
+      1700,
+      1800,
+      1900
+    ],
+    "engine": "lc0 v0.32.1, nodes=1",
+    "mean_p_first_move_by_level": {
+      "1100": 0.4025,
+      "1200": 0.4221,
+      "1300": 0.4318,
+      "1400": 0.4287,
+      "1500": 0.4425,
+      "1600": 0.4441,
+      "1700": 0.452,
+      "1800": 0.4199,
+      "1900": 0.437
+    }
+  },
+  "models": {
+    "mean rating": {
+      "rmse": 552.6,
+      "mae": 460.3,
+      "r2": -0.0,
+      "spearman": -0.006
+    },
+    "PuzzleNet": {
+      "rmse": 267.0,
+      "mae": 206.7,
+      "r2": 0.7665,
+      "spearman": 0.88
+    },
+    "Maia": {
+      "rmse": 402.8,
+      "mae": 325.0,
+      "r2": 0.4687,
+      "spearman": 0.7241
+    },
+    "PuzzleNet + Maia": {
+      "rmse": 257.9,
+      "mae": 200.8,
+      "r2": 0.7821,
+      "spearman": 0.8888
+    }
+  },
+  "paired_comparisons": {
+    "PuzzleNet + Maia vs PuzzleNet": {
+      "rmse_difference": -9.1,
+      "ci95": [
+        -10.7,
+        -7.5
+      ]
+    },
+    "Maia vs PuzzleNet": {
+      "rmse_difference": 135.7,
+      "ci95": [
+        129.6,
+        142.1
+      ]
+    }
+  },
+  "rmse_by_rating_band": {
+    "0-1200": {
+      "n": 3674,
+      "mean rating": 603.5,
+      "PuzzleNet": 222.8,
+      "Maia": 385.1,
+      "PuzzleNet + Maia": 213.5
+    },
+    "1200-1600": {
+      "n": 2362,
+      "mean rating": 135.4,
+      "PuzzleNet": 254.5,
+      "Maia": 252.5,
+      "PuzzleNet + Maia": 237.0
+    },
+    "1600-2000": {
+      "n": 2010,
+      "mean rating": 336.9,
+      "PuzzleNet": 262.3,
+      "Maia": 357.9,
+      "PuzzleNet + Maia": 259.9
+    },
+    "2000-3500": {
+      "n": 1954,
+      "mean rating": 859.5,
+      "PuzzleNet": 350.0,
+      "Maia": 585.2,
+      "PuzzleNet + Maia": 342.5
+    }
+  },
+  "seconds": 671
+}

@@ -870,7 +870,6 @@ def player_style(username: str):
 
         # Load all cached months — up to last 6 months, fast (no network)
         import json as _json
-        from pathlib import Path as _Path
 
         cache_dir = ROOT / "data" / "cache" / "chess_com"
         pgns: list[str] = []
@@ -1226,6 +1225,7 @@ def generate_quality(username: str):
             "playerMoves": p.get("playerMoves", 1),
             "depth":       _moves_len(p),
             "generatedBy": p.get("generatedBy", "?"),
+            "maiaProbability": p.get("maiaProbability"),
         }
         for p in puzzles
     ]
@@ -1858,5 +1858,5 @@ def user_history(username: str):
 
 if __name__ == "__main__":
     _load_puzzles()
-    print(f"\n  Open http://localhost:5000 in your browser\n")
+    print("\n  Open http://localhost:5000 in your browser\n")
     app.run(debug=True, port=5000, use_reloader=False)

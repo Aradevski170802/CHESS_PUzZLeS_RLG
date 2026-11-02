@@ -1,12 +1,12 @@
 """Unit tests for src/puzzles/generator.py.
 
-Only the pure, engine-free surface is tested here (no live Stockfish process): score
-conversion, sequence validation, tactic classification on hand-verified positions,
-rating estimation, and the save/load JSON round trip. `_extract_stockfish` itself
-requires a running engine and is intentionally out of scope for offline unit tests.
+No live Stockfish process is used. The pure surface is tested directly: score
+conversion, the uniqueness check, sequence validation, tactic classification on
+hand-verified positions, rating estimation, and the save/load JSON round trip.
+`_extract_stockfish` is tested against a scripted fake engine that plays real legal
+moves, which is enough to pin down how the gates shape a puzzle's solution line.
 """
 
-import json
 
 import chess
 import chess.engine
@@ -38,6 +38,37 @@ class TestPovCp:
         score = chess.engine.PovScore(chess.engine.Mate(3), chess.WHITE)
         assert generator._pov_cp(score, chess.WHITE) == generator.MATE_CP
         assert generator._pov_cp(score, chess.BLACK) == -generator.MATE_CP
+
+
+def _info(board, move, cp):
+    """One multipv line as python-chess returns it, scored for the side to move."""
+    return {"pv": [move], "score": chess.engine.PovScore(chess.engine.Cp(cp), board.turn)}
+
+
+class TestIsUniqueBest:
+    BOARD = chess.Board()
+    E4, D4 = chess.Move.from_uci("e2e4"), chess.Move.from_uci("d2d4")
+
+    def lines(self, best_cp, second_cp):
+        return [_info(self.BOARD, self.E4, best_cp), _info(self.BOARD, self.D4, second_cp)]
+
+    def test_clear_margin_is_unique(self):
+        assert generator._is_unique_best(self.lines(300, 300 - generator.MIN_CLARITY_CP),
+                                         chess.WHITE)
+
+    def test_small_margin_is_not_unique(self):
+        assert not generator._is_unique_best(self.lines(300, 250), chess.WHITE)
+
+    def test_single_legal_move_is_unique(self):
+        assert generator._is_unique_best([_info(self.BOARD, self.E4, 0)], chess.WHITE)
+
+    def test_no_lines_is_not_unique(self):
+        assert not generator._is_unique_best([], chess.WHITE)
+
+    def test_two_mates_are_not_unique(self):
+        mate = chess.engine.PovScore(chess.engine.Mate(2), chess.WHITE)
+        infos = [{"pv": [self.E4], "score": mate}, {"pv": [self.D4], "score": mate}]
+        assert not generator._is_unique_best(infos, chess.WHITE)
 
 
 class TestValidateSequence:
@@ -116,6 +147,146 @@ class TestDifficultyTier:
     )
     def test_boundaries(self, rating, expected):
         assert generator._difficulty_tier(rating) == expected
+
+
+PGN = """[Event "Test"]
+[White "tester"]
+[Black "opponent"]
+[WhiteElo "1480"]
+[BlackElo "1510"]
+[Result "*"]
+
+1. e4 e5 2. Nf3 Nc6 3. Bc4 Bc5 4. c3 Nf6 5. d4 exd4 6. cxd4 Bb4+ *
+"""
+
+
+def _position_before_ply(ply):
+    board = chess.Board()
+    moves = ["e2e4", "e7e5", "g1f3", "b8c6", "f1c4", "f8c5", "c2c3", "g8f6", "d2d4"]
+    for uci in moves[:ply]:
+        board.push_uci(uci)
+    return board
+
+
+class FakeEngine:
+    """Scripted stand-in for Stockfish that only ever plays legal moves.
+
+    The position before White's 5.d4 is the one puzzle start: there the engine
+    prefers another move by 300 cp. Every other position scores +900 and is skipped
+    as already decided. Opponent replies are always forced (200 cp gap); the gap
+    between the player's first and second choice after the first move is
+    `later_gap`, and at verification depth it is `verify_gap`.
+    """
+
+    def __init__(self, later_gap, verify_gap=300):
+        start = _position_before_ply(8)
+        self.critical_fen, self.player = start.fen(), start.turn
+        self.played = chess.Move.from_uci("d2d4")
+        self.later_gap, self.verify_gap = later_gap, verify_gap
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+    def configure(self, options):
+        pass
+
+    @staticmethod
+    def _two_moves(board, avoid=None):
+        moves = [m for m in sorted(board.legal_moves, key=lambda m: m.uci()) if m != avoid]
+        return moves[0], moves[1]
+
+    def analyse(self, board, limit, multipv=None):
+        if multipv is None:                    # the move the player actually made
+            return {"score": chess.engine.PovScore(chess.engine.Cp(0), board.turn)}
+        if limit.time is not None:             # gates 1-2, fast detection pass
+            if board.fen() != self.critical_fen:
+                return [_info(board, next(iter(board.legal_moves)), 900)]
+            best, second = self._two_moves(board, self.played)
+            return [_info(board, best, 300), _info(board, second, 0)]
+        if limit.depth == generator.VERIFY_DEPTH:
+            best, second = self._two_moves(board, self.played)
+            return [_info(board, best, 300), _info(board, second, 300 - self.verify_gap)]
+        first, second = self._two_moves(board)  # gate 3, the continuation
+        if board.turn == self.player:
+            return [_info(board, first, 300), _info(board, second, 300 - self.later_gap)]
+        return [_info(board, first, 0), _info(board, second, -200)]
+
+
+class TestExtractStockfishGates:
+    @pytest.fixture
+    def extract(self, monkeypatch):
+        monkeypatch.setattr(generator, "get_predictor", lambda: None)
+
+        def run(engine):
+            monkeypatch.setattr(chess.engine.SimpleEngine, "popen_uci",
+                                lambda *args, **kwargs: engine)
+            return generator._extract_stockfish(PGN, "tester", "fake-stockfish")
+        return run
+
+    def test_unique_continuation_is_kept(self, extract):
+        puzzles = extract(FakeEngine(later_gap=300))
+        assert len(puzzles) == 1
+        moves = puzzles[0]["Moves"].split()
+        assert moves[0] == "g8f6"                           # the opponent's setup move
+        assert len(moves) == 2 + generator.CONTINUATION_MOVES
+        assert puzzles[0]["playerMoves"] == 1 + generator.CONTINUATION_MOVES // 2
+        assert puzzles[0]["playerRating"] == 1480            # White's rating: the tester
+
+    def test_line_ends_before_a_player_move_with_two_solutions(self, extract):
+        puzzles = extract(FakeEngine(later_gap=10))
+        assert len(puzzles) == 1
+        moves = puzzles[0]["Moves"].split()
+        # Opponent's setup move and the player's first move only: the reply that
+        # led to the ambiguous position is dropped, so the line ends on a player move.
+        assert len(moves) == 2
+        assert puzzles[0]["playerMoves"] == 1
+        assert generator._validate_sequence(puzzles[0]["FEN"], moves)
+
+    def test_first_move_not_unique_at_full_depth_is_rejected(self, extract):
+        assert extract(FakeEngine(later_gap=300, verify_gap=50)) == []
+
+
+class TestAnnotateMaia:
+    def test_skipped_when_maia_is_not_installed(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("MAIA_DIR", str(tmp_path))
+        puzzles = [{"FEN": START_FEN, "Moves": "e2e4 e7e5", "playerRating": 1500}]
+        assert generator.annotate_maia(puzzles) == 0
+        assert "maiaProbability" not in puzzles[0]
+
+    def test_records_probability_and_level_per_rating(self, monkeypatch):
+        from src.neural import maia
+        opened = []
+
+        class FakeMaia:
+            def __init__(self, level):
+                opened.append(level)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                pass
+
+            def probability(self, board, move):
+                assert board.turn == chess.BLACK and move.uci() in ("e7e5", "d7d5")
+                return 0.25
+
+        monkeypatch.setattr(maia, "available", lambda: True)
+        monkeypatch.setattr(maia, "Maia", FakeMaia)
+        puzzles = [
+            {"FEN": START_FEN, "Moves": "e2e4 e7e5", "playerRating": 1480},      # -> 1500
+            {"FEN": START_FEN, "Moves": "d2d4 d7d5", "playerRating": None},      # fallback
+            {"FEN": START_FEN, "Moves": "c2c4 e7e5", "playerRating": 1490,
+             "maiaProbability": 0.5},                                          # already done
+        ]
+        assert generator.annotate_maia(puzzles, rating=1000) == 2
+        assert (puzzles[0]["maiaProbability"], puzzles[0]["maiaLevel"]) == (0.25, 1500)
+        assert puzzles[1]["maiaLevel"] == 1100            # 1000 is below Maia's range
+        assert puzzles[2]["maiaProbability"] == 0.5
+        assert sorted(opened) == [1100, 1500]             # one engine per level
 
 
 class TestGenerateFromGamesWithoutStockfish:

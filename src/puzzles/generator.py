@@ -8,9 +8,12 @@ Stockfish-only. Every puzzle goes through four quality gates:
   1. Detection   – the player's move was ≥ PUZZLE_THRESHOLD cp below engine best
   2. Clarity     – PV1-PV2 gap ≥ MIN_CLARITY_CP (unique best move, no dual solutions)
   3. Continuation – at least MIN_PLAYER_MOVES player moves in the solution;
-                    opponent responses are "forced" (≥ FORCED_OPP_MARGIN gap)
+                    opponent responses are "forced" (≥ FORCED_OPP_MARGIN gap), and
+                    every later player move must be unique by the same clarity
+                    margin, so the line ends on the last player move that is
   4. Verification – re-analyse at VERIFY_DEPTH after extraction to confirm solution[1]
-                    is still engine best (guards against low-time detection errors)
+                    is still engine best and still unique by MIN_CLARITY_CP (guards
+                    against the 0.1 s search that gates 1-2 run on)
 
 Heuristic mode is intentionally removed.  Without engine verification it produces
 ~40% false-positives that make the puzzle game feel broken.
@@ -44,7 +47,7 @@ logger = logging.getLogger(__name__)
 
 # ── Tuning constants ───────────────────────────────────────────────────────────
 PUZZLE_THRESHOLD   = 150   # cp: player's move must be this far below engine best
-MIN_CLARITY_CP     = 100   # cp: PV1 must beat PV2 by at least this (no dual solutions)
+MIN_CLARITY_CP     = 100   # cp: PV1 must beat PV2 by at least this at every player move
 FORCED_OPP_MARGIN  = 80    # cp: opponent's forced response gap — below this = ambiguous
 DETECT_TIME        = 0.10  # s:  Stockfish time for blunder-detection pass
 VERIFY_DEPTH       = 18    # ply: depth for post-extraction verification
@@ -128,7 +131,41 @@ def generate_from_games(
             len(targeted), len(all_puzzles), target_categories,
         )
 
-    return all_puzzles[:max_total]
+    chosen = all_puzzles[:max_total]
+    annotate_maia(chosen)
+    return chosen
+
+
+def annotate_maia(puzzles: list[dict], rating: Optional[float] = None) -> int:
+    """Record on each mined puzzle how likely a player of its owner's rating is to
+    find the first move: Maia's probability at the nearest level (src/neural/maia.py).
+    A low value marks a counter-intuitive puzzle for that player. The rating is the
+    puzzle's own `playerRating` (from the game it came from), else `rating`. Skipped
+    quietly when lc0 or the Maia weights are not installed. Returns how many changed."""
+    from collections import defaultdict
+    from src.neural import maia
+    if not maia.available():
+        return 0
+    by_level: dict[int, list[dict]] = defaultdict(list)
+    for p in puzzles:
+        r = p.get("playerRating") or rating
+        if r and p.get("maiaProbability") is None and len(p.get("Moves", "").split()) >= 2:
+            by_level[maia.nearest_level(r)].append(p)
+    changed = 0
+    for level, group in by_level.items():
+        try:
+            with maia.Maia(level) as net:
+                for p in group:
+                    moves = p["Moves"].split()
+                    board = chess.Board(p["FEN"])
+                    board.push_uci(moves[0])
+                    p["maiaProbability"] = round(
+                        net.probability(board, chess.Move.from_uci(moves[1])), 4)
+                    p["maiaLevel"] = level
+                    changed += 1
+        except Exception as exc:                 # Maia is optional; mining must not fail
+            logger.warning("Maia annotation skipped for level %d: %s", level, exc)
+    return changed
 
 
 def save_user_puzzles(username: str, puzzles: list[dict]) -> Path:
@@ -191,6 +228,11 @@ def _extract_stockfish(pgn_str: str, username: str, stockfish_path: str) -> list
     headers     = game.headers
     white_name  = headers.get("White", "").lower()
     player_side = chess.WHITE if username.lower() in white_name else chess.BLACK
+    try:
+        player_rating: Optional[int] = int(
+            headers.get("WhiteElo" if player_side == chess.WHITE else "BlackElo", ""))
+    except ValueError:
+        player_rating = None
     # Chess.com PGNs have [Site "Chess.com"] but [Link "https://..."] for the real URL
     game_url = headers.get("Link", "") or headers.get("URL", "") or headers.get("Site", "")
     if not game_url.startswith("http"):
@@ -238,11 +280,8 @@ def _extract_stockfish(pgn_str: str, username: str, stockfish_path: str) -> list
                 continue  # already winning/losing massively — not a clean puzzle
 
             # Gate 2: clarity — PV1 must dominate PV2
-            if len(infos) >= 2:
-                score_pv2 = _pov_cp(infos[1]["score"], b.turn)
-                if score_pv2 is not None:
-                    if (score_best - score_pv2) < MIN_CLARITY_CP:
-                        continue  # two moves are nearly equal — dual solution risk
+            if not _is_unique_best(infos, b.turn):
+                continue  # two moves are nearly equal — dual solution risk
 
             # Confirm the player actually blundered (eval-drop check)
             b_actual = b.copy()
@@ -291,6 +330,14 @@ def _extract_stockfish(pgn_str: str, username: str, stockfish_path: str) -> list
                             if (s1 - s2) < FORCED_OPP_MARGIN:
                                 break  # opponent has multiple good options — puzzle ends
                 else:
+                    # Player's move: it must be the only good move as well, or the
+                    # puzzle has two solutions from here on. End the line on the
+                    # player's previous move instead, dropping the opponent reply
+                    # that led here, so the puzzle still finishes on a player move.
+                    if not _is_unique_best(cont_infos, b_sol.turn):
+                        solution.pop()
+                        b_sol.pop()
+                        break
                     player_moves_in_solution += 1
 
                 solution.append(nxt.uci())
@@ -305,17 +352,23 @@ def _extract_stockfish(pgn_str: str, username: str, stockfish_path: str) -> list
 
             # ── Gate 4: verification at higher depth ───────────────────────
             # Re-analyse the puzzle start (after opp's setup move) to confirm
-            # solution[1] is still the engine's best at a thorough depth.
+            # solution[1] is still the engine's best at a thorough depth, and
+            # still clearly better than the second choice: gate 2 judged that on
+            # a 0.1 s search.
             b_verify = chess.Board(setup_fen)
             b_verify.push(chess.Move.from_uci(opp_move))
-            verify_info = engine.analyse(
-                b_verify, chess.engine.Limit(depth=VERIFY_DEPTH)
+            verify_infos = engine.analyse(
+                b_verify, chess.engine.Limit(depth=VERIFY_DEPTH), multipv=2
             )
-            verify_best = (verify_info.get("pv") or [None])[0]
+            if not verify_infos:
+                continue
+            verify_best = (verify_infos[0].get("pv") or [None])[0]
             if verify_best is None:
                 continue
             if verify_best.uci() != best_move.uci():
                 continue  # engine changed its mind at higher depth — skip
+            if not _is_unique_best(verify_infos, b_verify.turn):
+                continue  # a second move is nearly as good at full depth — skip
 
             # ── Build the puzzle dict ──────────────────────────────────────
             # Record the clarity gap at detection time for the quality dashboard
@@ -360,6 +413,7 @@ def _extract_stockfish(pgn_str: str, username: str, stockfish_path: str) -> list
                 rating_model=rating_model,
                 puzzlenet_rating=net_rating,
                 puzzlenet_rd=net_rd,
+                player_rating=player_rating,
             ))
 
     return puzzles
@@ -381,6 +435,7 @@ def _make_puzzle(
     rating_model: str = "heuristic",
     puzzlenet_rating: Optional[int] = None,
     puzzlenet_rd: Optional[int] = None,
+    player_rating: Optional[int] = None,
 ) -> dict:
     player_moves = len([i for i in range(1, len(solution), 2)])  # odd indices
     return {
@@ -405,6 +460,7 @@ def _make_puzzle(
         "evalDrop":        eval_drop,
         "clarityCp":       clarity_cp,
         "playerMoves":     player_moves,
+        "playerRating":    player_rating,     # the owner's rating in the source game
     }
 
 
@@ -501,6 +557,21 @@ def _pov_cp(score, turn: chess.Color) -> Optional[int]:
         return pov.score()
     except Exception:
         return None
+
+
+def _is_unique_best(infos: list, turn: chess.Color, margin: int = MIN_CLARITY_CP) -> bool:
+    """Whether the engine's first choice beats its second by at least `margin`
+    centipawns for the side `turn`, i.e. the position has a single solution.
+    With one legal move there is nothing to confuse it with. A line the engine
+    could not score counts as not unique, and so do two mates (MATE_CP each)."""
+    if not infos:
+        return False
+    if len(infos) < 2:
+        return True
+    best, second = _pov_cp(infos[0]["score"], turn), _pov_cp(infos[1]["score"], turn)
+    if best is None or second is None:
+        return False
+    return best - second >= margin
 
 
 def _validate_sequence(fen: str, moves: list[str]) -> bool:

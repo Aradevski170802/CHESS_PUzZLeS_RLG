@@ -3878,6 +3878,7 @@ function _libCardHTML(p) {
   // Per-puzzle quality indicators
   var clarity = p.clarityCp;
   var drop    = p.evalDrop;
+  var maiaP   = p.maiaProbability;   // Maia: chance a player of this level plays the first move
   var pmoves  = p.playerMoves || Math.floor((depth-1)/2) || 1;
   var verified= mode === 'stockfish';
 
@@ -3901,6 +3902,8 @@ function _libCardHTML(p) {
     +'<span class="pc-quality-dot '+dotCls+'" title="'+_esc(dotTitle)+'"></span>'
     +(clarity!=null ? '<span title="Clarity gap">'+clarity+'cp</span> &middot; ' : '')
     +(drop    !=null ? '<span title="Eval drop">-'+drop+'cp</span> &middot; ' : '')
+    +(maiaP   !=null ? '<span title="Maia-'+_esc(p.maiaLevel||'')+': how often players at this rating find the first move">'
+                      +(maiaP < 0.01 ? '&lt;1' : Math.round(maiaP*100))+'% find it</span> &middot; ' : '')
     +'<span>'+pmoves+' move'+(pmoves!==1?'s':'')+'</span>'
     +'</div>';
 

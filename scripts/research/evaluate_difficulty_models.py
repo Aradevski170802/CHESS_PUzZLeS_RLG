@@ -32,7 +32,6 @@ Usage: python -m scripts.research.evaluate_difficulty_models
 from __future__ import annotations
 
 import json
-import math
 from collections import defaultdict
 from pathlib import Path
 
@@ -73,7 +72,9 @@ def _categories() -> dict[tuple, str]:
 
 def _puzzlenet_difficulty(events) -> dict[str, tuple[float, float]]:
     """PuzzleId -> (PuzzleNet rating, deviation) for the mined puzzles in the logs,
-    read back from data/user_puzzles; empty when no model is installed."""
+    read back from data/user_puzzles; empty when no model is installed. Puzzles
+    retired or cut by scripts/revalidate_mined_puzzles.py are scored on the line
+    that was actually served (originalMoves)."""
     from src.neural.predictor import get_predictor
     from src.puzzles.generator import PUZZLENET_MIN_RD, USER_PUZZLES_DIR
     net = get_predictor()
@@ -81,11 +82,13 @@ def _puzzlenet_difficulty(events) -> dict[str, tuple[float, float]]:
         return {}
     wanted = {e.puzzle_id for e in events if is_mined_puzzle(e.puzzle_id)}
     out = {}
-    for f in USER_PUZZLES_DIR.glob("*.json"):
+    files = [*USER_PUZZLES_DIR.glob("*.json"), *(USER_PUZZLES_DIR / "retired").glob("*.json")]
+    for f in files:
         for pz in json.loads(f.read_text("utf-8")):
             pid = pz.get("PuzzleId")
-            if pid in wanted and pid not in out and pz.get("FEN") and pz.get("Moves"):
-                pred = net.predict_puzzle(pz["FEN"], pz["Moves"])
+            moves = pz.get("originalMoves") or pz.get("Moves")
+            if pid in wanted and pid not in out and pz.get("FEN") and moves:
+                pred = net.predict_puzzle(pz["FEN"], moves)
                 out[pid] = (pred.rating, max(PUZZLENET_MIN_RD, pred.rating_sd))
     return out
 
